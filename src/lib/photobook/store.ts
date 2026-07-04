@@ -204,6 +204,7 @@ type Actions = {
 
 
   addAdminTemplate: (template: SavedPageTemplate) => void;
+  addAdminTemplates: (templates: SavedPageTemplate[]) => void;
   deleteAdminTemplate: (templateId: string) => void;
   reorderAdminTemplates: (ids: string[]) => void;
   updateAdminTemplate: (templateId: string, patch: Partial<SavedPageTemplate>) => void;
@@ -1274,6 +1275,21 @@ export const useBookStore = create<State & Actions>()(
             };
             const adminTemplates = [...s.adminTemplates, newAdminTmpl];
             saveAdminTemplates({ data: adminTemplates }).catch(err => console.error("API error", err));
+            return { adminTemplates };
+          });
+        },
+        addAdminTemplates: (templates) => {
+          if (templates.length === 0) return;
+          set((s) => {
+            const now = Date.now();
+            const newAdminTemplates = templates.map((template, index) => ({
+              ...template,
+              sizeId: FIXED_PAGE_SIZE_ID,
+              isAdminTemplate: true,
+              sortOrder: now + index,
+            }));
+            const adminTemplates = [...s.adminTemplates, ...newAdminTemplates];
+            saveAdminTemplates({ data: adminTemplates }).catch((err) => console.error("API error", err));
             return { adminTemplates };
           });
         },

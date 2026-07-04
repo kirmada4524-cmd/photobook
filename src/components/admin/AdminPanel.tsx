@@ -51,6 +51,37 @@ const filesToPayload = (files: File[]) =>
     ),
   );
 
+const isDataUrl = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith("data:");
+
+const safeBackground = (value: unknown) => (typeof value === "string" && value ? value : "cream");
+
+const safeElements = (elements: unknown) =>
+  Array.isArray(elements)
+    ? elements
+        .filter((el) => el && typeof el === "object" && typeof (el as any).type === "string")
+        .map((el) => {
+          const next = { ...(el as any) };
+          if (next.type === "photo") {
+            next.imageId = "";
+          }
+          return next;
+        })
+    : [];
+
+const findAssetDataUrl = (assets: unknown, id: unknown) => {
+  if (!Array.isArray(assets) || typeof id !== "string") return null;
+  const asset = assets.find((item) => item?.id === id);
+  const dataUrl = asset?.base64 ?? asset?.src;
+  return isDataUrl(dataUrl)
+    ? {
+        id,
+        name: typeof asset.name === "string" ? asset.name : "asset",
+        base64: dataUrl,
+      }
+    : null;
+};
+
 interface ConvertProjectDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -63,7 +94,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
   const [backgroundLocked, setBackgroundLocked] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const adminTemplates = useBookStore((s) => s.adminTemplates);
-  const addAdminTemplate = useBookStore((s) => s.addAdminTemplate);
+  const addAdminTemplates = useBookStore((s) => s.addAdminTemplates);
 
   const allCategories = Array.from(new Set([
     ...TEMPLATE_CATEGORIES,
@@ -74,71 +105,75 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
 
-    toast.promise(
-      Promise.all(
-        files.map(async (file) => {
-          const text = await file.text();
-          const projectData = JSON.parse(text);
-          if (!projectData.book?.pages) throw new Error(`Invalid project: ${file.name}`);
+    const importPromise = Promise.all(
+      files.map(async (file) => {
+        const text = await file.text();
+        const projectData = JSON.parse(text);
+        const pages = projectData?.book?.pages;
+        if (!Array.isArray(pages) || pages.length === 0) {
+          throw new Error(`Invalid project: ${file.name}`);
+        }
 
-          projectData.book.pages.forEach((page: any, i: number) => {
-            const tmplLabel = label.trim()
-              ? files.length > 1 || projectData.book.pages.length > 1
-                ? `${label.trim()} - Page ${i + 1}`
-                : label.trim()
-              : `${file.name.replace(/\.[^.]+$/, "")} - Page ${i + 1}`;
+        return pages.map((page: any, i: number) => {
+          const tmplLabel = label.trim()
+            ? files.length > 1 || pages.length > 1
+              ? `${label.trim()} - Page ${i + 1}`
+              : label.trim()
+            : `${file.name.replace(/\.[^.]+$/, "")} - Page ${i + 1}`;
 
-            const embeddedAssets: any[] = [];
-            
-            // Extract background if custom
-            if (page.background && !page.background.startsWith("#")) {
-              const bg = projectData.customBackgrounds?.find((b: any) => b.id === page.background);
-              if (bg && bg.base64) {
-                embeddedAssets.push({ id: bg.id, name: bg.name || "bg", base64: bg.base64, type: "background" });
-              }
+          const embeddedAssets: NonNullable<SavedPageTemplate["embeddedAssets"]> = [];
+          const background = safeBackground(page.background);
+
+          if (!background.startsWith("#")) {
+            const bg = findAssetDataUrl(projectData.customBackgrounds, background);
+            if (bg) embeddedAssets.push({ ...bg, type: "background" });
+          }
+
+          safeElements(page.elements).forEach((el: any) => {
+            if (el.type !== "sticker") return;
+
+            if (isDataUrl(el.src)) {
+              return;
             }
-            
-            // Extract elements (photos and stickers)
-            page.elements?.forEach((el: any) => {
-              if (el.type === "photo" && el.imageId) {
-                const img = projectData.images?.find((i: any) => i.id === el.imageId);
-                if (img && img.base64 && !embeddedAssets.some(a => a.id === el.imageId)) {
-                  embeddedAssets.push({ id: img.id, name: img.name || "photo", base64: img.base64, type: "photo" });
-                }
-              } else if (el.type === "sticker" && el.stickerId) {
-                const stk = projectData.customStickers?.find((s: any) => s.id === el.stickerId);
-                if (stk && stk.base64 && !embeddedAssets.some(a => a.id === el.stickerId)) {
-                  embeddedAssets.push({ id: stk.id, name: stk.name || "sticker", base64: stk.base64, type: "sticker" });
-                }
-              }
-            });
 
-            const template: SavedPageTemplate = {
-              id: `tmpl_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
-              label: tmplLabel,
-              background: page.background,
-              border: page.border,
-              backgroundMode: page.backgroundMode,
-              eraserOverlay: page.eraserOverlay,
-              elements: page.elements?.map((el: any) => ({ ...el })) ?? [],
-              embeddedAssets: embeddedAssets.length > 0 ? embeddedAssets : undefined,
-              thumbnail: undefined,
-              backgroundScale: page.backgroundScale,
-              backgroundX: page.backgroundX,
-              backgroundY: page.backgroundY,
-              sizeId: FIXED_PAGE_SIZE_ID,
-              category,
-              frameLocked,
-              backgroundLocked,
-              isAdminTemplate: true,
-            };
-            addAdminTemplate(template);
+            const sticker = findAssetDataUrl(projectData.customStickers, el.stickerId);
+            if (sticker && !embeddedAssets.some((asset) => asset.id === sticker.id)) {
+              embeddedAssets.push({ ...sticker, type: "sticker" });
+            }
           });
-        }),
-      ),
+
+          return {
+            id: `tmpl_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+            label: tmplLabel,
+            background,
+            border: page.border,
+            backgroundMode: page.backgroundMode,
+            eraserOverlay: isDataUrl(page.eraserOverlay) ? page.eraserOverlay : undefined,
+            elements: safeElements(page.elements),
+            embeddedAssets: embeddedAssets.length > 0 ? embeddedAssets : undefined,
+            thumbnail: undefined,
+            backgroundScale: typeof page.backgroundScale === "number" ? page.backgroundScale : 1,
+            backgroundX: typeof page.backgroundX === "number" ? page.backgroundX : 0,
+            backgroundY: typeof page.backgroundY === "number" ? page.backgroundY : 0,
+            sizeId: FIXED_PAGE_SIZE_ID,
+            category: category.trim() || "Common",
+            frameLocked,
+            backgroundLocked,
+            isAdminTemplate: true,
+          } satisfies SavedPageTemplate;
+        });
+      }),
+    ).then((groups) => {
+      const templates = groups.flat();
+      addAdminTemplates(templates);
+      return templates.length;
+    });
+
+    toast.promise(
+      importPromise,
       {
         loading: "Converting project(s) to templates...",
-        success: "Templates added successfully!",
+        success: (count) => `${count} template${count === 1 ? "" : "s"} added successfully!`,
         error: (err: unknown) => `Failed: ${(err as Error).message}`,
       },
     );

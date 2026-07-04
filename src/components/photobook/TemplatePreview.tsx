@@ -27,7 +27,7 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
   const ph = PAGE_SIZES.find((ps) => ps.id === template.sizeId)?.height ?? PAGE_SIZES[0].height;
 
   // Render background style
-  let bgSrc = template.background;
+  let bgSrc = typeof template.background === "string" && template.background ? template.background : "#f8f4ea";
   if (!bgSrc.startsWith("#") && template.embeddedAssets) {
     const embeddedBg = template.embeddedAssets.find((a) => a.id === bgSrc);
     if (embeddedBg) {
