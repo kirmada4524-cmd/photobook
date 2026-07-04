@@ -1,0 +1,14 @@
+node_modules
+.output
+.tanstack
+.nitro
+dist
+dist-ssr
+test-results
+*.log
+
+admin-assets.json
+admin-templates.json
+public/admin-assets
+
+software
