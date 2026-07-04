@@ -338,12 +338,14 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
 
 function AdminStickerFoldersTab() {
   const folders = useBookStore((s) => s.adminStickerFolders ?? []);
+  const assetsLoaded = useBookStore((s) => s.adminAssetsLoaded);
   const createFolder = useBookStore((s) => s.createAdminStickerFolder);
   const renameFolder = useBookStore((s) => s.updateAdminStickerFolder);
   const deleteFolder = useBookStore((s) => s.deleteAdminStickerFolder);
   const addStickers = useBookStore((s) => s.addAdminStickersToFolder);
   const deleteSticker = useBookStore((s) => s.deleteAdminSticker);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadFolderIdRef = useRef<string | null>(null);
   const [newFolderName, setNewFolderName] = useState("");
   const [uploadFolderId, setUploadFolderId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -365,17 +367,19 @@ function AdminStickerFoldersTab() {
   };
 
   const handleUpload = async (files: FileList | null) => {
-    if (!files || !uploadFolderId) return;
+    const folderId = uploadFolderIdRef.current ?? uploadFolderId;
+    if (!files || files.length === 0 || !folderId) return;
     setBusy(true);
     try {
       const payload = await filesToPayload(Array.from(files));
-      await addStickers(uploadFolderId, payload);
+      await addStickers(folderId, payload);
       toast.success(`Added ${payload.length} sticker${payload.length === 1 ? "" : "s"}`);
     } catch (error) {
       console.error(error);
       toast.error("Failed to upload stickers");
     } finally {
       setBusy(false);
+      uploadFolderIdRef.current = null;
       setUploadFolderId(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
@@ -408,7 +412,12 @@ function AdminStickerFoldersTab() {
       />
 
       <div className="flex-1 overflow-y-auto px-6 py-3">
-        {folders.length === 0 ? (
+        {!assetsLoaded ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <RefreshCw className="h-10 w-10 animate-spin text-muted-foreground/40 mb-3" />
+            <p className="text-muted-foreground text-sm">Loading global stickers...</p>
+          </div>
+        ) : folders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <LayoutGrid className="h-12 w-12 text-muted-foreground/30 mb-3" />
             <p className="text-muted-foreground text-sm">No global sticker folders yet.</p>
@@ -449,6 +458,7 @@ function AdminStickerFoldersTab() {
                       className="gap-1.5"
                       disabled={busy}
                       onClick={() => {
+                        uploadFolderIdRef.current = folder.id;
                         setUploadFolderId(folder.id);
                         fileInputRef.current?.click();
                       }}
@@ -525,6 +535,7 @@ function AdminStickerFoldersTab() {
 
 function AdminBackgroundsTab() {
   const backgrounds = useBookStore((s) => s.adminBackgrounds ?? []);
+  const assetsLoaded = useBookStore((s) => s.adminAssetsLoaded);
   const addBackgrounds = useBookStore((s) => s.addAdminBackgrounds);
   const deleteBackground = useBookStore((s) => s.deleteAdminBackground);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -569,7 +580,12 @@ function AdminBackgroundsTab() {
       </div>
 
       <div className="flex-1 overflow-y-auto px-6 py-3">
-        {backgrounds.length === 0 ? (
+        {!assetsLoaded ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <RefreshCw className="h-10 w-10 animate-spin text-muted-foreground/40 mb-3" />
+            <p className="text-muted-foreground text-sm">Loading global backgrounds...</p>
+          </div>
+        ) : backgrounds.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <LayoutGrid className="h-12 w-12 text-muted-foreground/30 mb-3" />
             <p className="text-muted-foreground text-sm">No global backgrounds yet.</p>

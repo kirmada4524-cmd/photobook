@@ -125,6 +125,7 @@ type State = {
   adminTemplates: SavedPageTemplate[];
   adminStickerFolders: GlobalStickerFolder[];
   adminBackgrounds: GlobalBackgroundAsset[];
+  adminAssetsLoaded: boolean;
   recentProjects: { id: string; title: string; savedAt: number; sizeId?: string }[];
 };
 
@@ -433,10 +434,11 @@ export const useBookStore = create<State & Actions>()(
         isEraserMode: false,
         eraserBrushSize: 30,
         editingBackgroundPageId: null,
-        adminTemplates: [],
-        adminStickerFolders: [],
-        adminBackgrounds: [],
-        recentProjects: [],
+          adminTemplates: [],
+          adminStickerFolders: [],
+          adminBackgrounds: [],
+          adminAssetsLoaded: false,
+          recentProjects: [],
         savedProjects: [],
 
         setTitle: (t) => set((s) => ({ book: { ...s.book, title: t } })),
@@ -1327,38 +1329,39 @@ export const useBookStore = create<State & Actions>()(
         initAdminAssets: async () => {
           try {
             const library = await getAdminAssets();
-            set(adminAssetState(library));
+            set({ ...adminAssetState(library), adminAssetsLoaded: true });
           } catch (error) {
             console.error("Failed to fetch admin assets", error);
+            set({ adminAssetsLoaded: true });
           }
         },
         createAdminStickerFolder: async (name) => {
           const library = await createAdminStickerFolder({ data: { name } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         updateAdminStickerFolder: async (folderId, name) => {
           const library = await updateAdminStickerFolder({ data: { folderId, name } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         deleteAdminStickerFolder: async (folderId) => {
           const library = await deleteAdminStickerFolder({ data: { folderId } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         addAdminStickersToFolder: async (folderId, files) => {
           const library = await addAdminStickers({ data: { folderId, files } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         deleteAdminSticker: async (folderId, stickerId) => {
           const library = await deleteAdminSticker({ data: { folderId, stickerId } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         addAdminBackgrounds: async (files) => {
           const library = await addAdminBackgrounds({ data: { files } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         deleteAdminBackground: async (backgroundId) => {
           const library = await deleteAdminBackground({ data: { backgroundId } });
-          set(adminAssetState(library));
+          set({ ...adminAssetState(library), adminAssetsLoaded: true });
         },
         addRecentProject: (id, title, sizeId) =>
           set((s) => {
