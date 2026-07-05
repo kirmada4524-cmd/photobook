@@ -3,11 +3,32 @@ import { z } from "zod";
 import { getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
 
 const TEMPLATES_BLOB_PATH = "admin-templates.json";
+const TEMPLATE_ASSET_BLOB_PREFIX = "admin-template-assets";
 const MAX_EMBEDDED_DATA_URL_LENGTH = 300_000;
 const MAX_ASSET_ID_LENGTH = 200;
 
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
+
+const nid = (prefix: string) =>
+  `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+const extFromMime = (mime: string) => {
+  if (mime === "image/png") return ".png";
+  if (mime === "image/gif") return ".gif";
+  if (mime === "image/webp") return ".webp";
+  if (mime === "image/svg+xml") return ".svg";
+  return ".jpg";
+};
+
+const parseDataUrl = (dataUrl: string) => {
+  const match = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!match) throw new Error("Only base64 image data URLs are supported.");
+  return {
+    mime: match[1],
+    buffer: Buffer.from(match[2], "base64"),
+  };
+};
 
 function sanitizeAdminTemplates(raw: unknown) {
   if (!Array.isArray(raw)) return [];
@@ -158,4 +179,65 @@ export const saveAdminTemplates = createServerFn({ method: "POST" })
       console.error("Error writing admin-templates.json:", error);
       return { success: false, error: String(error) };
     }
+  });
+
+export const appendAdminTemplates = createServerFn({ method: "POST" })
+  .validator((data: any) => data)
+  .handler(async ({ data }) => {
+    const incoming = sanitizeAdminTemplates(Array.isArray(data) ? data : []);
+    if (incoming.length === 0) return { success: true, count: 0 };
+
+    if (hasBlobStorage()) {
+      try {
+        const current = await readBlobJson();
+        await writeBlobJson([...current, ...incoming]);
+        return { success: true, count: incoming.length };
+      } catch (error) {
+        console.error("Error appending admin templates to Blob:", error);
+        return { success: false, error: String(error), count: 0 };
+      }
+    }
+
+    try {
+      const { fs, templatesFile } = await localTemplatesFile();
+      if (isVercelRuntime()) {
+        throw missingBlobStorageError();
+      }
+      const current = fs.existsSync(templatesFile)
+        ? sanitizeAdminTemplates(JSON.parse(await fs.promises.readFile(templatesFile, "utf-8")))
+        : [];
+      await fs.promises.writeFile(templatesFile, JSON.stringify([...current, ...incoming], null, 2));
+      return { success: true, count: incoming.length };
+    } catch (error) {
+      console.error("Error appending admin-templates.json:", error);
+      return { success: false, error: String(error), count: 0 };
+    }
+  });
+
+export const uploadTemplateAsset = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      name: z.string().min(1),
+      dataUrl: z.string().min(1),
+      kind: z.enum(["background", "sticker", "overlay"]).default("background"),
+    }),
+  )
+  .handler(async ({ data }) => {
+    if (!hasBlobStorage() && isVercelRuntime()) {
+      throw missingBlobStorageError();
+    }
+
+    const { mime, buffer } = parseDataUrl(data.dataUrl);
+    const filename = `${nid(`template_${data.kind}`)}${extFromMime(mime)}`;
+    const pathname = `${TEMPLATE_ASSET_BLOB_PREFIX}/${data.kind}/${filename}`;
+
+    if (hasBlobStorage()) {
+      const blob = await putBlob(pathname, buffer, {
+        contentType: mime,
+        cacheControlMaxAge: 31536000,
+      });
+      return { url: blob.url as string };
+    }
+
+    throw missingBlobStorageError();
   });

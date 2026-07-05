@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { FIXED_PAGE_SIZE_ID, PAGE_SIZES, type SavedPageTemplate } from "@/lib/photobook/types";
+import { appendAdminTemplates, uploadTemplateAsset } from "@/lib/api/templates.functions";
 import { TemplatePreview } from "../photobook/TemplatePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +83,41 @@ const findAssetDataUrl = (assets: unknown, id: unknown) => {
     : null;
 };
 
+const TEMPLATE_IMPORT_BATCH_SIZE = 10;
+
+const templateAssetKey = (kind: string, id: string) => `${kind}:${id}`;
+
+const uploadCachedTemplateAsset = async (
+  cache: Map<string, Promise<string>>,
+  kind: "background" | "sticker" | "overlay",
+  asset: { id: string; name: string; base64: string },
+) => {
+  const key = templateAssetKey(kind, asset.id);
+  const existing = cache.get(key);
+  if (existing) return existing;
+
+  const uploadPromise = uploadTemplateAsset({
+    data: {
+      kind,
+      name: asset.name,
+      dataUrl: asset.base64,
+    },
+  }).then((result) => result.url);
+
+  cache.set(key, uploadPromise);
+  return uploadPromise;
+};
+
+const appendTemplatesInBatches = async (templates: SavedPageTemplate[]) => {
+  for (let index = 0; index < templates.length; index += TEMPLATE_IMPORT_BATCH_SIZE) {
+    const batch = templates.slice(index, index + TEMPLATE_IMPORT_BATCH_SIZE);
+    const result = await appendAdminTemplates({ data: batch });
+    if (!result.success) {
+      throw new Error(result.error || "Failed to save templates");
+    }
+  }
+};
+
 interface ConvertProjectDialogProps {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -94,7 +130,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
   const [backgroundLocked, setBackgroundLocked] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const adminTemplates = useBookStore((s) => s.adminTemplates);
-  const addAdminTemplates = useBookStore((s) => s.addAdminTemplates);
+  const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
 
   const allCategories = Array.from(new Set([
     ...TEMPLATE_CATEGORIES,
@@ -113,34 +149,52 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
         if (!Array.isArray(pages) || pages.length === 0) {
           throw new Error(`Invalid project: ${file.name}`);
         }
+        const assetUploadCache = new Map<string, Promise<string>>();
 
-        return pages.map((page: any, i: number) => {
+        return Promise.all(pages.map(async (page: any, i: number) => {
           const tmplLabel = label.trim()
             ? files.length > 1 || pages.length > 1
               ? `${label.trim()} - Page ${i + 1}`
               : label.trim()
             : `${file.name.replace(/\.[^.]+$/, "")} - Page ${i + 1}`;
 
-          const embeddedAssets: NonNullable<SavedPageTemplate["embeddedAssets"]> = [];
-          const background = safeBackground(page.background);
+          let background = safeBackground(page.background);
 
           if (!background.startsWith("#")) {
             const bg = findAssetDataUrl(projectData.customBackgrounds, background);
-            if (bg) embeddedAssets.push({ ...bg, type: "background" });
+            if (bg) {
+              background = await uploadCachedTemplateAsset(assetUploadCache, "background", bg);
+            }
           }
 
-          safeElements(page.elements).forEach((el: any) => {
-            if (el.type !== "sticker") return;
+          const elements = await Promise.all(
+            safeElements(page.elements).map(async (el: any) => {
+              if (el.type !== "sticker") return el;
 
-            if (isDataUrl(el.src)) {
-              return;
-            }
+              if (isDataUrl(el.src)) {
+                const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", {
+                  id: el.id,
+                  name: "sticker",
+                  base64: el.src,
+                });
+                return { ...el, src };
+              }
 
-            const sticker = findAssetDataUrl(projectData.customStickers, el.stickerId);
-            if (sticker && !embeddedAssets.some((asset) => asset.id === sticker.id)) {
-              embeddedAssets.push({ ...sticker, type: "sticker" });
-            }
-          });
+              const sticker = findAssetDataUrl(projectData.customStickers, el.stickerId);
+              if (!sticker) return el;
+              const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", sticker);
+              return { ...el, src };
+            }),
+          );
+
+          const eraserOverlay =
+            isDataUrl(page.eraserOverlay)
+              ? await uploadCachedTemplateAsset(assetUploadCache, "overlay", {
+                  id: `overlay_${page.id ?? i}`,
+                  name: "overlay",
+                  base64: page.eraserOverlay,
+                })
+              : undefined;
 
           return {
             id: `tmpl_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
@@ -148,9 +202,9 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             background,
             border: page.border,
             backgroundMode: page.backgroundMode,
-            eraserOverlay: isDataUrl(page.eraserOverlay) ? page.eraserOverlay : undefined,
-            elements: safeElements(page.elements),
-            embeddedAssets: embeddedAssets.length > 0 ? embeddedAssets : undefined,
+            eraserOverlay,
+            elements,
+            embeddedAssets: undefined,
             thumbnail: undefined,
             backgroundScale: typeof page.backgroundScale === "number" ? page.backgroundScale : 1,
             backgroundX: typeof page.backgroundX === "number" ? page.backgroundX : 0,
@@ -161,12 +215,14 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             backgroundLocked,
             isAdminTemplate: true,
           } satisfies SavedPageTemplate;
-        });
+        }));
       }),
     ).then((groups) => {
       const templates = groups.flat();
-      addAdminTemplates(templates);
-      return templates.length;
+      return appendTemplatesInBatches(templates).then(async () => {
+        await initAdminTemplates();
+        return templates.length;
+      });
     });
 
     toast.promise(
