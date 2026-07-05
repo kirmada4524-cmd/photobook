@@ -43,9 +43,14 @@ const missingBlobStorageError = () =>
     "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
   );
 
+const blobAuthOptions = () =>
+  process.env.BLOB_READ_WRITE_TOKEN
+    ? { token: process.env.BLOB_READ_WRITE_TOKEN }
+    : {};
+
 async function readBlobText(pathname: string) {
   const { get } = await import("@vercel/blob");
-  const result = await get(pathname, { access: "public" });
+  const result = await get(pathname, { access: "public", ...blobAuthOptions() });
   if (!result?.stream || result.statusCode !== 200) return null;
   return new Response(result.stream).text();
 }
@@ -57,6 +62,7 @@ async function writeBlobJson(pathname: string, value: unknown) {
     allowOverwrite: true,
     contentType: "application/json",
     cacheControlMaxAge: 60,
+    ...blobAuthOptions(),
   });
 }
 
@@ -143,6 +149,7 @@ async function saveImageDataUrl(
       allowOverwrite: true,
       contentType: mime,
       cacheControlMaxAge: 31536000,
+      ...blobAuthOptions(),
     });
     return blob.url;
   }
@@ -165,7 +172,7 @@ async function deletePublicAsset(src: string) {
     const isBlobPath = src.startsWith("admin-assets/");
     if (isBlobUrl || isBlobPath) {
       const { del } = await import("@vercel/blob");
-      await del(src).catch(() => undefined);
+      await del(src, blobAuthOptions()).catch(() => undefined);
       return;
     }
   }

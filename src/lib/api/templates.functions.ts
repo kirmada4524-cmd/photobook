@@ -86,9 +86,14 @@ const missingBlobStorageError = () =>
     "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
   );
 
+const blobAuthOptions = () =>
+  process.env.BLOB_READ_WRITE_TOKEN
+    ? { token: process.env.BLOB_READ_WRITE_TOKEN }
+    : {};
+
 async function readBlobJson() {
   const { get } = await import("@vercel/blob");
-  const result = await get(TEMPLATES_BLOB_PATH, { access: "public" });
+  const result = await get(TEMPLATES_BLOB_PATH, { access: "public", ...blobAuthOptions() });
   if (!result?.stream || result.statusCode !== 200) return [];
   const content = await new Response(result.stream).text();
   return sanitizeAdminTemplates(JSON.parse(content));
@@ -101,6 +106,7 @@ async function writeBlobJson(value: unknown) {
     allowOverwrite: true,
     contentType: "application/json",
     cacheControlMaxAge: 60,
+    ...blobAuthOptions(),
   });
 }
 
