@@ -20,6 +20,6 @@ For Vercel:
 4. Make it public, because sticker and background image URLs are rendered directly in the browser.
 5. Connect the Blob store to this project.
 
-When Blob is connected, Vercel provides `BLOB_STORE_ID` and `VERCEL_OIDC_TOKEN` automatically. For local Blob testing, run `vercel env pull` or set `BLOB_READ_WRITE_TOKEN` from `.env.example`.
+For persistent admin templates, stickers, and backgrounds, add `BLOB_READ_WRITE_TOKEN` in the Vercel project environment variables for Production and Preview. `BLOB_STORE_ID` alone is not enough for this app's admin writes.
 
 Local files such as `admin-assets.json`, `admin-templates.json`, and `public/admin-assets/` are only development fallbacks and are ignored for deployment.

@@ -79,6 +79,13 @@ const hasBlobStorage = () =>
       (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
   );
 
+const isVercelRuntime = () => Boolean(process.env.VERCEL);
+
+const missingBlobStorageError = () =>
+  new Error(
+    "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
+  );
+
 async function readBlobJson() {
   const { get } = await import("@vercel/blob");
   const result = await get(TEMPLATES_BLOB_PATH, { access: "public" });
@@ -149,6 +156,9 @@ export const saveAdminTemplates = createServerFn({ method: "POST" })
 
     try {
       const { fs, templatesFile } = await localTemplatesFile();
+      if (isVercelRuntime()) {
+        throw missingBlobStorageError();
+      }
       await fs.promises.writeFile(templatesFile, JSON.stringify(sanitizeAdminTemplates(data), null, 2));
       return { success: true };
     } catch (error) {

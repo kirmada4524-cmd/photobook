@@ -36,6 +36,13 @@ const hasBlobStorage = () =>
       (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
   );
 
+const isVercelRuntime = () => Boolean(process.env.VERCEL);
+
+const missingBlobStorageError = () =>
+  new Error(
+    "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
+  );
+
 async function readBlobText(pathname: string) {
   const { get } = await import("@vercel/blob");
   const result = await get(pathname, { access: "public" });
@@ -96,6 +103,10 @@ async function writeLibrary(library: AdminAssetLibrary) {
     return;
   }
 
+  if (isVercelRuntime()) {
+    throw missingBlobStorageError();
+  }
+
   const { fs, adminAssetsFile } = await localAssetPaths();
   await fs.promises.writeFile(adminAssetsFile, JSON.stringify(library, null, 2));
 }
@@ -134,6 +145,10 @@ async function saveImageDataUrl(
       cacheControlMaxAge: 31536000,
     });
     return blob.url;
+  }
+
+  if (isVercelRuntime()) {
+    throw missingBlobStorageError();
   }
 
   const { fs, path, stickersDir, backgroundsDir } = await localAssetPaths();
