@@ -6,6 +6,7 @@ import type {
   GlobalStickerAsset,
   GlobalStickerFolder,
 } from "@/lib/photobook/types";
+import { deleteBlob, getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
 
 const ADMIN_ASSETS_BLOB_PATH = "admin-assets/library.json";
 
@@ -31,10 +32,7 @@ const normalizeLibrary = (raw: unknown): AdminAssetLibrary => {
 };
 
 const hasBlobStorage = () =>
-  Boolean(
-    process.env.BLOB_READ_WRITE_TOKEN ||
-      (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
-  );
+  hasBlobReadWriteToken();
 
 const isVercelRuntime = () => Boolean(process.env.VERCEL);
 
@@ -43,26 +41,14 @@ const missingBlobStorageError = () =>
     "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
   );
 
-const blobAuthOptions = () =>
-  process.env.BLOB_READ_WRITE_TOKEN
-    ? { token: process.env.BLOB_READ_WRITE_TOKEN }
-    : {};
-
 async function readBlobText(pathname: string) {
-  const { get } = await import("@vercel/blob");
-  const result = await get(pathname, { access: "public", ...blobAuthOptions() });
-  if (!result?.stream || result.statusCode !== 200) return null;
-  return new Response(result.stream).text();
+  return getBlobText(pathname);
 }
 
 async function writeBlobJson(pathname: string, value: unknown) {
-  const { put } = await import("@vercel/blob");
-  await put(pathname, JSON.stringify(value, null, 2), {
-    access: "public",
-    allowOverwrite: true,
+  await putBlob(pathname, JSON.stringify(value, null, 2), {
     contentType: "application/json",
     cacheControlMaxAge: 60,
-    ...blobAuthOptions(),
   });
 }
 
@@ -143,13 +129,9 @@ async function saveImageDataUrl(
   const filename = `${id}${extFromMime(mime)}`;
 
   if (hasBlobStorage()) {
-    const { put } = await import("@vercel/blob");
-    const blob = await put(`admin-assets/${kind}/${filename}`, buffer, {
-      access: "public",
-      allowOverwrite: true,
+    const blob = await putBlob(`admin-assets/${kind}/${filename}`, buffer, {
       contentType: mime,
       cacheControlMaxAge: 31536000,
-      ...blobAuthOptions(),
     });
     return blob.url;
   }
@@ -171,8 +153,7 @@ async function deletePublicAsset(src: string) {
     const isBlobUrl = /^https?:\/\/.+\.blob\.vercel-storage\.com\//.test(src);
     const isBlobPath = src.startsWith("admin-assets/");
     if (isBlobUrl || isBlobPath) {
-      const { del } = await import("@vercel/blob");
-      await del(src, blobAuthOptions()).catch(() => undefined);
+      await deleteBlob(src).catch(() => undefined);
       return;
     }
   }

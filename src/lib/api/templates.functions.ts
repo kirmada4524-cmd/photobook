@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
 
 const TEMPLATES_BLOB_PATH = "admin-templates.json";
 const MAX_EMBEDDED_DATA_URL_LENGTH = 300_000;
@@ -74,10 +75,7 @@ function sanitizeAdminTemplates(raw: unknown) {
 }
 
 const hasBlobStorage = () =>
-  Boolean(
-    process.env.BLOB_READ_WRITE_TOKEN ||
-      (process.env.BLOB_STORE_ID && process.env.VERCEL_OIDC_TOKEN),
-  );
+  hasBlobReadWriteToken();
 
 const isVercelRuntime = () => Boolean(process.env.VERCEL);
 
@@ -86,27 +84,16 @@ const missingBlobStorageError = () =>
     "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
   );
 
-const blobAuthOptions = () =>
-  process.env.BLOB_READ_WRITE_TOKEN
-    ? { token: process.env.BLOB_READ_WRITE_TOKEN }
-    : {};
-
 async function readBlobJson() {
-  const { get } = await import("@vercel/blob");
-  const result = await get(TEMPLATES_BLOB_PATH, { access: "public", ...blobAuthOptions() });
-  if (!result?.stream || result.statusCode !== 200) return [];
-  const content = await new Response(result.stream).text();
+  const content = await getBlobText(TEMPLATES_BLOB_PATH);
+  if (!content) return [];
   return sanitizeAdminTemplates(JSON.parse(content));
 }
 
 async function writeBlobJson(value: unknown) {
-  const { put } = await import("@vercel/blob");
-  await put(TEMPLATES_BLOB_PATH, JSON.stringify(value, null, 2), {
-    access: "public",
-    allowOverwrite: true,
+  await putBlob(TEMPLATES_BLOB_PATH, JSON.stringify(value, null, 2), {
     contentType: "application/json",
     cacheControlMaxAge: 60,
-    ...blobAuthOptions(),
   });
 }
 
