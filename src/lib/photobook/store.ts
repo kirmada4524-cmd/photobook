@@ -1098,8 +1098,9 @@ export const useBookStore = create<State & Actions>()(
           // Embed stickers used on this page
           for (const el of page.elements) {
             if (el.type === "sticker") {
-              const src = (el as any).src as string;
               const sid = ((el as any).stickerId as string) || el.id;
+              const customStk = s.customStickersList.find((sk) => sk.id === sid);
+              const src = ((el as any).src as string) || customStk?.src || "";
               if (src && (src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("http") || src.startsWith("/"))) {
                 if (!embeddedAssets.some((a) => a.id === sid)) {
                   try {
@@ -1111,7 +1112,6 @@ export const useBookStore = create<State & Actions>()(
                       reader.onerror = reject;
                       reader.readAsDataURL(blob);
                     });
-                    const customStk = s.customStickersList.find((sk) => sk.id === sid);
                     const name = customStk ? customStk.name : ((el as any).name || "sticker");
                     embeddedAssets.push({ id: sid, name, base64, type: "sticker" });
                   } catch {
@@ -1129,7 +1129,13 @@ export const useBookStore = create<State & Actions>()(
             backgroundMode: page.backgroundMode,
             border: page.border,
             eraserOverlay: page.eraserOverlay,
-            elements: page.elements.map((el) => ({ ...el, id: nid("el") })),
+            elements: page.elements.map((el) => {
+              const templateElement = { ...el, id: nid("el") } as PageElement;
+              if (templateElement.type === "sticker" && !templateElement.stickerId) {
+                templateElement.stickerId = el.id;
+              }
+              return templateElement;
+            }),
             embeddedAssets: embeddedAssets.length > 0 ? embeddedAssets : undefined,
             thumbnail,
             backgroundScale: page.backgroundScale,
@@ -1156,7 +1162,7 @@ export const useBookStore = create<State & Actions>()(
                 adminTemplate.elements = adminTemplate.elements.map((element) => {
                   if (element.type !== "sticker") return element;
                   const stickerId = (element as any).stickerId || element.id;
-                  return stickerId === asset.id ? { ...element, src: uploadedUrl } : element;
+                  return stickerId === asset.id ? { ...element, src: uploadedUrl, stickerId: undefined } : element;
                 });
               }
             }
@@ -1265,6 +1271,8 @@ export const useBookStore = create<State & Actions>()(
                 } else {
                   newEl.imageId = "";
                 }
+              } else if (newEl.type === "sticker") {
+                newEl.locked = newEl.locked ?? template.frameLocked ?? true;
               }
               return newEl;
             });

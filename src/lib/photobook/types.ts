@@ -97,6 +97,7 @@ export type StickerElement = ElementBase & {
   emoji?: string;
   src?: string;
   stickerId?: string;
+  locked?: boolean;
 };
 
 export type QuoteElement = ElementBase & {

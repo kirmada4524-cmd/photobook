@@ -371,6 +371,7 @@ function ElementRenderer({
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
   const isEraserMode = useBookStore((s) => s.isEraserMode);
   const isTextEditing = interactive && editingTextId === el.id && (el.type === "text" || el.type === "quote");
+  const isElementLocked = Boolean(isFrameLocked || (el.type === "sticker" && el.locked));
 
   // --- Rotation drag: incremental delta avoids atan2 wrap jumps (fast/slow feel) ---
   const startRotationDrag = (clientX: number, clientY: number, shiftKey: boolean) => {
@@ -532,14 +533,14 @@ function ElementRenderer({
       scale={canvasScale}
       size={{ width: el.w, height: el.h }}
       position={{ x: el.x, y: el.y }}
-      onDragStart={isFrameLocked ? undefined : onSelect}
-      onDragStop={isFrameLocked ? undefined : (_, d) => onChange({ x: d.x, y: d.y })}
-      onResizeStop={isFrameLocked ? undefined : (_, __, ref, ___, pos) =>
+      onDragStart={isElementLocked ? undefined : onSelect}
+      onDragStop={isElementLocked ? undefined : (_, d) => onChange({ x: d.x, y: d.y })}
+      onResizeStop={isElementLocked ? undefined : (_, __, ref, ___, pos) =>
         onChange({ w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })
       }
-      disableDragging={isEraserMode || isFrameLocked}
-      enableResizing={isEraserMode || isFrameLocked ? false : undefined}
-      className={`group ${selected && !isFrameLocked ? "outline outline-2 outline-accent outline-offset-2" : ""}`}
+      disableDragging={isEraserMode || isElementLocked}
+      enableResizing={isEraserMode || isElementLocked ? false : undefined}
+      className={`group ${selected && !isElementLocked ? "outline outline-2 outline-accent outline-offset-2" : ""}`}
       style={{ zIndex: el.z, overflow: "visible" }}
       onClick={(e: React.MouseEvent) => {
         e.stopPropagation();
@@ -612,9 +613,9 @@ function ElementRenderer({
             {selected && (
               <>
                 <div className="absolute left-2 top-2 z-10 rounded-full bg-charcoal/80 px-2 py-0.5 text-[10px] font-semibold text-cream shadow-sm">
-                  {label} {isFrameLocked ? "(Locked)" : ""}
+                  {label} {isElementLocked ? "(Locked)" : ""}
                 </div>
-                {!isFrameLocked && (
+                {!isElementLocked && (
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -702,7 +703,7 @@ function ElementRenderer({
               )}
             </>
           )}
-          {!isFrameLocked && (
+          {!isElementLocked && (
             <>
               <ContextMenuSeparator />
               <ContextMenuItem onSelect={() => onChange({ rotation: (el.rotation ?? 0) - 90 })}>
@@ -762,20 +763,22 @@ function ElementRenderer({
           </div>
 
           {/* ✕ Delete — top-right */}
-          <button
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              onRemove();
-            }}
-            className="absolute -right-3 -top-3 z-[100] grid h-7 w-7 place-items-center rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 hover:scale-110 transition-transform"
-            title="Delete"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          {!isElementLocked && (
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              className="absolute -right-3 -top-3 z-[100] grid h-7 w-7 place-items-center rounded-full bg-red-500 text-white shadow-md hover:bg-red-600 hover:scale-110 transition-transform"
+              title="Delete"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
 
           {/* 🔵 Rotation handle — centred ABOVE the element, Canva-style */}
-          {!isFrameLocked && (
+          {!isElementLocked && (
             <div
             className="absolute left-1/2 z-[100] -translate-x-1/2 flex flex-col items-center"
             style={{ bottom: "calc(100% + 4px)" }}
@@ -795,7 +798,7 @@ function ElementRenderer({
           )}
 
           {/* Quick rotation bar — centred BELOW the element */}
-          {!isFrameLocked && (
+          {!isElementLocked && (
             <div
             className="absolute left-1/2 z-[100] -translate-x-1/2 flex items-center gap-0.5 rounded-full bg-charcoal/90 px-2 py-1 shadow-lg"
             style={{ top: "calc(100% + 6px)" }}
