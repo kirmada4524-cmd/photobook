@@ -85,6 +85,7 @@ const findAssetDataUrl = (assets: unknown, id: unknown) => {
 };
 
 const TEMPLATE_IMPORT_BATCH_SIZE = 10;
+const MAX_TEMPLATE_ASSET_DATA_URL_LENGTH = 2_500_000;
 
 type ImportProgress = {
   open: boolean;
@@ -112,6 +113,72 @@ const emptyImportProgress: ImportProgress = {
 
 const templateAssetKey = (kind: string, id: string) => `${kind}:${id}`;
 
+const dataUrlToBlob = async (dataUrl: string) => {
+  const response = await fetch(dataUrl);
+  return response.blob();
+};
+
+const readBlobAsDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+const compressTemplateAssetDataUrl = async (
+  dataUrl: string,
+  kind: "background" | "sticker" | "overlay",
+) => {
+  if (dataUrl.length <= MAX_TEMPLATE_ASSET_DATA_URL_LENGTH) return dataUrl;
+  if (typeof window === "undefined") return dataUrl;
+  if (dataUrl.startsWith("data:image/svg+xml")) return dataUrl;
+
+  const blob = await dataUrlToBlob(dataUrl);
+  const img = new window.Image();
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+
+    const maxDim = kind === "sticker" ? 900 : 1400;
+    const ratio = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const width = Math.max(1, Math.round(img.naturalWidth * ratio));
+    const height = Math.max(1, Math.round(img.naturalHeight * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+
+    ctx.drawImage(img, 0, 0, width, height);
+    let quality = kind === "sticker" ? 0.82 : 0.76;
+    let compressed = canvas.toDataURL("image/jpeg", quality);
+
+    while (compressed.length > MAX_TEMPLATE_ASSET_DATA_URL_LENGTH && quality > 0.45) {
+      quality -= 0.08;
+      compressed = canvas.toDataURL("image/jpeg", quality);
+    }
+
+    if (compressed.length > MAX_TEMPLATE_ASSET_DATA_URL_LENGTH) {
+      const fallbackBlob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, "image/jpeg", 0.42),
+      );
+      compressed = fallbackBlob ? await readBlobAsDataUrl(fallbackBlob) : compressed;
+    }
+
+    canvas.width = 1;
+    canvas.height = 1;
+    return compressed;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
 const uploadCachedTemplateAsset = async (
   cache: Map<string, Promise<string>>,
   kind: "background" | "sticker" | "overlay",
@@ -126,7 +193,7 @@ const uploadCachedTemplateAsset = async (
     data: {
       kind,
       name: asset.name,
-      dataUrl: asset.base64,
+      dataUrl: await compressTemplateAssetDataUrl(asset.base64, kind),
     },
   }).then((result) => {
     onUploaded?.();
