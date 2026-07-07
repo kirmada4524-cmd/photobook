@@ -24,7 +24,6 @@ import {
   ArrowUp,
   ArrowDown,
   Upload,
-  Download,
   Tag,
   Lock,
   LayoutGrid,
@@ -38,7 +37,7 @@ const TEMPLATE_CATEGORIES: string[] = [
   "Back Cover",
   "Birthday",
   "Travel",
-  "General",
+  "Common",
 ];
 
 const filesToPayload = (files: File[]) =>
@@ -53,44 +52,6 @@ const filesToPayload = (files: File[]) =>
         }),
     ),
   );
-
-const safeZipFileName = (value: string, fallback: string) => {
-  const clean = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80);
-  return clean || fallback;
-};
-
-const downloadAdminTemplatesZip = async (templates: SavedPageTemplate[]) => {
-  if (templates.length === 0) {
-    toast.message("No admin templates to download.");
-    return;
-  }
-
-  const { zipSync, strToU8 } = await import("fflate");
-  const files: Record<string, Uint8Array> = {
-    "all_admin_templates.json": strToU8(JSON.stringify(templates, null, 2)),
-  };
-
-  templates.forEach((template, index) => {
-    const fileBase = safeZipFileName(template.label, `template-${index + 1}`);
-    const fileName = `${String(index + 1).padStart(3, "0")}-${fileBase}.wanderpage`;
-    files[fileName] = strToU8(JSON.stringify(template, null, 2));
-  });
-
-  const zipped = zipSync(files, { level: 6 });
-  const blob = new Blob([zipped], { type: "application/zip" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = `admin-templates-${new Date().toISOString().slice(0, 10)}.zip`;
-  anchor.click();
-  URL.revokeObjectURL(url);
-  toast.success(`Downloaded ${templates.length} template${templates.length === 1 ? "" : "s"} as ZIP`);
-};
 
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
@@ -310,7 +271,7 @@ interface ConvertProjectDialogProps {
 
 function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps) {
   const [label, setLabel] = useState("");
-  const [category, setCategory] = useState<string>("General");
+  const [category, setCategory] = useState<string>("Common");
   const [frameLocked, setFrameLocked] = useState(true);
   const [backgroundLocked, setBackgroundLocked] = useState(true);
   const [importProgress, setImportProgress] = useState<ImportProgress>(emptyImportProgress);
@@ -320,7 +281,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
 
   const allCategories = Array.from(new Set([
     ...TEMPLATE_CATEGORIES,
-    ...adminTemplates.map((t) => t.category).filter((category) => category && category !== "Common")
+    ...adminTemplates.map((t) => t.category).filter(Boolean)
   ])) as string[];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,7 +418,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             backgroundX: typeof page.backgroundX === "number" ? page.backgroundX : 0,
             backgroundY: typeof page.backgroundY === "number" ? page.backgroundY : 0,
             sizeId: FIXED_PAGE_SIZE_ID,
-            category: category.trim() || "General",
+            category: category.trim() || "Common",
             frameLocked,
             backgroundLocked,
             isAdminTemplate: true,
@@ -625,15 +586,13 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
   const adminTemplates = useBookStore((s) => s.adminTemplates);
   const updateAdminTemplate = useBookStore((s) => s.updateAdminTemplate);
   const [label, setLabel] = useState(template?.label ?? "");
-  const [category, setCategory] = useState<string>(
-    template?.category && template.category !== "Common" ? template.category : "General",
-  );
+  const [category, setCategory] = useState<string>(template?.category || "Common");
   const [frameLocked, setFrameLocked] = useState(template?.frameLocked ?? true);
   const [backgroundLocked, setBackgroundLocked] = useState(template?.backgroundLocked ?? true);
 
   const allCategories = Array.from(new Set([
     ...TEMPLATE_CATEGORIES,
-    ...adminTemplates.map((t) => t.category).filter((category) => category && category !== "Common")
+    ...adminTemplates.map((t) => t.category).filter(Boolean)
   ])) as string[];
 
   if (!template) return null;
@@ -1026,11 +985,7 @@ export function AdminPanel() {
   const filteredTemplates =
     activeCategory === "All"
       ? adminTemplates
-      : adminTemplates.filter((t) =>
-          activeCategory === "General"
-            ? !t.category || t.category === "General" || t.category === "Common"
-            : t.category === activeCategory,
-        );
+      : adminTemplates.filter((t) => t.category === activeCategory);
 
   const sortedTemplates = [...filteredTemplates].sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
@@ -1081,25 +1036,14 @@ export function AdminPanel() {
             <p className="text-xs text-muted-foreground">Manage templates and platform settings</p>
           </div>
         </div>
-        <div className="flex flex-wrap justify-end gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => downloadAdminTemplatesZip(adminTemplates)}
-          >
-            <Download className="h-4 w-4" />
-            Download Templates ZIP
-          </Button>
-          <Button
-            size="sm"
-            className="gap-1.5"
-            onClick={() => setShowConvert(true)}
-          >
-            <Plus className="h-4 w-4" />
-            Upload Photobook as Templates
-          </Button>
-        </div>
+        <Button
+          size="sm"
+          className="gap-1.5"
+          onClick={() => setShowConvert(true)}
+        >
+          <Plus className="h-4 w-4" />
+          Upload Photobook as Templates
+        </Button>
       </div>
 
       {/* Stats */}
@@ -1151,13 +1095,7 @@ export function AdminPanel() {
                 {cat}
                 {cat !== "All" && (
                   <span className="ml-1.5 opacity-60">
-                    ({
-                      adminTemplates.filter((t) =>
-                        cat === "General"
-                          ? !t.category || t.category === "General" || t.category === "Common"
-                          : t.category === cat,
-                      ).length
-                    })
+                    ({adminTemplates.filter((t) => t.category === cat).length})
                   </span>
                 )}
               </button>

@@ -1069,6 +1069,19 @@ export const useBookStore = create<State & Actions>()(
             sortOrder: opts?.isAdminTemplate ? Date.now() : undefined,
           };
 
+          if (opts?.isAdminTemplate) {
+            const adminTemplates = [...get().adminTemplates, newTemplate];
+            set({ adminTemplates });
+            const result = await saveAdminTemplates({ data: adminTemplates });
+            if (!result.success) {
+              set((prev) => ({
+                adminTemplates: prev.adminTemplates.filter((template) => template.id !== newTemplate.id),
+              }));
+              throw new Error(result.error || "Failed to save global template");
+            }
+            return;
+          }
+
           set((prev) => ({ customTemplates: [...prev.customTemplates, newTemplate] }));
         },
         deleteCustomTemplate: (templateId) =>
