@@ -214,6 +214,85 @@ export const appendAdminTemplates = createServerFn({ method: "POST" })
     }
   });
 
+export const deleteAdminTemplateById = createServerFn({ method: "POST" })
+  .validator(z.object({ id: z.string().min(1) }))
+  .handler(async ({ data }) => {
+    try {
+      const current = hasBlobStorage()
+        ? await readBlobJson()
+        : (() => {
+            throw new Error("Local delete requires async file access.");
+          })();
+      const next = current.filter((template: any) => template.id !== data.id);
+      if (hasBlobStorage()) {
+        await writeBlobJson(next);
+        return { success: true, count: current.length - next.length };
+      }
+      return { success: false, error: "Missing Blob storage.", count: 0 };
+    } catch (error) {
+      if (!hasBlobStorage()) {
+        try {
+          const { fs, templatesFile } = await localTemplatesFile();
+          if (isVercelRuntime()) {
+            throw missingBlobStorageError();
+          }
+          const current = fs.existsSync(templatesFile)
+            ? sanitizeAdminTemplates(JSON.parse(await fs.promises.readFile(templatesFile, "utf-8")))
+            : [];
+          const next = current.filter((template: any) => template.id !== data.id);
+          await fs.promises.writeFile(templatesFile, JSON.stringify(next, null, 2));
+          return { success: true, count: current.length - next.length };
+        } catch (localError) {
+          console.error("Error deleting admin template locally:", localError);
+          return { success: false, error: String(localError), count: 0 };
+        }
+      }
+      console.error("Error deleting admin template from Blob:", error);
+      return { success: false, error: String(error), count: 0 };
+    }
+  });
+
+export const updateAdminTemplateById = createServerFn({ method: "POST" })
+  .validator(
+    z.object({
+      id: z.string().min(1),
+      patch: z.any(),
+    }),
+  )
+  .handler(async ({ data }) => {
+    const applyPatch = (templates: any[]) =>
+      sanitizeAdminTemplates(
+        templates.map((template: any) =>
+          template.id === data.id ? { ...template, ...data.patch } : template,
+        ),
+      );
+
+    if (hasBlobStorage()) {
+      try {
+        await writeBlobJson(applyPatch(await readBlobJson()));
+        return { success: true };
+      } catch (error) {
+        console.error("Error updating admin template in Blob:", error);
+        return { success: false, error: String(error) };
+      }
+    }
+
+    try {
+      const { fs, templatesFile } = await localTemplatesFile();
+      if (isVercelRuntime()) {
+        throw missingBlobStorageError();
+      }
+      const current = fs.existsSync(templatesFile)
+        ? sanitizeAdminTemplates(JSON.parse(await fs.promises.readFile(templatesFile, "utf-8")))
+        : [];
+      await fs.promises.writeFile(templatesFile, JSON.stringify(applyPatch(current), null, 2));
+      return { success: true };
+    } catch (error) {
+      console.error("Error updating admin template locally:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+
 export const uploadTemplateAsset = createServerFn({ method: "POST" })
   .validator(
     z.object({

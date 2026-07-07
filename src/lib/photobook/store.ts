@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { getAdminTemplates, saveAdminTemplates } from "@/lib/api/templates.functions";
+import {
+  appendAdminTemplates,
+  deleteAdminTemplateById,
+  getAdminTemplates,
+  saveAdminTemplates,
+  updateAdminTemplateById,
+  uploadTemplateAsset,
+} from "@/lib/api/templates.functions";
 import {
   addAdminBackgrounds,
   addAdminStickers,
@@ -47,6 +54,73 @@ import {
 
 const nid = (p = "id") => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const OLD_DESIGN_ASSETS_CLEARED_KEY = "travelogue-old-design-assets-cleared-v1";
+const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 2_500_000;
+
+const isDataUrl = (value: unknown): value is string =>
+  typeof value === "string" && value.startsWith("data:");
+
+const readBlobAsDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+const compressTemplateAssetForUpload = async (
+  dataUrl: string,
+  kind: "background" | "sticker" | "overlay",
+) => {
+  if (dataUrl.length <= MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH) return dataUrl;
+  if (typeof window === "undefined" || dataUrl.startsWith("data:image/svg+xml")) return dataUrl;
+
+  const blob = await fetch(dataUrl).then((response) => response.blob());
+  const img = new window.Image();
+  const objectUrl = URL.createObjectURL(blob);
+
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = reject;
+      img.src = objectUrl;
+    });
+
+    const maxDim = kind === "sticker" ? 1200 : 2200;
+    const ratio = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
+    const width = Math.max(1, Math.round(img.naturalWidth * ratio));
+    const height = Math.max(1, Math.round(img.naturalHeight * ratio));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+
+    ctx.drawImage(img, 0, 0, width, height);
+    let quality = kind === "sticker" ? 0.88 : 0.9;
+    let compressed = canvas.toDataURL("image/jpeg", quality);
+
+    while (compressed.length > MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH && quality > 0.55) {
+      quality -= 0.07;
+      compressed = canvas.toDataURL("image/jpeg", quality);
+    }
+
+    canvas.width = 1;
+    canvas.height = 1;
+    return compressed;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+};
+
+const uploadGlobalTemplateAsset = async (
+  kind: "background" | "sticker" | "overlay",
+  name: string,
+  dataUrl: string,
+) => {
+  const uploadable = await compressTemplateAssetForUpload(dataUrl, kind);
+  const result = await uploadTemplateAsset({ data: { kind, name, dataUrl: uploadable } });
+  return result.url;
+};
 
 const safeLocalStorage = {
   getItem: (name: string) => {
@@ -1070,12 +1144,39 @@ export const useBookStore = create<State & Actions>()(
           };
 
           if (opts?.isAdminTemplate) {
-            const adminTemplates = [...get().adminTemplates, newTemplate];
+            const adminTemplate: SavedPageTemplate = { ...newTemplate };
+
+            for (const asset of embeddedAssets) {
+              if (asset.type === "background" && asset.id === adminTemplate.background) {
+                adminTemplate.background = await uploadGlobalTemplateAsset("background", asset.name, asset.base64);
+              }
+
+              if (asset.type === "sticker") {
+                const uploadedUrl = await uploadGlobalTemplateAsset("sticker", asset.name, asset.base64);
+                adminTemplate.elements = adminTemplate.elements.map((element) => {
+                  if (element.type !== "sticker") return element;
+                  const stickerId = (element as any).stickerId || element.id;
+                  return stickerId === asset.id ? { ...element, src: uploadedUrl } : element;
+                });
+              }
+            }
+
+            if (isDataUrl(adminTemplate.eraserOverlay)) {
+              adminTemplate.eraserOverlay = await uploadGlobalTemplateAsset(
+                "overlay",
+                "overlay",
+                adminTemplate.eraserOverlay,
+              );
+            }
+
+            adminTemplate.embeddedAssets = undefined;
+
+            const adminTemplates = [...get().adminTemplates, adminTemplate];
             set({ adminTemplates });
-            const result = await saveAdminTemplates({ data: adminTemplates });
+            const result = await appendAdminTemplates({ data: [adminTemplate] });
             if (!result.success) {
               set((prev) => ({
-                adminTemplates: prev.adminTemplates.filter((template) => template.id !== newTemplate.id),
+                adminTemplates: prev.adminTemplates.filter((template) => template.id !== adminTemplate.id),
               }));
               throw new Error(result.error || "Failed to save global template");
             }
@@ -1289,7 +1390,7 @@ export const useBookStore = create<State & Actions>()(
               sortOrder: Date.now(),
             };
             const adminTemplates = [...s.adminTemplates, newAdminTmpl];
-            saveAdminTemplates({ data: adminTemplates }).catch(err => console.error("API error", err));
+            appendAdminTemplates({ data: [newAdminTmpl] }).catch(err => console.error("API error", err));
             return { adminTemplates };
           });
         },
@@ -1311,7 +1412,7 @@ export const useBookStore = create<State & Actions>()(
         deleteAdminTemplate: (templateId) => {
           set((s) => {
             const adminTemplates = s.adminTemplates.filter((t) => t.id !== templateId);
-            saveAdminTemplates({ data: adminTemplates }).catch(err => console.error("API error", err));
+            deleteAdminTemplateById({ data: { id: templateId } }).catch(err => console.error("API error", err));
             return { adminTemplates };
           });
         },
@@ -1327,7 +1428,7 @@ export const useBookStore = create<State & Actions>()(
             const adminTemplates = s.adminTemplates.map((t) =>
               t.id === templateId ? { ...t, ...patch, sizeId: FIXED_PAGE_SIZE_ID } : t,
             );
-            saveAdminTemplates({ data: adminTemplates }).catch(err => console.error("API error", err));
+            updateAdminTemplateById({ data: { id: templateId, patch: { ...patch, sizeId: FIXED_PAGE_SIZE_ID } } }).catch(err => console.error("API error", err));
             return { adminTemplates };
           });
         },

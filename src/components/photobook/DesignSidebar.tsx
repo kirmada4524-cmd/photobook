@@ -21,8 +21,6 @@ import type {
   TextElement,
   PageElement,
 } from "@/lib/photobook/types";
-import { FIXED_PAGE_SIZE_ID } from "@/lib/photobook/types";
-import { TemplatePreview } from "./TemplatePreview";
 import {
   BringToFront,
   SendToBack,
@@ -37,7 +35,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageMinus,
-  Download,
   Upload,
   Trash2,
   Paintbrush,
@@ -49,9 +46,6 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
-
-const INITIAL_TEMPLATE_PREVIEW_LIMIT = 24;
-const TEMPLATE_PREVIEW_INCREMENT = 24;
 
 const isBgImage = (bg?: string) => {
   if (!bg) return false;
@@ -83,12 +77,7 @@ export function DesignSidebar() {
   const page = useBookStore((s) => s.book.pages.find((p) => p.id === s.currentPageId));
   const selected = page?.elements.find((e) => e.id === selectedId);
   const isPhoto = selected?.type === "photo";
-  const customTemplates = useBookStore((s) => s.customTemplates ?? []);
   const adminTemplates = useBookStore((s) => s.adminTemplates ?? []);
-  const pageSizeId = FIXED_PAGE_SIZE_ID;
-
-  const filteredCustomTemplates = customTemplates.filter(t => !t.sizeId || t.sizeId === pageSizeId);
-  const filteredAdminTemplates = adminTemplates.filter(t => !t.sizeId || t.sizeId === pageSizeId).sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
 
   const editingBackgroundPageId = useBookStore((s) => s.editingBackgroundPageId);
   const setEditingBackgroundPageId = useBookStore((s) => s.setEditingBackgroundPageId);
@@ -113,7 +102,6 @@ export function DesignSidebar() {
   const [templateCategoryInput, setTemplateCategoryInput] = useState("");
   const [templateQuery, setTemplateQuery] = useState("");
   const [templateStyle, setTemplateStyle] = useState<string>("All");
-  const [visibleTemplateCount, setVisibleTemplateCount] = useState(INITIAL_TEMPLATE_PREVIEW_LIMIT);
 
   const width = useBookStore((s) => s.designSidebarWidth ?? 320);
   const setWidth = useBookStore((s) => s.setDesignSidebarWidth);
@@ -186,16 +174,6 @@ export function DesignSidebar() {
       (templateStyle === "Recommended" ? recommended : t.style === templateStyle);
     return matchesQuery && matchesStyle;
   });
-  const availableSavedTemplates = [...filteredAdminTemplates, ...filteredCustomTemplates].filter((t) => {
-    if (!normalizedQuery) return true;
-    return `${t.label} ${t.category ?? ""}`.toLowerCase().includes(normalizedQuery);
-  });
-  const visibleSavedTemplates = availableSavedTemplates.slice(0, visibleTemplateCount);
-  const hasMoreSavedTemplates = visibleTemplateCount < availableSavedTemplates.length;
-
-  useEffect(() => {
-    setVisibleTemplateCount(INITIAL_TEMPLATE_PREVIEW_LIMIT);
-  }, [templateQuery, templateStyle, activeTab]);
 
   const reportFill = (result: AutofillResult) => {
     if (result.framesFilled > 0) {
@@ -509,128 +487,6 @@ export function DesignSidebar() {
                     </div>
                   ) : null}
 
-                  {/* Templates Grouped By Category */}
-                  <div className="space-y-6 mt-4">
-                    {Object.entries(
-                      visibleSavedTemplates.reduce((acc, t) => {
-                        const cat = t.category || "General";
-                        if (!acc[cat]) acc[cat] = [];
-                        acc[cat].push(t);
-                        return acc;
-                      }, {} as Record<string, typeof visibleSavedTemplates>)
-                    ).map(([category, templates]) => (
-                      <div key={category} className="space-y-3">
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1 flex items-center justify-between">
-                          <span>{category} Templates</span>
-                          <span className="text-muted-foreground/60">{templates.length}</span>
-                        </div>
-                        <div className="grid grid-flow-col auto-cols-[180px] md:grid-flow-row md:auto-cols-auto md:grid-cols-1 gap-3 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 snap-x touch-pan-x">
-                          {templates.map((t) => (
-                            <div
-                              key={t.id}
-                              className="group relative rounded-xl border bg-card p-2 text-left transition hover:border-accent hover:shadow-md snap-start"
-                            >
-                              <button
-                                onClick={async () => {
-                                  await useBookStore.getState().applyPageTemplate(t);
-                                }}
-                                className="w-full text-left"
-                              >
-                                <div className="relative aspect-square w-full overflow-hidden rounded-md bg-muted flex items-center justify-center border">
-                                  <TemplatePreview template={t} />
-                                  <span className="text-[10px] font-bold text-charcoal z-10 bg-white/95 px-1.5 py-0.5 rounded shadow-sm max-w-[90%] truncate">
-                                    {t.label}
-                                  </span>
-                                </div>
-                              </button>
-                              <div className="mt-2 grid grid-cols-2 gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="h-7 text-[10px] font-semibold"
-                                  onClick={async () => {
-                                    await useBookStore.getState().applyPageTemplate(t);
-                                  }}
-                                >
-                                  Apply
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  className="h-7 gap-1 bg-charcoal text-[10px] font-semibold text-cream hover:bg-charcoal/90"
-                                  onClick={async () => {
-                                    await useBookStore.getState().applyPageTemplate(t);
-                                    reportFill(
-                                      useBookStore.getState().autofillLeastUsedImages(currentPageId),
-                                    );
-                                  }}
-                                >
-                                  <Sparkles className="h-3 w-3" />
-                                  Fill
-                                </Button>
-                              </div>
-
-                              {isAdmin && (
-                                <div className="absolute right-2 top-2 z-20 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const jsonStr = JSON.stringify(t, null, 2);
-                                      const blob = new Blob([jsonStr], { type: "application/json" });
-                                      const url = URL.createObjectURL(blob);
-                                      const a = document.createElement("a");
-                                      a.href = url;
-                                      a.download = `${t.label.toLowerCase().replace(/\s+/g, "_")}.wanderpage`;
-                                      a.click();
-                                      URL.revokeObjectURL(url);
-                                    }}
-                                    className="bg-white/95 border rounded p-1 hover:bg-white text-muted-foreground hover:text-foreground shadow-sm"
-                                    title="Download template file"
-                                  >
-                                    <Download className="h-3 w-3" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      if (confirm(`Delete template "${t.label}"?`)) {
-                                        if (t.isAdminTemplate) {
-                                          useBookStore.getState().deleteAdminTemplate(t.id);
-                                        } else {
-                                          useBookStore.getState().deleteCustomTemplate(t.id);
-                                        }
-                                      }
-                                    }}
-                                    className="bg-white/95 border rounded p-1 hover:bg-white text-destructive hover:text-destructive shadow-sm"
-                                    title="Delete template"
-                                  >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-
-                    {hasMoreSavedTemplates && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full text-[11px]"
-                        onClick={() =>
-                          setVisibleTemplateCount((count) => count + TEMPLATE_PREVIEW_INCREMENT)
-                        }
-                      >
-                        Show {Math.min(TEMPLATE_PREVIEW_INCREMENT, availableSavedTemplates.length - visibleTemplateCount)} More Templates
-                      </Button>
-                    )}
-
-                    {availableSavedTemplates.length === 0 && (
-                      <div className="text-center text-[10px] text-muted-foreground py-2.5 border border-dashed rounded-lg mt-4">
-                        No custom templates available
-                      </div>
-                    )}
-                  </div>
                 </div>
 
                 {/* Predefined Layouts */}
