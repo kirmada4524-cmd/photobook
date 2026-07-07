@@ -50,6 +50,9 @@ import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 
+const INITIAL_TEMPLATE_PREVIEW_LIMIT = 24;
+const TEMPLATE_PREVIEW_INCREMENT = 24;
+
 const isBgImage = (bg?: string) => {
   if (!bg) return false;
   return (
@@ -110,6 +113,7 @@ export function DesignSidebar() {
   const [templateCategoryInput, setTemplateCategoryInput] = useState("");
   const [templateQuery, setTemplateQuery] = useState("");
   const [templateStyle, setTemplateStyle] = useState<string>("All");
+  const [visibleTemplateCount, setVisibleTemplateCount] = useState(INITIAL_TEMPLATE_PREVIEW_LIMIT);
 
   const width = useBookStore((s) => s.designSidebarWidth ?? 320);
   const setWidth = useBookStore((s) => s.setDesignSidebarWidth);
@@ -182,6 +186,16 @@ export function DesignSidebar() {
       (templateStyle === "Recommended" ? recommended : t.style === templateStyle);
     return matchesQuery && matchesStyle;
   });
+  const availableSavedTemplates = [...filteredAdminTemplates, ...filteredCustomTemplates].filter((t) => {
+    if (!normalizedQuery) return true;
+    return `${t.label} ${t.category ?? ""}`.toLowerCase().includes(normalizedQuery);
+  });
+  const visibleSavedTemplates = availableSavedTemplates.slice(0, visibleTemplateCount);
+  const hasMoreSavedTemplates = visibleTemplateCount < availableSavedTemplates.length;
+
+  useEffect(() => {
+    setVisibleTemplateCount(INITIAL_TEMPLATE_PREVIEW_LIMIT);
+  }, [templateQuery, templateStyle, activeTab]);
 
   const reportFill = (result: AutofillResult) => {
     if (result.framesFilled > 0) {
@@ -492,12 +506,12 @@ export function DesignSidebar() {
                   {/* Templates Grouped By Category */}
                   <div className="space-y-6 mt-4">
                     {Object.entries(
-                      filteredCustomTemplates.reduce((acc, t) => {
+                      visibleSavedTemplates.reduce((acc, t) => {
                         const cat = t.category || "General";
                         if (!acc[cat]) acc[cat] = [];
                         acc[cat].push(t);
                         return acc;
-                      }, {} as Record<string, typeof filteredCustomTemplates>)
+                      }, {} as Record<string, typeof visibleSavedTemplates>)
                     ).map(([category, templates]) => (
                       <div key={category} className="space-y-3">
                         <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1 flex items-center justify-between">
@@ -572,7 +586,11 @@ export function DesignSidebar() {
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       if (confirm(`Delete template "${t.label}"?`)) {
-                                        useBookStore.getState().deleteCustomTemplate(t.id);
+                                        if (t.isAdminTemplate) {
+                                          useBookStore.getState().deleteAdminTemplate(t.id);
+                                        } else {
+                                          useBookStore.getState().deleteCustomTemplate(t.id);
+                                        }
                                       }
                                     }}
                                     className="bg-white/95 border rounded p-1 hover:bg-white text-destructive hover:text-destructive shadow-sm"
@@ -588,7 +606,20 @@ export function DesignSidebar() {
                       </div>
                     ))}
 
-                    {filteredCustomTemplates.length === 0 && (
+                    {hasMoreSavedTemplates && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-[11px]"
+                        onClick={() =>
+                          setVisibleTemplateCount((count) => count + TEMPLATE_PREVIEW_INCREMENT)
+                        }
+                      >
+                        Show {Math.min(TEMPLATE_PREVIEW_INCREMENT, availableSavedTemplates.length - visibleTemplateCount)} More Templates
+                      </Button>
+                    )}
+
+                    {availableSavedTemplates.length === 0 && (
                       <div className="text-center text-[10px] text-muted-foreground py-2.5 border border-dashed rounded-lg mt-4">
                         No custom templates available
                       </div>

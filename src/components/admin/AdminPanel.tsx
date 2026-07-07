@@ -7,6 +7,7 @@ import { TemplatePreview } from "../photobook/TemplatePreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -85,12 +86,37 @@ const findAssetDataUrl = (assets: unknown, id: unknown) => {
 
 const TEMPLATE_IMPORT_BATCH_SIZE = 10;
 
+type ImportProgress = {
+  open: boolean;
+  running: boolean;
+  phase: string;
+  detail: string;
+  totalPages: number;
+  convertedPages: number;
+  uploadedAssets: number;
+  savedTemplates: number;
+  errors: string[];
+};
+
+const emptyImportProgress: ImportProgress = {
+  open: false,
+  running: false,
+  phase: "Waiting",
+  detail: "",
+  totalPages: 0,
+  convertedPages: 0,
+  uploadedAssets: 0,
+  savedTemplates: 0,
+  errors: [],
+};
+
 const templateAssetKey = (kind: string, id: string) => `${kind}:${id}`;
 
 const uploadCachedTemplateAsset = async (
   cache: Map<string, Promise<string>>,
   kind: "background" | "sticker" | "overlay",
   asset: { id: string; name: string; base64: string },
+  onUploaded?: () => void,
 ) => {
   const key = templateAssetKey(kind, asset.id);
   const existing = cache.get(key);
@@ -102,20 +128,73 @@ const uploadCachedTemplateAsset = async (
       name: asset.name,
       dataUrl: asset.base64,
     },
-  }).then((result) => result.url);
+  }).then((result) => {
+    onUploaded?.();
+    return result.url;
+  });
 
   cache.set(key, uploadPromise);
   return uploadPromise;
 };
 
-const appendTemplatesInBatches = async (templates: SavedPageTemplate[]) => {
+const appendTemplatesInBatches = async (
+  templates: SavedPageTemplate[],
+  onBatchSaved?: (count: number) => void,
+) => {
   for (let index = 0; index < templates.length; index += TEMPLATE_IMPORT_BATCH_SIZE) {
     const batch = templates.slice(index, index + TEMPLATE_IMPORT_BATCH_SIZE);
     const result = await appendAdminTemplates({ data: batch });
     if (!result.success) {
-      throw new Error(result.error || "Failed to save templates");
+      throw new Error(`Save stopped at templates ${index + 1}-${index + batch.length}: ${result.error || "Failed to save templates"}`);
     }
+    onBatchSaved?.(result.count ?? batch.length);
   }
+};
+
+const currentPageWidth = PAGE_SIZES[0].width;
+const currentPageHeight = PAGE_SIZES[0].height;
+
+const getLegacyPageSize = (projectData: any) => {
+  const width =
+    typeof projectData?.book?.pageWidth === "number"
+      ? projectData.book.pageWidth
+      : typeof projectData?.pageWidth === "number"
+        ? projectData.pageWidth
+        : undefined;
+  const height =
+    typeof projectData?.book?.pageHeight === "number"
+      ? projectData.book.pageHeight
+      : typeof projectData?.pageHeight === "number"
+        ? projectData.pageHeight
+        : undefined;
+  return { width, height };
+};
+
+const normalizeImportedElements = (elements: any[], projectData: any) => {
+  const maxRight = elements.reduce((max, el) => Math.max(max, Number(el.x || 0) + Number(el.w || 0)), 0);
+  const maxBottom = elements.reduce((max, el) => Math.max(max, Number(el.y || 0) + Number(el.h || 0)), 0);
+  const legacySize = getLegacyPageSize(projectData);
+  const sourceWidth = legacySize.width && legacySize.width > 0 ? legacySize.width : Math.max(currentPageWidth, maxRight);
+  const sourceHeight = legacySize.height && legacySize.height > 0 ? legacySize.height : Math.max(currentPageHeight, maxBottom);
+
+  if (sourceWidth <= currentPageWidth * 1.05 && sourceHeight <= currentPageHeight * 1.05) {
+    return elements;
+  }
+
+  const scaleX = currentPageWidth / sourceWidth;
+  const scaleY = currentPageHeight / sourceHeight;
+
+  return elements.map((el) => ({
+    ...el,
+    x: Math.round(Number(el.x || 0) * scaleX),
+    y: Math.round(Number(el.y || 0) * scaleY),
+    w: Math.max(1, Math.round(Number(el.w || 1) * scaleX)),
+    h: Math.max(1, Math.round(Number(el.h || 1) * scaleY)),
+    fontSize:
+      typeof el.fontSize === "number"
+        ? Math.max(6, Math.round(el.fontSize * Math.min(scaleX, scaleY)))
+        : el.fontSize,
+  }));
 };
 
 interface ConvertProjectDialogProps {
@@ -128,6 +207,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
   const [category, setCategory] = useState<string>("Common");
   const [frameLocked, setFrameLocked] = useState(true);
   const [backgroundLocked, setBackgroundLocked] = useState(true);
+  const [importProgress, setImportProgress] = useState<ImportProgress>(emptyImportProgress);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const adminTemplates = useBookStore((s) => s.adminTemplates);
   const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
@@ -141,17 +221,47 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
     const files = Array.from(e.target.files ?? []);
     if (files.length === 0) return;
 
-    const importPromise = Promise.all(
-      files.map(async (file) => {
+    const progressBase = {
+      ...emptyImportProgress,
+      open: true,
+      running: true,
+      phase: "Reading files",
+      totalPages: 0,
+    };
+    setImportProgress(progressBase);
+
+    const updateProgress = (patch: Partial<ImportProgress>) => {
+      setImportProgress((current) => ({ ...current, ...patch }));
+    };
+
+    try {
+      const parsedProjects: { file: File; projectData: any; pages: any[] }[] = [];
+      for (const file of files) {
+        updateProgress({ phase: "Reading files", detail: file.name });
         const text = await file.text();
         const projectData = JSON.parse(text);
         const pages = projectData?.book?.pages;
         if (!Array.isArray(pages) || pages.length === 0) {
           throw new Error(`Invalid project: ${file.name}`);
         }
+        parsedProjects.push({ file, projectData, pages });
+        updateProgress({
+          totalPages: parsedProjects.reduce((total, item) => total + item.pages.length, 0),
+        });
+      }
+
+      const templates: SavedPageTemplate[] = [];
+
+      for (const { file, projectData, pages } of parsedProjects) {
         const assetUploadCache = new Map<string, Promise<string>>();
 
-        return Promise.all(pages.map(async (page: any, i: number) => {
+        for (let i = 0; i < pages.length; i += 1) {
+          const page = pages[i];
+          updateProgress({
+            phase: "Uploading assets",
+            detail: `${file.name} - page ${i + 1} of ${pages.length}`,
+          });
+
           const tmplLabel = label.trim()
             ? files.length > 1 || pages.length > 1
               ? `${label.trim()} - Page ${i + 1}`
@@ -163,40 +273,71 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
           if (!background.startsWith("#")) {
             const bg = findAssetDataUrl(projectData.customBackgrounds, background);
             if (bg) {
-              background = await uploadCachedTemplateAsset(assetUploadCache, "background", bg);
+              try {
+                background = await uploadCachedTemplateAsset(assetUploadCache, "background", bg, () => {
+                  setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
+                });
+              } catch (error) {
+                throw new Error(`${file.name} page ${i + 1}: background upload failed (${(error as Error).message})`);
+              }
             }
           }
 
-          const elements = await Promise.all(
-            safeElements(page.elements).map(async (el: any) => {
-              if (el.type !== "sticker") return el;
+          const elements = [];
+          const normalizedSourceElements = normalizeImportedElements(safeElements(page.elements), projectData);
+          for (const el of normalizedSourceElements) {
+            if (el.type !== "sticker") {
+              elements.push(el);
+              continue;
+            }
 
-              if (isDataUrl(el.src)) {
+            if (isDataUrl(el.src)) {
+              try {
                 const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", {
                   id: el.id,
                   name: "sticker",
                   base64: el.src,
+                }, () => {
+                  setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
                 });
-                return { ...el, src };
+                elements.push({ ...el, src });
+                continue;
+              } catch (error) {
+                throw new Error(`${file.name} page ${i + 1}: sticker upload failed (${(error as Error).message})`);
               }
+            }
 
-              const sticker = findAssetDataUrl(projectData.customStickers, el.stickerId);
-              if (!sticker) return el;
-              const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", sticker);
-              return { ...el, src };
-            }),
-          );
+            const sticker = findAssetDataUrl(projectData.customStickers, el.stickerId);
+            if (!sticker) {
+              elements.push(el);
+              continue;
+            }
+            try {
+              const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", sticker, () => {
+                setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
+              });
+              elements.push({ ...el, src });
+            } catch (error) {
+              throw new Error(`${file.name} page ${i + 1}: sticker upload failed (${(error as Error).message})`);
+            }
+          }
 
-          const eraserOverlay =
-            isDataUrl(page.eraserOverlay)
-              ? await uploadCachedTemplateAsset(assetUploadCache, "overlay", {
+          let eraserOverlay: string | undefined;
+          if (isDataUrl(page.eraserOverlay)) {
+            try {
+              eraserOverlay = await uploadCachedTemplateAsset(assetUploadCache, "overlay", {
                   id: `overlay_${page.id ?? i}`,
                   name: "overlay",
                   base64: page.eraserOverlay,
-                })
-              : undefined;
+                }, () => {
+                  setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
+                });
+            } catch (error) {
+              throw new Error(`${file.name} page ${i + 1}: overlay upload failed (${(error as Error).message})`);
+            }
+          }
 
-          return {
+          templates.push({
             id: `tmpl_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 7)}`,
             label: tmplLabel,
             background,
@@ -214,33 +355,56 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             frameLocked,
             backgroundLocked,
             isAdminTemplate: true,
-          } satisfies SavedPageTemplate;
-        }));
-      }),
-    ).then((groups) => {
-      const templates = groups.flat();
-      return appendTemplatesInBatches(templates).then(async () => {
-        await initAdminTemplates();
-        return templates.length;
+          } satisfies SavedPageTemplate);
+
+          setImportProgress((current) => ({ ...current, convertedPages: current.convertedPages + 1 }));
+        }
+      }
+
+      updateProgress({ phase: "Saving templates", detail: `Saving ${templates.length} templates to Blob` });
+      await appendTemplatesInBatches(templates, (count) => {
+        setImportProgress((current) => ({ ...current, savedTemplates: current.savedTemplates + count }));
       });
-    });
 
-    toast.promise(
-      importPromise,
-      {
-        loading: "Converting project(s) to templates...",
-        success: (count) => `${count} template${count === 1 ? "" : "s"} added successfully!`,
-        error: (err: unknown) => `Failed: ${(err as Error).message}`,
-      },
-    );
+      updateProgress({ phase: "Refreshing admin list", detail: "Loading saved templates" });
+      await initAdminTemplates();
 
-    setLabel("");
-    e.target.value = "";
-    onOpenChange(false);
+      setImportProgress((current) => ({
+        ...current,
+        running: false,
+        phase: "Completed",
+        detail: `${templates.length} template${templates.length === 1 ? "" : "s"} added successfully.`,
+      }));
+      toast.success(`${templates.length} template${templates.length === 1 ? "" : "s"} added successfully!`);
+      setLabel("");
+    } catch (error) {
+      const message = (error as Error).message || "Unknown import error";
+      setImportProgress((current) => ({
+        ...current,
+        running: false,
+        phase: "Stopped",
+        detail: message,
+        errors: [...current.errors, message],
+      }));
+      toast.error(`Template import stopped: ${message}`);
+    } finally {
+      e.target.value = "";
+    }
   };
 
+  const totalProgressUnits = Math.max(importProgress.totalPages * 2, 1);
+  const completedProgressUnits = importProgress.convertedPages + importProgress.savedTemplates;
+  const progressPercent = Math.min(100, Math.round((completedProgressUnits / totalProgressUnits) * 100));
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open || importProgress.open}
+      onOpenChange={(nextOpen) => {
+        if (importProgress.running) return;
+        if (!nextOpen) setImportProgress(emptyImportProgress);
+        onOpenChange(nextOpen);
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -252,12 +416,39 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-1">
+          {importProgress.open && (
+            <div className="rounded-lg border bg-muted/20 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">{importProgress.phase}</p>
+                  {importProgress.detail && (
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{importProgress.detail}</p>
+                  )}
+                </div>
+                <Badge variant={importProgress.errors.length > 0 ? "destructive" : "secondary"}>
+                  {progressPercent}%
+                </Badge>
+              </div>
+              <Progress value={progressPercent} />
+              <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-muted-foreground">
+                <span>{importProgress.convertedPages}/{importProgress.totalPages} pages</span>
+                <span>{importProgress.uploadedAssets} assets</span>
+                <span>{importProgress.savedTemplates} saved</span>
+              </div>
+              {importProgress.errors.length > 0 && (
+                <div className="mt-2 rounded-md bg-destructive/10 p-2 text-xs text-destructive">
+                  {importProgress.errors[importProgress.errors.length - 1]}
+                </div>
+              )}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label>Template Label (optional)</Label>
             <Input
               placeholder="Leave blank to use filename"
               value={label}
               onChange={(e) => setLabel(e.target.value)}
+              disabled={importProgress.running}
             />
           </div>
           <div className="space-y-1.5">
@@ -267,6 +458,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
               onChange={(e) => setCategory(e.target.value)}
               list="template-categories"
               placeholder="Type or select..."
+              disabled={importProgress.running}
             />
             <datalist id="template-categories">
               {allCategories.map((c) => (
@@ -281,6 +473,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
                 checked={frameLocked}
                 onChange={(e) => setFrameLocked(e.target.checked)}
                 className="rounded"
+                disabled={importProgress.running}
               />
               Lock frames
             </label>
@@ -290,6 +483,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
                 checked={backgroundLocked}
                 onChange={(e) => setBackgroundLocked(e.target.checked)}
                 className="rounded"
+                disabled={importProgress.running}
               />
               Lock background
             </label>
@@ -297,6 +491,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
           <Button
             className="w-full gap-2"
             onClick={() => fileInputRef.current?.click()}
+            disabled={importProgress.running}
           >
             <Upload className="h-4 w-4" />
             Select Project File(s)
