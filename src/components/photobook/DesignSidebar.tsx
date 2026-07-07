@@ -42,6 +42,7 @@ import {
   RotateCcw,
   Search,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -98,6 +99,7 @@ export function DesignSidebar() {
 
   const [activeTab, setActiveTab] = useState("layouts");
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
+  const [isGlobalTemplateSaving, setIsGlobalTemplateSaving] = useState(false);
   const [templateNameInput, setTemplateNameInput] = useState("");
   const [templateCategoryInput, setTemplateCategoryInput] = useState("");
   const [templateQuery, setTemplateQuery] = useState("");
@@ -363,10 +365,14 @@ export function DesignSidebar() {
                         <Button
                           size="sm"
                           className="h-7 text-[10px] px-2.5 font-semibold bg-charcoal text-cream hover:bg-charcoal/90"
+                          disabled={isGlobalTemplateSaving}
                           onClick={async () => {
                             if (!page) return;
 
+                            let savingToast: string | number | undefined;
                             try {
+                              setIsGlobalTemplateSaving(true);
+                              savingToast = toast.loading("Saving global template...");
                               // Generate thumbnail of the page
                               let thumbnailDataUrl: string | undefined;
                               const pageEl = document.getElementById(`page-render-${page.id}`);
@@ -398,22 +404,34 @@ export function DesignSidebar() {
                                   frameLocked: isFrameLocked,
                                   backgroundLocked: isBgLocked
                                 });
-                              toast.success("Saved in global templates");
+                              toast.success("Saved in global templates", { id: savingToast });
                               setIsSavingTemplate(false);
                               setTemplateNameInput("");
                               setTemplateCategoryInput("");
                             } catch (error) {
                               console.error(error);
-                              toast.error((error as Error).message || "Failed to save global template");
+                              toast.error((error as Error).message || "Failed to save global template", {
+                                id: savingToast,
+                              });
+                            } finally {
+                              setIsGlobalTemplateSaving(false);
                             }
                           }}
                         >
-                          Save
+                          {isGlobalTemplateSaving ? (
+                            <>
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Saving
+                            </>
+                          ) : (
+                            "Save"
+                          )}
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
                           className="h-7 text-[10px] px-2.5"
+                          disabled={isGlobalTemplateSaving}
                           onClick={() => {
                             setIsSavingTemplate(false);
                             setTemplateNameInput("");

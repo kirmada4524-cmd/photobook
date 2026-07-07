@@ -291,6 +291,7 @@ type Actions = {
   addAdminTemplate: (template: SavedPageTemplate) => void;
   addAdminTemplates: (templates: SavedPageTemplate[]) => void;
   deleteAdminTemplate: (templateId: string) => void;
+  deleteAdminTemplates: (templateIds: string[]) => Promise<void>;
   reorderAdminTemplates: (ids: string[]) => void;
   updateAdminTemplate: (templateId: string, patch: Partial<SavedPageTemplate>) => void;
   initAdminTemplates: () => Promise<void>;
@@ -1433,6 +1434,18 @@ export const useBookStore = create<State & Actions>()(
             deleteAdminTemplateById({ data: { id: templateId } }).catch(err => console.error("API error", err));
             return { adminTemplates };
           });
+        },
+        deleteAdminTemplates: async (templateIds) => {
+          const ids = new Set(templateIds);
+          if (ids.size === 0) return;
+          const previous = get().adminTemplates;
+          const adminTemplates = previous.filter((template) => !ids.has(template.id));
+          set({ adminTemplates });
+          const result = await saveAdminTemplates({ data: adminTemplates });
+          if (!result.success) {
+            set({ adminTemplates: previous });
+            throw new Error(result.error || "Failed to delete selected templates");
+          }
         },
         reorderAdminTemplates: (ids) => {
           set((s) => {

@@ -29,6 +29,7 @@ import {
   LayoutGrid,
   FileCheck,
   RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -960,6 +961,7 @@ export function AdminPanel() {
   const adminStickerFolders = useBookStore((s) => s.adminStickerFolders ?? []);
   const adminBackgrounds = useBookStore((s) => s.adminBackgrounds ?? []);
   const deleteAdminTemplate = useBookStore((s) => s.deleteAdminTemplate);
+  const deleteAdminTemplates = useBookStore((s) => s.deleteAdminTemplates);
   const reorderAdminTemplates = useBookStore((s) => s.reorderAdminTemplates);
   const addAdminTemplate = useBookStore((s) => s.addAdminTemplate);
   const savePageAsTemplate = useBookStore((s) => s.savePageAsTemplate);
@@ -968,6 +970,8 @@ export function AdminPanel() {
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [showConvert, setShowConvert] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<SavedPageTemplate | null>(null);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [isDeletingTemplates, setIsDeletingTemplates] = useState(false);
 
   if (!isAdmin) {
     return (
@@ -990,6 +994,52 @@ export function AdminPanel() {
   const sortedTemplates = [...filteredTemplates].sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
   );
+  const visibleTemplateIds = sortedTemplates.map((template) => template.id);
+  const selectedVisibleCount = visibleTemplateIds.filter((id) => selectedTemplateIds.has(id)).length;
+  const allVisibleSelected =
+    visibleTemplateIds.length > 0 && selectedVisibleCount === visibleTemplateIds.length;
+
+  const toggleTemplateSelection = (id: string) => {
+    setSelectedTemplateIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleVisibleSelection = () => {
+    setSelectedTemplateIds((current) => {
+      const next = new Set(current);
+      if (allVisibleSelected) {
+        visibleTemplateIds.forEach((id) => next.delete(id));
+      } else {
+        visibleTemplateIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const deleteSelectedTemplates = async () => {
+    const ids = Array.from(selectedTemplateIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected template${ids.length === 1 ? "" : "s"} permanently?`)) {
+      return;
+    }
+    setIsDeletingTemplates(true);
+    try {
+      await deleteAdminTemplates(ids);
+      setSelectedTemplateIds(new Set());
+      toast.success(`Deleted ${ids.length} template${ids.length === 1 ? "" : "s"}`);
+    } catch (error) {
+      toast.error((error as Error).message || "Failed to delete selected templates");
+    } finally {
+      setIsDeletingTemplates(false);
+    }
+  };
 
   const moveTemplate = (id: string, dir: "up" | "down") => {
     const idx = sortedTemplates.findIndex((t) => t.id === id);
@@ -1102,6 +1152,39 @@ export function AdminPanel() {
             ))}
           </div>
 
+          {sortedTemplates.length > 0 && (
+            <div className="mx-6 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={toggleVisibleSelection}
+                  disabled={isDeletingTemplates}
+                >
+                  {allVisibleSelected ? "Clear visible" : "Select visible"}
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {selectedTemplateIds.size} selected
+                </span>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 gap-1.5 text-xs"
+                onClick={deleteSelectedTemplates}
+                disabled={selectedTemplateIds.size === 0 || isDeletingTemplates}
+              >
+                {isDeletingTemplates ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                Delete selected
+              </Button>
+            </div>
+          )}
+
           {/* Template list */}
           <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2">
             {sortedTemplates.length === 0 ? (
@@ -1126,8 +1209,21 @@ export function AdminPanel() {
                 {sortedTemplates.map((tmpl, idx) => (
                   <div
                     key={tmpl.id}
-                    className="group relative flex flex-col gap-3 rounded-xl border bg-card p-3 hover:border-primary/50 transition-colors shadow-sm hover:shadow-md"
+                    className={`group relative flex flex-col gap-3 rounded-xl border bg-card p-3 transition-colors shadow-sm hover:shadow-md ${
+                      selectedTemplateIds.has(tmpl.id)
+                        ? "border-primary ring-2 ring-primary/20"
+                        : "hover:border-primary/50"
+                    }`}
                   >
+                  <label className="absolute left-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4"
+                      checked={selectedTemplateIds.has(tmpl.id)}
+                      onChange={() => toggleTemplateSelection(tmpl.id)}
+                      aria-label={`Select ${tmpl.label}`}
+                    />
+                  </label>
                   {/* Thumbnail or placeholder */}
                   <div className="relative w-full aspect-square shrink-0 rounded-lg bg-muted border overflow-hidden">
                     <TemplatePreview template={tmpl} />
@@ -1191,7 +1287,14 @@ export function AdminPanel() {
                       size="icon"
                       className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
                       onClick={() => {
+                        if (!confirm(`Delete "${tmpl.label}" permanently?`)) return;
+                        setSelectedTemplateIds((current) => {
+                          const next = new Set(current);
+                          next.delete(tmpl.id);
+                          return next;
+                        });
                         deleteAdminTemplate(tmpl.id);
+                        toast.success("Template deleted");
                       }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
