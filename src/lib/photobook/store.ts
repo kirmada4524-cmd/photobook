@@ -96,7 +96,17 @@ const compressTemplateAssetForUpload = async (
     if (!ctx) return dataUrl;
 
     ctx.drawImage(img, 0, 0, width, height);
-    let quality = kind === "sticker" ? 0.88 : 0.9;
+    if (kind === "sticker") {
+      let quality = 0.92;
+      let compressed = canvas.toDataURL("image/webp", quality);
+      while (compressed.length > MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH && quality > 0.55) {
+        quality -= 0.07;
+        compressed = canvas.toDataURL("image/webp", quality);
+      }
+      return compressed;
+    }
+
+    let quality = 0.9;
     let compressed = canvas.toDataURL("image/jpeg", quality);
 
     while (compressed.length > MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH && quality > 0.55) {

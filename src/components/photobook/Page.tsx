@@ -372,6 +372,10 @@ function ElementRenderer({
   const isEraserMode = useBookStore((s) => s.isEraserMode);
   const isTextEditing = interactive && editingTextId === el.id && (el.type === "text" || el.type === "quote");
   const isElementLocked = Boolean(isFrameLocked || (el.type === "sticker" && el.locked));
+  const stickerSrc =
+    el.type === "sticker"
+      ? el.src || (el.stickerId ? customStickersList.find((s) => s.id === el.stickerId)?.src : undefined)
+      : undefined;
 
   // --- Rotation drag: incremental delta avoids atan2 wrap jumps (fast/slow feel) ---
   const startRotationDrag = (clientX: number, clientY: number, shiftKey: boolean) => {
@@ -451,13 +455,9 @@ function ElementRenderer({
     el.type === "photo" ? (
       <PhotoBody el={el} library={library} />
     ) : el.type === "sticker" ? (
-      el.stickerId || el.src ? (
+      stickerSrc ? (
         <img
-          src={
-            el.stickerId
-              ? customStickersList.find((s) => s.id === el.stickerId)?.src || el.src
-              : el.src
-          }
+          src={stickerSrc}
           alt="sticker"
           className="h-full w-full object-contain pointer-events-none select-none"
           style={{
@@ -1108,7 +1108,8 @@ function PageEraserCanvas({
 
 function PhotoBody({ el, library }: { el: PhotoElement; library: { id: string; src: string }[] }) {
   const img = library.find((i) => i.id === el.imageId);
-  const inner = shapeStyle(el.shape, el.frame === "none" ? el.radius : 4);
+  const radius = el.radius ?? 0;
+  const inner = shapeStyle(el.shape, radius);
 
   if (!img) {
     return (
@@ -1137,8 +1138,9 @@ function PhotoBody({ el, library }: { el: PhotoElement; library: { id: string; s
   const isZoomedOut = scale < 1;
 
   const frameStyle: React.CSSProperties = {
-    borderRadius: el.frame === "none" ? (el.shape && el.shape !== "none" ? 0 : el.radius) : 0,
+    borderRadius: el.shape && el.shape !== "none" ? 0 : radius,
     opacity: el.opacity ?? 1,
+    overflow: "hidden",
   };
 
   if (el.frameColor) {
