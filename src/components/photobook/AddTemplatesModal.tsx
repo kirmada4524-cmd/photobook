@@ -14,6 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { LayoutGrid, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 
+const templateCategoryLabel = (category?: string) =>
+  !category || category === "Common" ? "General" : category;
+
 export function AddTemplatesModal({
   open,
   onOpenChange,
@@ -29,7 +32,7 @@ export function AddTemplatesModal({
   const availableTemplates = adminTemplates;
 
   const templatesByCategory = availableTemplates.reduce((acc, t) => {
-    const cat = t.category || "General";
+    const cat = templateCategoryLabel(t.category);
     if (!acc[cat]) acc[cat] = [];
     acc[cat].push(t);
     return acc;

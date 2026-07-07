@@ -38,7 +38,7 @@ const TEMPLATE_CATEGORIES: string[] = [
   "Back Cover",
   "Birthday",
   "Travel",
-  "Common",
+  "General",
 ];
 
 const filesToPayload = (files: File[]) =>
@@ -310,7 +310,7 @@ interface ConvertProjectDialogProps {
 
 function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps) {
   const [label, setLabel] = useState("");
-  const [category, setCategory] = useState<string>("Common");
+  const [category, setCategory] = useState<string>("General");
   const [frameLocked, setFrameLocked] = useState(true);
   const [backgroundLocked, setBackgroundLocked] = useState(true);
   const [importProgress, setImportProgress] = useState<ImportProgress>(emptyImportProgress);
@@ -320,7 +320,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
 
   const allCategories = Array.from(new Set([
     ...TEMPLATE_CATEGORIES,
-    ...adminTemplates.map((t) => t.category).filter(Boolean)
+    ...adminTemplates.map((t) => t.category).filter((category) => category && category !== "Common")
   ])) as string[];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -457,7 +457,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             backgroundX: typeof page.backgroundX === "number" ? page.backgroundX : 0,
             backgroundY: typeof page.backgroundY === "number" ? page.backgroundY : 0,
             sizeId: FIXED_PAGE_SIZE_ID,
-            category: category.trim() || "Common",
+            category: category.trim() || "General",
             frameLocked,
             backgroundLocked,
             isAdminTemplate: true,
@@ -625,13 +625,15 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
   const adminTemplates = useBookStore((s) => s.adminTemplates);
   const updateAdminTemplate = useBookStore((s) => s.updateAdminTemplate);
   const [label, setLabel] = useState(template?.label ?? "");
-  const [category, setCategory] = useState<string>(template?.category || "Common");
+  const [category, setCategory] = useState<string>(
+    template?.category && template.category !== "Common" ? template.category : "General",
+  );
   const [frameLocked, setFrameLocked] = useState(template?.frameLocked ?? true);
   const [backgroundLocked, setBackgroundLocked] = useState(template?.backgroundLocked ?? true);
 
   const allCategories = Array.from(new Set([
     ...TEMPLATE_CATEGORIES,
-    ...adminTemplates.map((t) => t.category).filter(Boolean)
+    ...adminTemplates.map((t) => t.category).filter((category) => category && category !== "Common")
   ])) as string[];
 
   if (!template) return null;
@@ -1024,7 +1026,11 @@ export function AdminPanel() {
   const filteredTemplates =
     activeCategory === "All"
       ? adminTemplates
-      : adminTemplates.filter((t) => t.category === activeCategory);
+      : adminTemplates.filter((t) =>
+          activeCategory === "General"
+            ? !t.category || t.category === "General" || t.category === "Common"
+            : t.category === activeCategory,
+        );
 
   const sortedTemplates = [...filteredTemplates].sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
@@ -1145,7 +1151,13 @@ export function AdminPanel() {
                 {cat}
                 {cat !== "All" && (
                   <span className="ml-1.5 opacity-60">
-                    ({adminTemplates.filter((t) => t.category === cat).length})
+                    ({
+                      adminTemplates.filter((t) =>
+                        cat === "General"
+                          ? !t.category || t.category === "General" || t.category === "Common"
+                          : t.category === cat,
+                      ).length
+                    })
                   </span>
                 )}
               </button>

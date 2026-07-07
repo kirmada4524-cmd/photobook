@@ -19,6 +19,7 @@ import type {
   QuoteElement,
   TextElement,
   PageElement,
+  SavedPageTemplate,
 } from "@/lib/photobook/types";
 import { FIXED_PAGE_SIZE_ID } from "@/lib/photobook/types";
 import { TemplatePreview } from "./TemplatePreview";
@@ -51,6 +52,47 @@ import { toast } from "sonner";
 
 const INITIAL_TEMPLATE_PREVIEW_LIMIT = 24;
 const TEMPLATE_PREVIEW_INCREMENT = 24;
+
+const safeZipFileName = (value: string, fallback: string) => {
+  const clean = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
+  return clean || fallback;
+};
+
+const downloadTemplatesZip = async (templates: SavedPageTemplate[]) => {
+  if (templates.length === 0) {
+    toast.message("No admin templates to download.");
+    return;
+  }
+
+  const { zipSync, strToU8 } = await import("fflate");
+  const files: Record<string, Uint8Array> = {
+    "all_admin_templates.json": strToU8(JSON.stringify(templates, null, 2)),
+  };
+
+  templates.forEach((template, index) => {
+    const fileBase = safeZipFileName(template.label, `template-${index + 1}`);
+    const fileName = `${String(index + 1).padStart(3, "0")}-${fileBase}.wanderpage`;
+    files[fileName] = strToU8(JSON.stringify(template, null, 2));
+  });
+
+  const zipped = zipSync(files, { level: 6 });
+  const blob = new Blob([zipped], { type: "application/zip" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `admin-templates-${new Date().toISOString().slice(0, 10)}.zip`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  toast.success(`Downloaded ${templates.length} template${templates.length === 1 ? "" : "s"} as ZIP`);
+};
+
+const templateCategoryLabel = (category?: string) =>
+  !category || category === "Common" ? "General" : category;
 
 const isBgImage = (bg?: string) => {
   if (!bg) return false;
@@ -409,26 +451,37 @@ export function DesignSidebar() {
                       </div>
                     </div>
                   ) : isAdmin ? (
-                    <div className="flex gap-2 px-1">
+                    <div className="space-y-2 px-1">
                       <Button
                         size="sm"
                         variant="outline"
-                        className="flex-1 text-[11px] gap-1 h-7 font-semibold"
-                        onClick={() => {
-                          setIsSavingTemplate(true);
-                          setTemplateNameInput(`Template ${customTemplates.length + 1}`);
-                        }}
+                        className="h-8 w-full gap-1.5 text-[11px] font-semibold"
+                        onClick={() => downloadTemplatesZip(adminTemplates)}
                       >
-                        Save Current
+                        <Download className="h-3.5 w-3.5" />
+                        Download Templates ZIP
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 text-[11px] gap-1 h-7 font-semibold"
-                        onClick={() => fileInputRef.current?.click()}
-                      >
-                        Import JSON
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-[11px] gap-1 h-7 font-semibold"
+                          onClick={() => {
+                            setIsSavingTemplate(true);
+                            setTemplateNameInput(`Template ${customTemplates.length + 1}`);
+                          }}
+                        >
+                          Save Current
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1 text-[11px] gap-1 h-7 font-semibold"
+                          onClick={() => fileInputRef.current?.click()}
+                        >
+                          Import JSON
+                        </Button>
+                      </div>
                       <input
                         type="file"
                         ref={fileInputRef}
@@ -463,7 +516,7 @@ export function DesignSidebar() {
                   <div className="space-y-6 mt-4">
                     {Object.entries(
                       visibleSavedTemplates.reduce((acc, t) => {
-                        const cat = t.category || "General";
+                        const cat = templateCategoryLabel(t.category);
                         if (!acc[cat]) acc[cat] = [];
                         acc[cat].push(t);
                         return acc;
