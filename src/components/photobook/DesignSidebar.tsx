@@ -1,6 +1,5 @@
 import { useBookStore, type AutofillResult } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
-import { TEMPLATES } from "@/lib/photobook/templates";
 import {
   FRAMES,
   STICKERS,
@@ -69,7 +68,6 @@ const isBgImage = (bg?: string) => {
 
 export function DesignSidebar() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const applyLayout = useBookStore((s) => s.applyLayout);
   const addSticker = useBookStore((s) => s.addStickerToCurrentPage);
   const addQuote = useBookStore((s) => s.addQuoteToCurrentPage);
   const currentPageId = useBookStore((s) => s.currentPageId);
@@ -112,7 +110,6 @@ export function DesignSidebar() {
   const [templateNameInput, setTemplateNameInput] = useState("");
   const [templateCategoryInput, setTemplateCategoryInput] = useState("");
   const [templateQuery, setTemplateQuery] = useState("");
-  const [templateStyle, setTemplateStyle] = useState<string>("All");
   const [visibleTemplateCount, setVisibleTemplateCount] = useState(INITIAL_TEMPLATE_PREVIEW_LIMIT);
 
   const width = useBookStore((s) => s.designSidebarWidth ?? 320);
@@ -165,27 +162,7 @@ export function DesignSidebar() {
       0,
     ),
   );
-  const currentOrientation = "square";
-  const templateStyles = [
-    "All",
-    "Recommended",
-    ...Array.from(new Set(TEMPLATES.map((t) => t.style))),
-  ];
   const normalizedQuery = templateQuery.trim().toLowerCase();
-  const filteredTemplates = TEMPLATES.filter((t) => {
-    const matchesQuery =
-      !normalizedQuery ||
-      `${t.label} ${t.category} ${t.style}`.toLowerCase().includes(normalizedQuery);
-    const recommended =
-      availablePhotoCount === 0
-        ? t.minPhotos <= 4
-        : t.minPhotos <= availablePhotoCount &&
-          (!t.orientation || t.orientation === "any" || t.orientation === currentOrientation);
-    const matchesStyle =
-      templateStyle === "All" ||
-      (templateStyle === "Recommended" ? recommended : t.style === templateStyle);
-    return matchesQuery && matchesStyle;
-  });
   const availableSavedTemplates = [...filteredAdminTemplates, ...filteredCustomTemplates].filter((t) => {
     if (!normalizedQuery) return true;
     return `${t.label} ${t.category ?? ""}`.toLowerCase().includes(normalizedQuery);
@@ -195,7 +172,7 @@ export function DesignSidebar() {
 
   useEffect(() => {
     setVisibleTemplateCount(INITIAL_TEMPLATE_PREVIEW_LIMIT);
-  }, [templateQuery, templateStyle, activeTab]);
+  }, [templateQuery, activeTab]);
 
   const reportFill = (result: AutofillResult) => {
     if (result.framesFilled > 0) {
@@ -211,12 +188,6 @@ export function DesignSidebar() {
     } else {
       toast.message("All frames already have photos.");
     }
-  };
-
-  const applyAndFill = (templateId: (typeof TEMPLATES)[number]["id"]) => {
-    applyLayout(templateId);
-    const result = useBookStore.getState().autofillLeastUsedImages(currentPageId);
-    reportFill(result);
   };
 
   const fillCurrentPage = () =>
@@ -295,24 +266,9 @@ export function DesignSidebar() {
                     <Input
                       value={templateQuery}
                       onChange={(e) => setTemplateQuery(e.target.value)}
-                      placeholder="Search templates, styles, frames..."
+                      placeholder="Search saved templates..."
                       className="h-9 pl-8 text-xs"
                     />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {templateStyles.map((style) => (
-                      <button
-                        key={style}
-                        onClick={() => setTemplateStyle(style)}
-                        className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition ${
-                          templateStyle === style
-                            ? "border-accent bg-accent text-accent-foreground"
-                            : "bg-background hover:border-accent"
-                        }`}
-                      >
-                        {style}
-                      </button>
-                    ))}
                   </div>
                   <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] text-muted-foreground">
                     <div className="rounded-lg bg-muted/60 px-2 py-1.5">
@@ -627,63 +583,6 @@ export function DesignSidebar() {
                   </div>
                 </div>
 
-                {/* Predefined Layouts */}
-                {filteredTemplates.length === 0 && (
-                  <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    No templates match your search.
-                  </div>
-                )}
-                {Array.from(new Set(filteredTemplates.map((t) => t.style))).map((style) => {
-                  const catTemplates = filteredTemplates.filter((t) => t.style === style);
-                  return (
-                    <div key={style} className="space-y-1.5">
-                      <div className="flex items-center justify-between px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                        <span>{style} Templates</span>
-                        <span>{catTemplates.length}</span>
-                      </div>
-                      <div className="grid grid-flow-col auto-cols-[140px] md:grid-flow-row md:auto-cols-auto md:grid-cols-2 gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 snap-x touch-pan-x">
-                        {catTemplates.map((t) => (
-                          <div
-                            key={t.id}
-                            className="group rounded-xl border bg-card p-2 text-left transition hover:border-accent hover:shadow-md snap-start"
-                          >
-                            <button className="w-full text-left" onClick={() => applyLayout(t.id)}>
-                              <LayoutThumb id={t.id} />
-                              <div className="mt-1.5 px-0.5 text-[11px] font-semibold leading-tight truncate">
-                                {t.label}
-                              </div>
-                              <div className="px-0.5 text-[9px] text-muted-foreground">
-                                {t.minPhotos}
-                                {t.maxPhotos && t.maxPhotos !== t.minPhotos
-                                  ? `-${t.maxPhotos}`
-                                  : ""}{" "}
-                                frames · {t.category}
-                              </div>
-                            </button>
-                            <div className="mt-2 grid grid-cols-2 gap-1">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-[10px] font-semibold"
-                                onClick={() => applyLayout(t.id)}
-                              >
-                                Apply
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 gap-1 bg-charcoal text-[10px] font-semibold text-cream hover:bg-charcoal/90"
-                                onClick={() => applyAndFill(t.id)}
-                              >
-                                <Sparkles className="h-3 w-3" />
-                                Fill
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
               </>
             )}
           </TabsContent>
@@ -1650,317 +1549,6 @@ function PhotoControls({
             Clear Image from Frame
           </Button>
         </div>
-      )}
-    </div>
-  );
-}
-
-function LayoutThumb({ id }: { id: string }) {
-  const box = "absolute rounded-sm bg-charcoal/70";
-  return (
-    <div className="relative aspect-square w-full overflow-hidden rounded-md bg-cream">
-      {id === "full" && <div className={`${box} inset-1.5`} />}
-      {id === "polaroid1" && (
-        <div className={`${box} left-1/4 top-[8%] bottom-[25%] right-1/4 border-2 border-white`} />
-      )}
-      {id === "center1" && <div className={`${box} inset-4`} />}
-      {id === "editorial1" && <div className={`${box} bottom-1.5 left-1.5 top-1.5 w-[42%]`} />}
-      {id === "cleanHero" && <div className={`${box} inset-3 border-2 border-white/80`} />}
-
-      {id === "split2" && (
-        <>
-          <div className={`${box} bottom-1.5 left-1.5 top-1.5 w-[46%]`} />
-          <div className={`${box} bottom-1.5 right-1.5 top-1.5 w-[46%]`} />
-        </>
-      )}
-      {id === "vertical2" && (
-        <>
-          <div className={`${box} left-1.5 right-1.5 top-1.5 h-[42%]`} />
-          <div className={`${box} bottom-1.5 left-1.5 right-1.5 h-[42%]`} />
-        </>
-      )}
-      {id === "overlapping2" && (
-        <>
-          <div className={`${box} left-2 top-3 h-[60%] w-[38%] rotate-[-6deg]`} />
-          <div className={`${box} right-2 top-2 h-[60%] w-[38%] rotate-[8deg]`} />
-        </>
-      )}
-      {id === "editorial2" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 bottom-1.5 w-[38%]`} />
-          <div className={`${box} right-1.5 top-3 bottom-3 w-[46%]`} />
-        </>
-      )}
-      {id === "minimalPairs" && (
-        <>
-          <div className={`${box} bottom-3 left-2 top-3 w-[42%]`} />
-          <div className={`${box} bottom-3 right-2 top-3 w-[42%]`} />
-        </>
-      )}
-      {id === "asymmetric2" && (
-        <>
-          <div className={`${box} left-1.5 top-2 h-[52%] w-[54%]`} />
-          <div className={`${box} right-1.5 bottom-2 h-[58%] w-[32%] border border-white/60`} />
-        </>
-      )}
-      {id === "diagonal2" && (
-        <>
-          <div className={`${box} left-2 top-2 h-[42%] w-[42%]`} />
-          <div className={`${box} right-2 bottom-2 h-[42%] w-[42%]`} />
-        </>
-      )}
-
-      {id === "collage3" && (
-        <>
-          <div className={`${box} bottom-1.5 left-1.5 top-1.5 w-[58%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[46%] w-[36%]`} />
-          <div className={`${box} bottom-1.5 right-1.5 h-[46%] w-[36%]`} />
-        </>
-      )}
-      {id === "strip3" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 bottom-1.5 w-[28%]`} />
-          <div className={`${box} left-[36%] top-1.5 bottom-1.5 w-[28%]`} />
-          <div className={`${box} right-1.5 top-1.5 bottom-1.5 w-[28%]`} />
-        </>
-      )}
-      {id === "horizontal3" && (
-        <>
-          <div className={`${box} left-1.5 right-1.5 top-1.5 h-[26%]`} />
-          <div className={`${box} left-1.5 right-1.5 top-[37%] h-[26%]`} />
-          <div className={`${box} left-1.5 right-1.5 bottom-1.5 h-[26%]`} />
-        </>
-      )}
-      {id === "overlapping3" && (
-        <>
-          <div className={`${box} left-2 top-[25%] h-[50%] w-[30%] rotate-[-12deg]`} />
-          <div className={`${box} right-2 top-[25%] h-[50%] w-[30%] rotate-[10deg]`} />
-          <div
-            className={`${box} left-1/2 top-1/2 h-[55%] w-[32%] -translate-x-1/2 -translate-y-1/2 rotate-[-2deg]`}
-          />
-        </>
-      )}
-      {id === "storyStack" && (
-        <>
-          <div className={`${box} bottom-1.5 left-1.5 top-1.5 w-[52%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[43%] w-[36%]`} />
-          <div className={`${box} bottom-1.5 right-1.5 h-[43%] w-[36%]`} />
-        </>
-      )}
-      {id === "triptych3" && (
-        <>
-          <div className={`${box} left-1.5 top-4 bottom-4 w-[28%]`} />
-          <div className={`${box} left-[36%] top-2 bottom-2 w-[28%]`} />
-          <div className={`${box} right-1.5 top-4 bottom-4 w-[28%]`} />
-        </>
-      )}
-      {id === "scatter3" && (
-        <>
-          <div className={`${box} left-1 top-4 h-[48%] w-[28%] rotate-[-8deg] border border-white/60`} />
-          <div className={`${box} right-1 bottom-4 h-[48%] w-[28%] rotate-[6deg] border border-white/60`} />
-          <div className={`${box} left-[36%] top-3 h-[52%] w-[28%] rotate-[-3deg] border border-white/60`} />
-        </>
-      )}
-      {id === "fullHero3" && (
-        <>
-          <div className={`${box} left-1 top-1 bottom-1 w-[56%]`} />
-          <div className={`${box} right-1 top-1 h-[45%] w-[40%]`} />
-          <div className={`${box} right-1 bottom-1 h-[45%] w-[40%]`} />
-        </>
-      )}
-
-      {id === "grid4" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 h-[46%] w-[46%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[46%] w-[46%]`} />
-          <div className={`${box} bottom-1.5 left-1.5 h-[46%] w-[46%]`} />
-          <div className={`${box} bottom-1.5 right-1.5 h-[46%] w-[46%]`} />
-        </>
-      )}
-      {id === "filmstrip" && (
-        <>
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`${box} top-[25%] h-[50%] w-[20%]`}
-              style={{ left: `${4 + i * 23}%` }}
-            />
-          ))}
-        </>
-      )}
-      {id === "editorial4" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 bottom-1.5 w-[50%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[26%] w-[38%]`} />
-          <div className={`${box} right-1.5 top-[37%] h-[26%] w-[38%]`} />
-          <div className={`${box} right-1.5 bottom-1.5 h-[26%] w-[38%]`} />
-        </>
-      )}
-      {id === "overlapping4" && (
-        <>
-          <div className={`${box} left-2 top-2 h-[40%] w-[30%] rotate-[-6deg]`} />
-          <div className={`${box} right-2 top-2 h-[40%] w-[30%] rotate-[8deg]`} />
-          <div className={`${box} left-3 bottom-2 h-[40%] w-[30%] rotate-[4deg]`} />
-          <div className={`${box} right-3 bottom-2 h-[40%] w-[30%] rotate-[-5deg]`} />
-        </>
-      )}
-      {id === "travelPostcards" && (
-        <>
-          <div className={`${box} left-2 top-2 h-[40%] w-[42%] rotate-[-2deg]`} />
-          <div className={`${box} right-2 top-2 h-[40%] w-[42%] rotate-[2deg]`} />
-          <div className={`${box} bottom-2 left-2 h-[40%] w-[42%] rotate-[2deg]`} />
-          <div className={`${box} bottom-2 right-2 h-[40%] w-[42%] rotate-[-2deg]`} />
-        </>
-      )}
-      {id === "mosaic4" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 h-[46%] w-[42%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[36%] w-[46%]`} />
-          <div className={`${box} left-1.5 bottom-1.5 h-[38%] w-[46%]`} />
-          <div className={`${box} right-1.5 bottom-1.5 h-[48%] w-[42%]`} />
-        </>
-      )}
-      {id === "stripes4" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 bottom-1.5 w-[20%]`} />
-          <div className={`${box} left-[26%] top-1.5 bottom-1.5 w-[20%]`} />
-          <div className={`${box} left-[51%] top-1.5 bottom-1.5 w-[20%]`} />
-          <div className={`${box} right-1.5 top-1.5 bottom-1.5 w-[20%]`} />
-        </>
-      )}
-      {id === "fullGrid4" && (
-        <>
-          <div className={`${box} left-1 top-1 h-[45%] w-[47%]`} />
-          <div className={`${box} right-1 top-1 h-[45%] w-[47%]`} />
-          <div className={`${box} left-1 bottom-1 h-[45%] w-[47%]`} />
-          <div className={`${box} right-1 bottom-1 h-[45%] w-[47%]`} />
-        </>
-      )}
-
-      {id === "collage5" && (
-        <>
-          <div
-            className={`${box} left-1/2 top-1/2 h-[46%] w-[36%] -translate-x-1/2 -translate-y-1/2`}
-          />
-          <div className={`${box} left-1.5 top-1.5 h-[26%] w-[26%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[26%] w-[26%]`} />
-          <div className={`${box} left-1.5 bottom-1.5 h-[26%] w-[26%]`} />
-          <div className={`${box} right-1.5 bottom-1.5 h-[26%] w-[26%]`} />
-        </>
-      )}
-      {id === "grid5" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 h-[40%] w-[28%]`} />
-          <div className={`${box} left-[36%] top-1.5 h-[40%] w-[28%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[40%] w-[28%]`} />
-          <div className={`${box} left-[8%] bottom-1.5 h-[40%] w-[38%]`} />
-          <div className={`${box} right-[8%] bottom-1.5 h-[40%] w-[38%]`} />
-        </>
-      )}
-      {id === "overlapping5" && (
-        <>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className={`${box} top-1/3 h-[45%] w-[16%]`}
-              style={{ left: `${3 + i * 20}%`, transform: `rotate(${(i - 2) * 6}deg)` }}
-            />
-          ))}
-        </>
-      )}
-      {id === "polaroidWall" && (
-        <>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className={`${box} h-[34%] w-[23%] border-2 border-white`}
-              style={{
-                left: `${7 + (i % 3) * 30}%`,
-                top: `${i < 3 ? 12 : 54}%`,
-                transform: `rotate(${(i - 2) * 4}deg)`,
-              }}
-            />
-          ))}
-        </>
-      )}
-      {id === "fullSplit5" && (
-        <>
-          <div className={`${box} left-1 top-1 h-[45%] w-[47%]`} />
-          <div className={`${box} right-1 top-1 h-[45%] w-[47%]`} />
-          <div className={`${box} left-1 bottom-1 h-[45%] w-[30%]`} />
-          <div className={`${box} left-[35%] bottom-1 h-[45%] w-[30%]`} />
-          <div className={`${box} right-1 bottom-1 h-[45%] w-[30%]`} />
-        </>
-      )}
-
-      {id === "magazine" && (
-        <>
-          <div className={`${box} left-1.5 right-1.5 top-1.5 h-[60%]`} />
-          <div className={`${box} bottom-1.5 left-1.5 h-[28%] w-[30%]`} />
-          <div className={`${box} bottom-1.5 left-1/2 h-[28%] w-[30%] -translate-x-1/2`} />
-          <div className={`${box} bottom-1.5 right-1.5 h-[28%] w-[30%]`} />
-        </>
-      )}
-      {id === "scrapbook" && (
-        <>
-          <div className={`${box} left-[8%] top-[10%] h-[40%] w-[34%] rotate-[-8deg]`} />
-          <div className={`${box} right-[8%] top-[14%] h-[36%] w-[30%] rotate-[6deg]`} />
-          <div className={`${box} bottom-[10%] left-[14%] h-[36%] w-[28%] rotate-[5deg]`} />
-          <div className={`${box} bottom-[12%] right-[12%] h-[32%] w-[26%] rotate-[-6deg]`} />
-        </>
-      )}
-      {id === "mosaic6" && (
-        <>
-          <div className={`${box} left-1.5 top-1.5 h-[26%] w-[44%]`} />
-          <div className={`${box} left-1.5 top-[37%] h-[26%] w-[44%]`} />
-          <div className={`${box} left-1.5 bottom-1.5 h-[26%] w-[44%]`} />
-          <div className={`${box} right-1.5 top-1.5 h-[42%] w-[44%]`} />
-          <div className={`${box} right-1.5 bottom-1.5 h-[42%] w-[44%]`} />
-          <div
-            className={`${box} left-[28%] top-[35%] h-[30%] w-[44%] rotate-[3deg] border-2 border-white`}
-          />
-        </>
-      )}
-      {id === "mosaic8" && (
-        <>
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`${box} top-1.5 h-[42%] w-[20%]`}
-              style={{ left: `${2 + i * 24}%` }}
-            />
-          ))}
-          {[0, 1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className={`${box} bottom-1.5 h-[42%] w-[20%]`}
-              style={{ left: `${2 + i * 24}%` }}
-            />
-          ))}
-        </>
-      )}
-      {id === "canvaGrid" && (
-        <>
-          <div className={`${box} bottom-1.5 left-1.5 top-1.5 w-[48%]`} />
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className={`${box} h-[25%] w-[18%]`}
-              style={{ left: `${55 + (i % 2) * 21}%`, top: `${6 + Math.floor(i / 2) * 31}%` }}
-            />
-          ))}
-        </>
-      )}
-      {id === "passportGrid" && (
-        <>
-          {[0, 1, 2, 3, 4, 5].map((i) => (
-            <div
-              key={i}
-              className={`${box} h-[38%] w-[28%] border border-white/80`}
-              style={{ left: `${3 + (i % 3) * 32}%`, top: `${8 + Math.floor(i / 3) * 46}%` }}
-            />
-          ))}
-        </>
       )}
     </div>
   );
