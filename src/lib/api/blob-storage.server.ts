@@ -58,9 +58,10 @@ export async function getBlobText(pathname: string) {
   const token = readWriteToken();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN.");
   const storeId = parseStoreIdFromToken(token);
-  const url = `https://${storeId}.public.blob.vercel-storage.com/${pathname}`;
+  const url = `https://${storeId}.public.blob.vercel-storage.com/${pathname}?v=${Date.now()}`;
   const response = await fetch(url, {
     method: "GET",
+    cache: "no-store",
     headers: {
       authorization: `Bearer ${token}`,
     },

@@ -1286,15 +1286,19 @@ export function AdminPanel() {
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => {
+                      onClick={async () => {
                         if (!confirm(`Delete "${tmpl.label}" permanently?`)) return;
                         setSelectedTemplateIds((current) => {
                           const next = new Set(current);
                           next.delete(tmpl.id);
                           return next;
                         });
-                        deleteAdminTemplate(tmpl.id);
-                        toast.success("Template deleted");
+                        try {
+                          await deleteAdminTemplate(tmpl.id);
+                          toast.success("Template deleted");
+                        } catch (error) {
+                          toast.error((error as Error).message || "Failed to delete template");
+                        }
                       }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />

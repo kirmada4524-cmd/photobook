@@ -3,7 +3,6 @@ import { useAuthStore } from "@/lib/auth";
 import { TEMPLATES } from "@/lib/photobook/templates";
 import {
   FRAMES,
-  STICKERS,
   QUOTES,
   THEMES,
   SHAPES,
@@ -35,8 +34,6 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageMinus,
-  Upload,
-  Trash2,
   Paintbrush,
   Eraser,
   RotateCcw,
@@ -85,17 +82,9 @@ export function DesignSidebar() {
   const updatePageBackgroundPosition = useBookStore((s) => s.updatePageBackgroundPosition);
   const updatePageBackgroundScale = useBookStore((s) => s.updatePageBackgroundScale);
 
-  const customStickersList = useBookStore((s) => s.customStickersList ?? []);
-  const addCustomSticker = useBookStore((s) => s.addCustomSticker);
-  const deleteCustomSticker = useBookStore((s) => s.deleteCustomSticker);
-  const customBackgroundsList = useBookStore((s) => s.customBackgroundsList ?? []);
-  const addCustomBackground = useBookStore((s) => s.addCustomBackground);
-  const deleteCustomBackground = useBookStore((s) => s.deleteCustomBackground);
   const adminStickerFolders = useBookStore((s) => s.adminStickerFolders ?? []);
   const adminBackgrounds = useBookStore((s) => s.adminBackgrounds ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const stickerInputRef = useRef<HTMLInputElement>(null);
-  const bgInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState("layouts");
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
@@ -104,6 +93,16 @@ export function DesignSidebar() {
   const [templateCategoryInput, setTemplateCategoryInput] = useState("");
   const [templateQuery, setTemplateQuery] = useState("");
   const [templateStyle, setTemplateStyle] = useState<string>("All");
+  const editorStickerFolders = adminStickerFolders
+    .map((folder) => ({
+      ...folder,
+      stickers: folder.stickers.filter((sticker) => sticker.src),
+    }))
+    .filter((folder) => folder.stickers.length > 0);
+  const editorStickerCount = editorStickerFolders.reduce(
+    (count, folder) => count + folder.stickers.length,
+    0,
+  );
 
   const width = useBookStore((s) => s.designSidebarWidth ?? 320);
   const setWidth = useBookStore((s) => s.setDesignSidebarWidth);
@@ -396,13 +395,15 @@ export function DesignSidebar() {
                                 try {
                                   const html2canvas = (await import("html2canvas-pro")).default;
                                   const canvas = await html2canvas(pageEl, {
-                                    scale: 0.2, // Small scale to save space in storage
+                                    scale: 0.7,
                                     useCORS: true,
                                     logging: false,
-                                    allowTaint: true,
+                                    allowTaint: false,
                                     backgroundColor: null,
                                   });
-                                  thumbnailDataUrl = canvas.toDataURL("image/webp", 0.6);
+                                  thumbnailDataUrl = canvas.toDataURL("image/webp", 0.86);
+                                  canvas.width = 1;
+                                  canvas.height = 1;
                                 } catch (error) {
                                   console.error("Failed to generate template thumbnail:", error);
                                 }
@@ -699,84 +700,12 @@ export function DesignSidebar() {
           <TabsContent value="stickers" className="mt-0 space-y-4">
             {activeTab === "stickers" && (
               <>
-                {/* Dynamic Upload Stickers */}
-                <div className="space-y-2 border-b pb-3 mb-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                    My Uploaded Stickers
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-[11px] gap-1.5 h-8 border-dashed font-semibold mb-1"
-                    onClick={() => stickerInputRef.current?.click()}
-                  >
-                    <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-                    Choose Sticker from Device
-                  </Button>
-                  <input
-                    type="file"
-                    ref={stickerInputRef}
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={async (e) => {
-                      const files = e.target.files;
-                      if (!files) return;
-                      for (let i = 0; i < files.length; i++) {
-                        await addCustomSticker(files[i]);
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-
-                  {customStickersList.length === 0 ? (
-                    <div className="text-center text-[10px] text-muted-foreground py-3 border border-dashed rounded-lg">
-                      No uploaded stickers yet
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {customStickersList.map((stk) => (
-                        <div
-                          key={stk.id}
-                          className="group relative aspect-square w-full overflow-hidden rounded-lg border bg-card p-1 transition hover:border-accent hover:scale-105"
-                        >
-                          <button
-                            onClick={() => addSticker(stk.id)}
-                            className="h-full w-full flex items-center justify-center"
-                            title={stk.name}
-                          >
-                            <img
-                              src={stk.src}
-                              alt={stk.name}
-                              className="max-h-full max-w-full object-contain"
-                              loading="lazy"
-                            />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`Delete sticker "${stk.name}"?`)) {
-                                deleteCustomSticker(stk.id);
-                              }
-                            }}
-                            className="absolute right-0.5 top-0.5 z-10 hidden h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-white shadow-md hover:scale-115 hover:bg-sky-600 group-hover:flex"
-                            title="Delete sticker"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {adminStickerFolders.length > 0 && (
-                  <div className="space-y-3 border-b pb-3 mb-2">
+                {editorStickerCount > 0 ? (
+                  <div className="space-y-3">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
                       Global Sticker Folders
                     </div>
-                    {adminStickerFolders.map((folder) => (
+                    {editorStickerFolders.map((folder) => (
                       <div key={folder.id} className="space-y-1.5">
                         <div className="flex items-center justify-between px-1 text-[11px] font-semibold">
                           <span className="truncate">{folder.name}</span>
@@ -803,32 +732,16 @@ export function DesignSidebar() {
                               </button>
                             ))}
                           </div>
-                        ) : (
-                          <div className="rounded-lg border border-dashed py-2 text-center text-[10px] text-muted-foreground">
-                            Empty folder
-                          </div>
-                        )}
+                        ) : null}
                       </div>
                     ))}
                   </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
+                    <div className="font-semibold text-foreground">No admin stickers yet.</div>
+                    <div className="mt-1">Upload stickers from the Admin Panel to show them here.</div>
+                  </div>
                 )}
-
-                <div className="space-y-1.5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                    Emojis
-                  </div>
-                  <div className="grid grid-cols-6 gap-1.5">
-                    {STICKERS.map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => addSticker(s)}
-                        className="aspect-square rounded-lg border bg-card text-xl transition hover:scale-110 hover:border-accent"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </>
             )}
           </TabsContent>
@@ -874,79 +787,7 @@ export function DesignSidebar() {
           <TabsContent value="bg" className="mt-0 space-y-4">
             {activeTab === "bg" && (
               <>
-                {/* Dynamic Upload Backgrounds */}
-                <div className="space-y-2 border-b pb-3 mb-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                    My Uploaded Backgrounds
-                  </div>
-
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-full text-[11px] gap-1.5 h-8 border-dashed font-semibold mb-1"
-                    onClick={() => bgInputRef.current?.click()}
-                  >
-                    <Upload className="h-3.5 w-3.5 text-muted-foreground" />
-                    Choose Background from Device
-                  </Button>
-                  <input
-                    type="file"
-                    ref={bgInputRef}
-                    accept="image/*"
-                    multiple
-                    className="hidden"
-                    onChange={async (e) => {
-                      const files = e.target.files;
-                      if (!files) return;
-                      for (let i = 0; i < files.length; i++) {
-                        await addCustomBackground(files[i]);
-                      }
-                      e.target.value = "";
-                    }}
-                  />
-
-                  {customBackgroundsList.length === 0 ? (
-                    <div className="text-center text-[10px] text-muted-foreground py-3 border border-dashed rounded-lg">
-                      No uploaded backgrounds yet
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                      {customBackgroundsList.map((bg) => (
-                        <div
-                          key={bg.id}
-                          className="group relative h-16 w-full overflow-hidden rounded-xl border transition hover:border-accent hover:scale-102"
-                        >
-                          <button
-                            onClick={() => setPageBackground(currentPageId, bg.id)}
-                            className="h-full w-full"
-                            title={bg.name}
-                          >
-                            <img
-                              src={bg.src}
-                              alt={bg.name}
-                              className="h-full w-full object-cover"
-                              loading="lazy"
-                            />
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm(`Delete background "${bg.name}"?`)) {
-                                deleteCustomBackground(bg.id);
-                              }
-                            }}
-                            className="absolute right-1 top-1 z-10 hidden h-4.5 w-4.5 items-center justify-center rounded-full bg-sky-500 text-white shadow-md hover:scale-115 hover:bg-sky-600 group-hover:flex"
-                            title="Delete background"
-                          >
-                            <Trash2 className="h-2.5 w-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {adminBackgrounds.length > 0 && (
+                {adminBackgrounds.length > 0 ? (
                   <div className="space-y-2 border-b pb-3 mb-2">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
                       Global Backgrounds
@@ -969,6 +810,11 @@ export function DesignSidebar() {
                         </button>
                       ))}
                     </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
+                    <div className="font-semibold text-foreground">No admin backgrounds yet.</div>
+                    <div className="mt-1">Upload backgrounds from the Admin Panel to show them here.</div>
                   </div>
                 )}
 
@@ -1208,28 +1054,6 @@ export function DesignSidebar() {
                   </div>
                 )}
 
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                  Premade Themes
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  {THEMES.map((t) => (
-                    <button
-                      key={t.id}
-                      onClick={() => setPageBackground(currentPageId, t.id)}
-                      className={`${t.cls} h-20 rounded-xl border-2 border-transparent text-xs font-medium shadow-sm transition hover:border-accent`}
-                    >
-                      <span
-                        className={
-                          ["dark", "noir", "blueprint", "coverLuxe", "city"].includes(t.id)
-                            ? "text-cream"
-                            : "text-charcoal"
-                        }
-                      >
-                        {t.label}
-                      </span>
-                    </button>
-                  ))}
-                </div>
               </>
             )}
           </TabsContent>

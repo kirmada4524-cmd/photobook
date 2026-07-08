@@ -10,6 +10,20 @@ const MAX_ASSET_ID_LENGTH = 200;
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
 
+const isImageUrl = (value: unknown): value is string =>
+  typeof value === "string" &&
+  (value.startsWith("http:") ||
+    value.startsWith("https:") ||
+    value.startsWith("/") ||
+    /\.(png|jpe?g|gif|webp|svg)$/i.test(value));
+
+const safeImageReference = (value: unknown) => {
+  if (isDataUrl(value)) {
+    return value.length <= MAX_EMBEDDED_DATA_URL_LENGTH ? value : undefined;
+  }
+  return isImageUrl(value) ? value : undefined;
+};
+
 const nid = (prefix: string) =>
   `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
@@ -66,15 +80,8 @@ function sanitizeAdminTemplates(raw: unknown) {
           })
         : [];
 
-      const thumbnail =
-        isDataUrl(template.thumbnail) && template.thumbnail.length <= MAX_EMBEDDED_DATA_URL_LENGTH
-          ? template.thumbnail
-          : undefined;
-
-      const eraserOverlay =
-        isDataUrl(template.eraserOverlay) && template.eraserOverlay.length <= MAX_EMBEDDED_DATA_URL_LENGTH
-          ? template.eraserOverlay
-          : undefined;
+      const thumbnail = safeImageReference(template.thumbnail);
+      const eraserOverlay = safeImageReference(template.eraserOverlay);
 
       return {
         ...template,
@@ -298,7 +305,7 @@ export const uploadTemplateAsset = createServerFn({ method: "POST" })
     z.object({
       name: z.string().min(1),
       dataUrl: z.string().min(1),
-      kind: z.enum(["background", "sticker", "overlay"]).default("background"),
+      kind: z.enum(["background", "sticker", "overlay", "thumbnail"]).default("background"),
     }),
   )
   .handler(async ({ data }) => {

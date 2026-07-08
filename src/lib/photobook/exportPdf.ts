@@ -728,11 +728,9 @@ export async function exportBookPdf(title: string) {
       // ── Sticker element ──────────────────────────────────────────────────
       else if (el.type === "sticker") {
         const stk = el as StickerElement;
+        let stickerDrawn = false;
 
-        if (stk.stickerId) {
-          const stkImg = stkMap.get(stk.stickerId);
-          if (stkImg) ctx.drawImage(stkImg, el.x, el.y, el.w, el.h);
-        } else if (stk.src) {
+        if (stk.src) {
           try {
             let si = stkMap.get(stk.src);
             if (!si) {
@@ -740,10 +738,21 @@ export async function exportBookPdf(title: string) {
               stkMap.set(stk.src, si);
             }
             ctx.drawImage(si, el.x, el.y, el.w, el.h);
+            stickerDrawn = true;
           } catch {
             /* skip */
           }
-        } else if (stk.emoji) {
+        }
+
+        if (!stickerDrawn && stk.stickerId) {
+          const stkImg = stkMap.get(stk.stickerId);
+          if (stkImg) {
+            ctx.drawImage(stkImg, el.x, el.y, el.w, el.h);
+            stickerDrawn = true;
+          }
+        }
+
+        if (!stickerDrawn && stk.emoji) {
           ctx.font = `${el.h * 0.7}px serif`;
           ctx.textAlign = "center";
           ctx.textBaseline = "middle";
@@ -799,10 +808,9 @@ export async function exportBookPdf(title: string) {
     }
 
     // ── Add to PDF ─────────────────────────────────────────────────────────
-    // Use PNG for lossless output so backgrounds and colours are preserved exactly.
-    const imgData = canvas.toDataURL("image/png");
+    const imgData = canvas.toDataURL("image/jpeg", 0.93);
     if (pi > 0) pdf.addPage([W, H], orientation);
-    pdf.addImage(imgData, "PNG", 0, 0, W, H, undefined, "NONE");
+    pdf.addImage(imgData, "JPEG", 0, 0, W, H, undefined, "FAST");
 
     // Free GPU memory immediately before next page
     canvas.width = 1;

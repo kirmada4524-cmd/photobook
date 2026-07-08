@@ -54,11 +54,14 @@ import {
 } from "./db";
 
 const nid = (p = "id") => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-const OLD_DESIGN_ASSETS_CLEARED_KEY = "travelogue-old-design-assets-cleared-v1";
+const OLD_DESIGN_ASSETS_CLEARED_KEY = "travelogue-old-design-assets-cleared-v2";
 const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 2_500_000;
 
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
+
+const shouldUploadTemplateAsset = (value: string) =>
+  isDataUrl(value) || value.startsWith("blob:");
 
 const readBlobAsDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -70,7 +73,7 @@ const readBlobAsDataUrl = (blob: Blob) =>
 
 const compressTemplateAssetForUpload = async (
   dataUrl: string,
-  kind: "background" | "sticker" | "overlay",
+  kind: "background" | "sticker" | "overlay" | "thumbnail",
 ) => {
   if (dataUrl.length <= MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH) return dataUrl;
   if (typeof window === "undefined" || dataUrl.startsWith("data:image/svg+xml")) return dataUrl;
@@ -86,7 +89,7 @@ const compressTemplateAssetForUpload = async (
       img.src = objectUrl;
     });
 
-    const maxDim = kind === "sticker" ? 1200 : 2200;
+    const maxDim = kind === "sticker" ? 1200 : kind === "thumbnail" ? 1200 : 2200;
     const ratio = Math.min(1, maxDim / Math.max(img.naturalWidth, img.naturalHeight));
     const width = Math.max(1, Math.round(img.naturalWidth * ratio));
     const height = Math.max(1, Math.round(img.naturalHeight * ratio));
@@ -124,7 +127,7 @@ const compressTemplateAssetForUpload = async (
 };
 
 const uploadGlobalTemplateAsset = async (
-  kind: "background" | "sticker" | "overlay",
+  kind: "background" | "sticker" | "overlay" | "thumbnail",
   name: string,
   dataUrl: string,
 ) => {
@@ -300,7 +303,7 @@ type Actions = {
 
   addAdminTemplate: (template: SavedPageTemplate) => void;
   addAdminTemplates: (templates: SavedPageTemplate[]) => void;
-  deleteAdminTemplate: (templateId: string) => void;
+  deleteAdminTemplate: (templateId: string) => Promise<void>;
   deleteAdminTemplates: (templateIds: string[]) => Promise<void>;
   reorderAdminTemplates: (ids: string[]) => void;
   updateAdminTemplate: (templateId: string, patch: Partial<SavedPageTemplate>) => void;
@@ -1120,7 +1123,7 @@ export const useBookStore = create<State & Actions>()(
             bgSrc = bgId;
           }
 
-          if (bgSrc) {
+          if (bgSrc && shouldUploadTemplateAsset(bgSrc)) {
             try {
               const resp = await fetch(bgSrc);
               const blob = await resp.blob();
@@ -1136,13 +1139,13 @@ export const useBookStore = create<State & Actions>()(
             }
           }
 
-          // Embed stickers used on this page
+          // Embed only temporary/local stickers used on this page. Public Blob URLs are kept as-is.
           for (const el of page.elements) {
             if (el.type === "sticker") {
               const sid = ((el as any).stickerId as string) || el.id;
               const customStk = s.customStickersList.find((sk) => sk.id === sid);
               const src = ((el as any).src as string) || customStk?.src || "";
-              if (src && (src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("http") || src.startsWith("/"))) {
+              if (src && shouldUploadTemplateAsset(src)) {
                 if (!embeddedAssets.some((a) => a.id === sid)) {
                   try {
                     const resp = await fetch(src);
@@ -1172,7 +1175,7 @@ export const useBookStore = create<State & Actions>()(
             eraserOverlay: page.eraserOverlay,
             elements: page.elements.map((el) => {
               const templateElement = { ...el, id: nid("el") } as PageElement;
-              if (templateElement.type === "sticker" && !templateElement.stickerId) {
+              if (templateElement.type === "sticker" && !templateElement.stickerId && !templateElement.src) {
                 templateElement.stickerId = el.id;
               }
               return templateElement;
@@ -1206,6 +1209,14 @@ export const useBookStore = create<State & Actions>()(
                   return stickerId === asset.id ? { ...element, src: uploadedUrl, stickerId: undefined } : element;
                 });
               }
+            }
+
+            if (isDataUrl(adminTemplate.thumbnail)) {
+              adminTemplate.thumbnail = await uploadGlobalTemplateAsset(
+                "thumbnail",
+                `${adminTemplate.label || "template"}-thumbnail`,
+                adminTemplate.thumbnail,
+              );
             }
 
             if (isDataUrl(adminTemplate.eraserOverlay)) {
@@ -1425,7 +1436,7 @@ export const useBookStore = create<State & Actions>()(
               w: Math.max(1, Math.round(selection.w)),
               h: Math.max(1, Math.round(selection.h)),
               rotation: 0,
-              z: maxZ + 1,
+              z: maxZ > 20 ? 20 : maxZ + 1,
               frame: "none",
               radius: 0,
               magicMask: selection.maskSrc,
@@ -1507,12 +1518,15 @@ export const useBookStore = create<State & Actions>()(
             return { adminTemplates };
           });
         },
-        deleteAdminTemplate: (templateId) => {
-          set((s) => {
-            const adminTemplates = s.adminTemplates.filter((t) => t.id !== templateId);
-            deleteAdminTemplateById({ data: { id: templateId } }).catch(err => console.error("API error", err));
-            return { adminTemplates };
-          });
+        deleteAdminTemplate: async (templateId) => {
+          const previous = get().adminTemplates;
+          const adminTemplates = previous.filter((t) => t.id !== templateId);
+          set({ adminTemplates });
+          const result = await deleteAdminTemplateById({ data: { id: templateId } });
+          if (!result.success) {
+            set({ adminTemplates: previous });
+            throw new Error(result.error || "Failed to delete template");
+          }
         },
         deleteAdminTemplates: async (templateIds) => {
           const ids = new Set(templateIds);
