@@ -7,6 +7,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  Maximize2,
+  Minimize2,
   Move,
   Rotate3D,
   RotateCcw,
@@ -74,6 +76,7 @@ function PreviewPage() {
   const { width: viewportW, height: viewportH } = useViewportSize();
   const bookRef = useRef<FlipBookApi | null>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
 
 
 
@@ -82,7 +85,7 @@ function PreviewPage() {
   const [isFlipping, setIsFlipping] = useState(false);
   const [isDraggingOrbit, setIsDraggingOrbit] = useState(false);
   const [isDraggingBook, setIsDraggingBook] = useState(false);
-  const [viewMode, setViewMode] = useState<"page" | "spread">("spread");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const orbitStartRef = useRef({ x: 0, y: 0, rotX: 0, rotY: 0 });
   const bookMoveStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const activeDragToolRef = useRef<"move" | "orbit" | null>(null);
@@ -114,35 +117,90 @@ function PreviewPage() {
     initCustomAssets();
   }, [initCustomAssets, initLibrary]);
 
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
   const preset = PAGE_SIZES[0];
   const { width: pageW, height: pageH } = preset;
   const isMobilePreview = viewportW < 860;
+  const isPhonePreview = viewportW < 600;
 
   const previewPages = useMemo(() => {
-    if (pages.length % 2 === 0 || pages.length <= 1) return pages;
+    if (pages.length % 2 === 0) return pages;
     const copy = [...pages];
-    copy.splice(copy.length - 1, 0, {
+    const blankPage = {
       id: "blank-placeholder-page",
       background: "minimal",
       border: "none",
       elements: [],
-    } as (typeof pages)[0]);
+    } as (typeof pages)[0];
+    if (copy.length <= 1) {
+      copy.push(blankPage);
+    } else {
+      copy.splice(copy.length - 1, 0, blankPage);
+    }
     return copy;
   }, [pages]);
 
   const totalPages = previewPages.length;
-  const singlePageMode = viewMode === "page" || totalPages <= 1;
+  const singlePageMode = totalPages <= 1;
   const isPortraitBook = singlePageMode;
+  const isMobileFullscreen = isPhonePreview && isFullscreen && !singlePageMode;
+  const useFullscreenSpread = isFullscreen && !singlePageMode;
+  const isFullscreenSinglePage = useFullscreenSpread && (currentPage <= 0 || currentPage >= totalPages - 1);
+  const isFullscreenCoverPage = useFullscreenSpread && currentPage <= 0;
+  const isFullscreenBackCoverPage = useFullscreenSpread && currentPage >= totalPages - 1;
 
   const fit = useMemo(() => {
-    const availableW = Math.max(260, viewportW - (isMobilePreview ? 24 : 48));
-    const availableH = Math.max(240, viewportH - (isMobilePreview ? 220 : 160));
+    const fitViewportW = isMobileFullscreen ? viewportH : viewportW;
+    const fitViewportH = isMobileFullscreen ? viewportW : viewportH;
+    const mobileFullscreenMargin = 20;
+    const chromeW = isFullscreen
+      ? isMobileFullscreen
+        ? mobileFullscreenMargin
+        : isMobilePreview
+          ? 10
+          : 36
+      : isMobilePreview
+        ? 24
+        : 48;
+    const chromeH = isFullscreen
+      ? isMobileFullscreen
+        ? mobileFullscreenMargin
+        : isMobilePreview
+          ? 10
+          : 36
+      : isMobilePreview
+        ? 220
+        : 160;
+    const availableW = Math.max(260, fitViewportW - chromeW);
+    const availableH = Math.max(240, fitViewportH - chromeH);
     const spreadPages = singlePageMode ? 1 : 2;
-    return clamp(Math.min(availableW / (pageW * spreadPages), availableH / pageH), 0.16, isMobilePreview ? 0.72 : 0.9);
-  }, [isMobilePreview, pageH, pageW, singlePageMode, viewportH, viewportW]);
+    return clamp(
+      Math.min(availableW / (pageW * spreadPages), availableH / pageH),
+      0.16,
+      isFullscreen ? 1.35 : isMobilePreview ? 0.72 : 0.96,
+    );
+  }, [
+    isFullscreen,
+    isFullscreenSinglePage,
+    isMobileFullscreen,
+    isMobilePreview,
+    pageH,
+    pageW,
+    singlePageMode,
+    viewportH,
+    viewportW,
+  ]);
 
-  const scaledPageW = Math.max(120, Math.floor(pageW * fit));
-  const scaledPageH = Math.max(160, Math.floor(pageH * fit));
+  const renderFit = fit;
+  const scaledPageW = Math.max(120, Math.floor(pageW * renderFit));
+  const scaledPageH = Math.max(160, Math.floor(pageH * renderFit));
+  const flipbookPageW = isMobileFullscreen ? scaledPageW * 2 : scaledPageW;
+  const flipbookPageH = isMobileFullscreen ? scaledPageH * 2 : scaledPageH;
 
   const activePage = previewPages[currentPage];
   const isBlankPage = activePage?.id === "blank-placeholder-page";
@@ -154,9 +212,10 @@ function PreviewPage() {
   const effectiveBookOffsetY = isMobilePreview
     ? clamp(settings.bookOffsetY, -mobileOffsetLimitY, mobileOffsetLimitY)
     : settings.bookOffsetY;
-  const effectiveRotateX = isMobilePreview ? clamp(settings.rotateX, 0, 16) : settings.rotateX;
-  const effectiveRotateY = isMobilePreview ? clamp(settings.rotateY, -12, 12) : settings.rotateY;
-  const bookTransform = `translate(${effectiveBookOffsetX}px, ${effectiveBookOffsetY}px) rotateX(${effectiveRotateX}deg) rotateY(${effectiveRotateY}deg)`;
+  const effectiveRotateX = isFullscreen ? 0 : isMobilePreview ? clamp(settings.rotateX, 0, 16) : settings.rotateX;
+  const effectiveRotateY = isFullscreen ? 0 : isMobilePreview ? clamp(settings.rotateY, -12, 12) : settings.rotateY;
+  const mobileFullscreenBookScale = isMobileFullscreen ? 2 : 1;
+  const bookTransform = `${isMobileFullscreen ? "rotate(90deg) " : ""}translate(${effectiveBookOffsetX}px, ${effectiveBookOffsetY}px) scale(${mobileFullscreenBookScale}) rotateX(${effectiveRotateX}deg) rotateY(${effectiveRotateY}deg)`;
 
   const pageLabel =
     currentPage === 0
@@ -169,10 +228,21 @@ function PreviewPage() {
 
   const triggerFlip = useCallback((direction: "next" | "prev") => {
     setIsFlipping(true);
-    if (direction === "next") bookRef.current?.pageFlip().flipNext();
-    else bookRef.current?.pageFlip().flipPrev();
+    if (direction === "next") {
+      if (bookRef.current) {
+        bookRef.current.pageFlip().flipNext();
+      } else {
+        setCurrentPage((page) => Math.min(totalPages - 1, page + 1));
+      }
+    } else {
+      if (bookRef.current) {
+        bookRef.current.pageFlip().flipPrev();
+      } else {
+        setCurrentPage((page) => Math.max(0, page - 1));
+      }
+    }
     window.setTimeout(() => setIsFlipping(false), 950);
-  }, []);
+  }, [totalPages]);
 
   const goPrev = useCallback(() => triggerFlip("prev"), [triggerFlip]);
   const goNext = useCallback(() => triggerFlip("next"), [triggerFlip]);
@@ -180,6 +250,18 @@ function PreviewPage() {
     setIsFlipping(true);
     bookRef.current?.pageFlip().turnToPage(page);
     window.setTimeout(() => setIsFlipping(false), 950);
+  };
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await shellRef.current?.requestFullscreen();
+      }
+    } catch {
+      setIsFullscreen((value) => !value);
+    }
   };
 
   useEffect(() => {
@@ -271,9 +353,6 @@ function PreviewPage() {
 
   const isFirst = currentPage <= 0;
   const isLast = currentPage >= totalPages - 1;
-  const isCoverActive = currentPage === 0 && !singlePageMode;
-  const isBackCoverActive = currentPage === totalPages - 1 && !singlePageMode;
-
   const stageCursor = settings.enableBookMove
     ? isDraggingBook
       ? "grabbing"
@@ -310,7 +389,8 @@ function PreviewPage() {
 
   return (
     <div
-      className={`book-preview-shell ${shellClass}`}
+      ref={shellRef}
+      className={`book-preview-shell ${shellClass} ${isFullscreen ? "is-fullscreen" : ""} ${isMobileFullscreen ? "is-mobile-landscape-book" : ""}`}
       style={
         settings.atmosphere === "custom" && settings.customBackground
           ? ({ "--preview-custom-bg": `url(${settings.customBackground})` } as React.CSSProperties)
@@ -329,25 +409,6 @@ function PreviewPage() {
           <div className="book-preview-title">
             <BookOpen className="h-4 w-4" />
             <span>{displayTitle}</span>
-          </div>
-
-          <div className="book-preview-view-toggle" aria-label="Preview mode">
-            <button
-              type="button"
-              aria-pressed={viewMode === "page"}
-              onClick={() => setViewMode("page")}
-              className={viewMode === "page" ? "is-active" : ""}
-            >
-              Page
-            </button>
-            <button
-              type="button"
-              aria-pressed={viewMode === "spread"}
-              onClick={() => setViewMode("spread")}
-              className={viewMode === "spread" ? "is-active" : ""}
-            >
-              Spread
-            </button>
           </div>
 
           <div className="book-preview-count font-semibold opacity-80">
@@ -440,6 +501,15 @@ function PreviewPage() {
 
         <button
           type="button"
+          onClick={toggleFullscreen}
+          className="book-preview-tool-btn"
+        >
+          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          {isFullscreen ? "Exit Full" : "Full Screen"}
+        </button>
+
+        <button
+          type="button"
           aria-pressed={settings.showGuide}
           onClick={() => patchSettings({ showGuide: !settings.showGuide })}
           className={`book-preview-tool-btn ${settings.showGuide ? "is-active" : ""}`}
@@ -448,6 +518,17 @@ function PreviewPage() {
           Avatar
         </button>
       </div>
+
+      {isFullscreen && (
+        <button
+          type="button"
+          className="book-preview-fullscreen-exit"
+          onClick={toggleFullscreen}
+          aria-label="Exit fullscreen"
+        >
+          <Minimize2 className="h-5 w-5" />
+        </button>
+      )}
       
       {settings.showGuide && (
         <PreviewGuideAvatar
@@ -479,6 +560,25 @@ function PreviewPage() {
         onPointerCancelCapture={handleStagePointerUp}
         style={{ cursor: stageCursor }}
       >
+        {isFullscreen && (
+          <>
+            <button
+              type="button"
+              className="book-preview-turn-zone book-preview-turn-zone-prev"
+              onClick={goPrev}
+              disabled={isFirst}
+              aria-label="Previous page"
+            />
+            <button
+              type="button"
+              className="book-preview-turn-zone book-preview-turn-zone-next"
+              onClick={goNext}
+              disabled={isLast}
+              aria-label="Next page"
+            />
+          </>
+        )}
+
         <button
           type="button"
           className="book-preview-nav book-preview-nav-prev"
@@ -491,8 +591,8 @@ function PreviewPage() {
 
         <div
           className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${singlePageMode ? "is-single-page" : ""} ${
-            isCoverActive ? "is-cover" : ""
-          } ${isBackCoverActive ? "is-back-cover" : ""}`}
+            isFullscreen && !isFullscreenSinglePage && !singlePageMode ? "has-fullscreen-binding" : ""
+          } ${isFullscreenCoverPage ? "is-fullscreen-cover-page" : ""} ${isFullscreenBackCoverPage ? "is-fullscreen-back-cover-page" : ""}`}
           style={
             {
               "--preview-page-width": `${scaledPageW}px`,
@@ -503,9 +603,6 @@ function PreviewPage() {
           }
         >
           <div className="book-preview-shadow" />
-          <div className="book-preview-edge book-preview-edge-top" />
-          <div className="book-preview-edge book-preview-edge-bottom" />
-          <div className="book-preview-spine" />
 
           {totalPages === 1 ? (
             <div className="book-preview-static-page">
@@ -515,6 +612,7 @@ function PreviewPage() {
                 isCover
                 isBackCover={false}
                 fit={fit}
+                renderFit={renderFit}
                 pageW={pageW}
                 pageH={pageH}
               />
@@ -522,8 +620,8 @@ function PreviewPage() {
           ) : (
             <FlipBook
               ref={bookRef}
-              width={scaledPageW}
-              height={scaledPageH}
+              width={flipbookPageW}
+              height={flipbookPageH}
               size="fixed"
               minWidth={120}
               maxWidth={2200}
@@ -540,7 +638,7 @@ function PreviewPage() {
               clickEventForward={false}
               useMouseEvents
               swipeDistance={24}
-              showPageCorners
+              showPageCorners={false}
               disableFlipByClick={settings.enableBookMove || settings.enable3DOrbit}
               startZIndex={20}
               className="book-preview-flipbook"
@@ -556,6 +654,7 @@ function PreviewPage() {
                   isBackCover={index === totalPages - 1}
                   isBlankPlaceholder={page.id === "blank-placeholder-page"}
                   fit={fit}
+                  renderFit={renderFit}
                   pageW={pageW}
                   pageH={pageH}
                 />
@@ -623,17 +722,51 @@ const BookPage = forwardRef<
     isCover: boolean;
     isBackCover: boolean;
     fit: number;
+    renderFit?: number;
     pageW: number;
     pageH: number;
     isBlankPlaceholder?: boolean;
   }
->(({ pageId, pageNumber, isCover, isBackCover, fit, pageW, pageH, isBlankPlaceholder }, ref) => {
-  const scaledW = Math.floor(pageW * fit);
-  const scaledH = Math.floor(pageH * fit);
+>(({ pageId, pageNumber, isCover, isBackCover, fit, renderFit, pageW, pageH, isBlankPlaceholder }, ref) => {
+  const pageFit = renderFit ?? fit;
+  const scaledW = Math.floor(pageW * pageFit);
+  const scaledH = Math.floor(pageH * pageFit);
+  const leafRef = useRef<HTMLDivElement | null>(null);
+  const [contentFit, setContentFit] = useState(pageFit);
+
+  const setLeafRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      leafRef.current = node;
+      if (typeof ref === "function") {
+        ref(node);
+      } else if (ref) {
+        ref.current = node;
+      }
+    },
+    [ref],
+  );
+
+  useEffect(() => {
+    const node = leafRef.current;
+    if (!node) return;
+
+    const updateContentFit = () => {
+      const leafW = node.offsetWidth;
+      const leafH = node.offsetHeight;
+      if (!leafW || !leafH) return;
+      const nextFit = Math.min(leafW / pageW, leafH / pageH);
+      setContentFit((current) => (Math.abs(current - nextFit) > 0.002 ? nextFit : current));
+    };
+
+    updateContentFit();
+    const observer = new ResizeObserver(updateContentFit);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [pageFit, pageH, pageW]);
 
   return (
     <div
-      ref={ref}
+      ref={setLeafRef}
       className={[
         "book-preview-leaf",
         isCover ? "book-preview-leaf-cover" : "",
@@ -648,20 +781,17 @@ const BookPage = forwardRef<
         style={{
           width: pageW,
           height: pageH,
-          transform: `scale(${fit})`,
+          transform: `scale(${contentFit})`,
           transformOrigin: "top left",
         }}
       >
         {isBlankPlaceholder ? (
-          <div className="h-full w-full bg-[#fbf7ed] border-l border-black/5" />
+          <div className="h-full w-full bg-[#fbf7ed]" />
         ) : (
           <Page pageId={pageId} interactive={false} pageNumber={pageNumber} />
         )}
       </div>
       {(isCover || isBackCover) && <div className="book-preview-cover-finish" />}
-      <div className="book-preview-paper-grain" />
-      <div className="book-preview-inner-shadow" />
-      <div className="book-preview-page-curl" />
     </div>
   );
 });
