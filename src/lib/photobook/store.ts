@@ -55,7 +55,7 @@ import {
 
 const nid = (p = "id") => `${p}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 const OLD_DESIGN_ASSETS_CLEARED_KEY = "travelogue-old-design-assets-cleared-v2";
-const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 2_500_000;
+const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 800_000;
 
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");

@@ -85,7 +85,7 @@ const findAssetDataUrl = (assets: unknown, id: unknown) => {
     : null;
 };
 
-const MAX_TEMPLATE_ASSET_DATA_URL_LENGTH = 2_500_000;
+const MAX_TEMPLATE_ASSET_DATA_URL_LENGTH = 800_000;
 
 type ImportProgress = {
   open: boolean;
