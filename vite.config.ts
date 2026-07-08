@@ -23,6 +23,9 @@ export default defineConfig({
     nitro(),
     viteReact(),
   ],
+  ssr: {
+    external: ["@vercel/blob", "@vercel/oidc"],
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
