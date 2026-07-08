@@ -1,9 +1,10 @@
 import { useState, useEffect } from "react";
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { BookOpen, LogOut, Lock, Users } from "lucide-react";
+import { BookOpen, LayoutGrid, LogOut, Lock, Users } from "lucide-react";
 import { useAuthStore } from "@/lib/auth";
 import { useBookStore } from "@/lib/photobook/store";
+import { TemplateStartModal } from "@/components/landing/TemplateStartModal";
 
 export const Route = createFileRoute("/home")({
   head: () => ({
@@ -17,6 +18,7 @@ export const Route = createFileRoute("/home")({
 
 function HomePage() {
   const [mounted, setMounted] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -143,7 +145,7 @@ function HomePage() {
           </div>
 
           {/* Quick Actions */}
-          <div className="grid grid-cols-2 gap-6 mb-12">
+          <div className="grid grid-cols-1 gap-6 mb-12 md:grid-cols-3">
             <Button
               size="lg"
               asChild
@@ -153,6 +155,15 @@ function HomePage() {
                 <BookOpen className="h-6 w-6" />
                 New Project
               </Link>
+            </Button>
+            <Button
+              size="lg"
+              variant="outline"
+              className="gap-2 h-20 text-lg"
+              onClick={() => setShowTemplates(true)}
+            >
+              <LayoutGrid className="h-6 w-6" />
+              Templates
             </Button>
             <div className="rounded-lg border-2 border-dashed bg-muted/50 p-6 text-center">
               <p className="text-muted-foreground">Import a project file</p>
@@ -199,6 +210,7 @@ function HomePage() {
           </div>
         </main>
       )}
+      <TemplateStartModal open={showTemplates} onOpenChange={setShowTemplates} />
     </div>
   );
 }

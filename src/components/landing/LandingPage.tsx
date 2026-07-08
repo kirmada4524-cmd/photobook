@@ -4,6 +4,7 @@ import { useAuthStore } from "@/lib/auth";
 import { LoginModal } from "./LoginModal";
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectSelectionModal } from "./ProjectSelectionModal";
+import { TemplateStartModal } from "./TemplateStartModal";
 import { Button } from "@/components/ui/button";
 import {
   BookOpen,
@@ -24,6 +25,7 @@ export function LandingPage() {
   const { currentUser, logout, isAdmin } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [showProjects, setShowProjects] = useState<"recent" | "open" | null>(null);
 
   return (
@@ -131,6 +133,15 @@ export function LandingPage() {
 
             {/* Recently Used Projects */}
             <button
+              id="btn-start-template"
+              onClick={() => setShowTemplates(true)}
+              className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 px-8 py-4 text-base font-semibold text-blue-700 shadow-sm backdrop-blur-md transition-all hover:scale-105 hover:bg-blue-100 active:scale-100"
+            >
+              <Layers className="h-5 w-5 text-blue-500" />
+              Templates
+            </button>
+
+            <button
               id="btn-recent-projects"
               onClick={() => setShowProjects("recent")}
               className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/50 px-8 py-4 text-base font-semibold text-slate-700 backdrop-blur-md shadow-sm transition-all hover:bg-white/80 hover:scale-105 active:scale-100"
@@ -227,6 +238,7 @@ export function LandingPage() {
       {/* ── Modals ──────────────────────────────────────────────────── */}
       <LoginModal open={showLogin} onOpenChange={setShowLogin} />
       <NewProjectModal open={showNewProject} onOpenChange={setShowNewProject} />
+      <TemplateStartModal open={showTemplates} onOpenChange={setShowTemplates} />
       {showProjects && (
         <ProjectSelectionModal
           open={true}
