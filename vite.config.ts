@@ -20,7 +20,14 @@ export default defineConfig({
         },
       },
     }),
-    nitro(),
+    nitro({
+      externals: {
+        external: ["@vercel/blob", "@vercel/oidc"]
+      },
+      rollupConfig: {
+        external: ["@vercel/blob", "@vercel/oidc"]
+      }
+    }),
     viteReact(),
   ],
   ssr: {
