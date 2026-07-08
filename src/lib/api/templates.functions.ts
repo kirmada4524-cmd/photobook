@@ -374,49 +374,49 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const appendAdminTemplateChecked = createServerFn({ method: "POST" })
   .validator((data: any) => data)
   .handler(async ({ data }) => {
-    const incoming = sanitizeAdminTemplates([data?.template ?? data])[0];
-    if (!incoming || typeof incoming.id !== "string") {
-      return {
-        success: false,
-        error: "Template was empty or invalid after cleanup.",
-        count: 0,
-        verified: false,
-      };
-    }
-
-    const appendAndVerify = async (
-      readCurrent: () => Promise<any[]>,
-      writeNext: (templates: any[]) => Promise<void>,
-    ) => {
-      const current = await readCurrent();
-      const next = [...current.filter((template: any) => template.id !== incoming.id), incoming];
-      await writeNext(next);
-
-      for (let attempt = 1; attempt <= 3; attempt += 1) {
-        const verifiedTemplates = await readCurrent();
-        const verified = verifiedTemplates.some((template: any) => template.id === incoming.id);
-        if (verified) {
-          return {
-            success: true,
-            count: 1,
-            verified: true,
-            attempts: attempt,
-            total: verifiedTemplates.length,
-          };
-        }
-        await delay(500 * attempt);
+    try {
+      const incoming = sanitizeAdminTemplates([data?.template ?? data])[0];
+      if (!incoming || typeof incoming.id !== "string") {
+        return {
+          success: false,
+          error: "Template was empty or invalid after cleanup.",
+          count: 0,
+          verified: false,
+        };
       }
 
-      return {
-        success: false,
-        error: `Template "${incoming.label || incoming.id}" was written but not found during verification.`,
-        count: 0,
-        verified: false,
-      };
-    };
+      const appendAndVerify = async (
+        readCurrent: () => Promise<any[]>,
+        writeNext: (templates: any[]) => Promise<void>,
+      ) => {
+        const current = await readCurrent();
+        const next = [...current.filter((template: any) => template.id !== incoming.id), incoming];
+        await writeNext(next);
 
-    if (hasBlobStorage()) {
-      try {
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          const verifiedTemplates = await readCurrent();
+          const verified = verifiedTemplates.some((template: any) => template.id === incoming.id);
+          if (verified) {
+            return {
+              success: true,
+              count: 1,
+              verified: true,
+              attempts: attempt,
+              total: verifiedTemplates.length,
+            };
+          }
+          await delay(500 * attempt);
+        }
+
+        return {
+          success: false,
+          error: `Template "${incoming.label || incoming.id}" was written but not found during verification.`,
+          count: 0,
+          verified: false,
+        };
+      };
+
+      if (hasBlobStorage()) {
         const stored = await writeTemplateItemBlob(incoming);
 
         for (let attempt = 1; attempt <= 5; attempt += 1) {
@@ -438,13 +438,8 @@ export const appendAdminTemplateChecked = createServerFn({ method: "POST" })
           count: 0,
           verified: false,
         };
-      } catch (error) {
-        console.error("Error appending checked admin template to Blob:", error);
-        return { success: false, error: String(error), count: 0, verified: false };
       }
-    }
 
-    try {
       const { fs, templatesFile } = await localTemplatesFile();
       if (isVercelRuntime()) {
         throw missingBlobStorageError();
@@ -458,9 +453,14 @@ export const appendAdminTemplateChecked = createServerFn({ method: "POST" })
           await fs.promises.writeFile(templatesFile, JSON.stringify(sanitizeAdminTemplates(templates), null, 2));
         },
       );
-    } catch (error) {
-      console.error("Error appending checked admin template locally:", error);
-      return { success: false, error: String(error), count: 0, verified: false };
+    } catch (error: any) {
+      console.error("Error in appendAdminTemplateChecked:", error);
+      return {
+        success: false,
+        error: error.message || String(error),
+        count: 0,
+        verified: false,
+      };
     }
   });
 
@@ -591,31 +591,31 @@ export const uploadTemplateAsset = createServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data }) => {
-    if (!hasBlobStorage() && isVercelRuntime()) {
-      throw missingBlobStorageError();
-    }
-
-    const { mime, buffer } = parseDataUrl(data.dataUrl);
-    const filename = `${nid(`template_${data.kind}`)}${extFromMime(mime)}`;
-    const pathname = `${TEMPLATE_ASSET_BLOB_PREFIX}/${data.kind}/${filename}`;
-
-    if (hasBlobStorage()) {
-      const blob = await putBlob(pathname, buffer, {
-        contentType: mime,
-        cacheControlMaxAge: 31536000,
-      });
-      return { url: blob.url as string };
-    }
-
-    if (isVercelRuntime()) {
-      throw missingBlobStorageError();
-    }
-
     try {
+      if (!hasBlobStorage() && isVercelRuntime()) {
+        throw missingBlobStorageError();
+      }
+
+      const { mime, buffer } = parseDataUrl(data.dataUrl);
+      const filename = `${nid(`template_${data.kind}`)}${extFromMime(mime)}`;
+      const pathname = `${TEMPLATE_ASSET_BLOB_PREFIX}/${data.kind}/${filename}`;
+
+      if (hasBlobStorage()) {
+        const blob = await putBlob(pathname, buffer, {
+          contentType: mime,
+          cacheControlMaxAge: 31536000,
+        });
+        return { url: blob.url as string };
+      }
+
+      if (isVercelRuntime()) {
+        throw missingBlobStorageError();
+      }
+
       const url = await writeLocalTemplateAsset(data.kind, filename, buffer);
       return { url };
-    } catch (error) {
-      console.error("Error writing template asset locally:", error);
-      throw new Error(`Failed to save template asset locally: ${String(error)}`);
+    } catch (error: any) {
+      console.error("Error in uploadTemplateAsset:", error);
+      return { url: "", error: error.message || String(error) };
     }
   });
