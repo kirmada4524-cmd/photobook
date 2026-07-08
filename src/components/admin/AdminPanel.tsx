@@ -505,6 +505,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
               frameLocked,
               backgroundLocked,
               isAdminTemplate: true,
+              sortOrder: Date.now() + templates.length,
             } satisfies SavedPageTemplate);
 
             setImportProgress((current) => ({ ...current, convertedPages: current.convertedPages + 1 }));

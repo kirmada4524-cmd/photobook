@@ -1,8 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
+import { head, list } from "@vercel/blob";
 import { z } from "zod";
-import { getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
+import { deleteBlob, getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
 
 const TEMPLATES_BLOB_PATH = "admin-templates.json";
+const TEMPLATE_ITEM_BLOB_PREFIX = "admin-templates/items";
+const TEMPLATE_ITEM_BLOB_SUFFIX = ".json";
 const TEMPLATE_ASSET_BLOB_PREFIX = "admin-template-assets";
 const MAX_EMBEDDED_DATA_URL_LENGTH = 300_000;
 const MAX_ASSET_ID_LENGTH = 200;
@@ -125,6 +128,150 @@ async function writeBlobJson(value: unknown) {
   });
 }
 
+const templateItemPath = (id: string) =>
+  `${TEMPLATE_ITEM_BLOB_PREFIX}/${encodeURIComponent(id)}${TEMPLATE_ITEM_BLOB_SUFFIX}`;
+
+const templateItemIdFromPathname = (pathname: string) => {
+  if (!pathname.startsWith(`${TEMPLATE_ITEM_BLOB_PREFIX}/`) || !pathname.endsWith(TEMPLATE_ITEM_BLOB_SUFFIX)) {
+    return "";
+  }
+  const encoded = pathname.slice(TEMPLATE_ITEM_BLOB_PREFIX.length + 1, -TEMPLATE_ITEM_BLOB_SUFFIX.length);
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return encoded;
+  }
+};
+
+async function listTemplateItemBlobs() {
+  const blobs = [];
+  let cursor: string | undefined;
+
+  do {
+    const result = await list({
+      prefix: `${TEMPLATE_ITEM_BLOB_PREFIX}/`,
+      limit: 1000,
+      cursor,
+    });
+    blobs.push(...result.blobs);
+    cursor = result.cursor;
+  } while (cursor);
+
+  return blobs;
+}
+
+async function readTemplateItemBlob(id: string) {
+  const content = await getBlobText(templateItemPath(id));
+  if (!content) return null;
+  return sanitizeAdminTemplates([JSON.parse(content)])[0] ?? null;
+}
+
+async function verifyTemplateItemBlob(id: string) {
+  try {
+    const metadata = await head(templateItemPath(id));
+    return metadata.pathname === templateItemPath(id);
+  } catch {
+    return false;
+  }
+}
+
+async function readTemplateItemBlobs() {
+  const blobs = await listTemplateItemBlobs();
+  const templates = await Promise.all(
+    blobs.map(async (blob) => {
+      try {
+        const content = await getBlobText(blob.pathname);
+        if (!content) return null;
+        return sanitizeAdminTemplates([JSON.parse(content)])[0] ?? null;
+      } catch (error) {
+        console.error(`Error reading admin template item ${blob.pathname}:`, error);
+        return null;
+      }
+    }),
+  );
+
+  return templates.filter((template): template is NonNullable<typeof template> => Boolean(template));
+}
+
+function mergeAdminTemplates(legacyTemplates: any[], itemTemplates: any[]) {
+  const merged = new Map<string, any>();
+  const itemOnlyTemplates: any[] = [];
+
+  for (const template of legacyTemplates) {
+    if (typeof template?.id !== "string") continue;
+    merged.set(template.id, template);
+  }
+
+  for (const template of itemTemplates) {
+    if (typeof template?.id !== "string") continue;
+    if (merged.has(template.id)) {
+      merged.set(template.id, template);
+    } else {
+      itemOnlyTemplates.push(template);
+    }
+  }
+
+  itemOnlyTemplates
+    .sort((a, b) => {
+      const aOrder = typeof a.sortOrder === "number" ? a.sortOrder : Number.MAX_SAFE_INTEGER;
+      const bOrder = typeof b.sortOrder === "number" ? b.sortOrder : Number.MAX_SAFE_INTEGER;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return String(a.label || a.id).localeCompare(String(b.label || b.id));
+    })
+    .forEach((template) => merged.set(template.id, template));
+
+  return Array.from(merged.values());
+}
+
+async function readBlobTemplates() {
+  const [legacyTemplates, itemTemplates] = await Promise.all([
+    readBlobJson().catch((error) => {
+      console.error("Error reading admin-templates.json from Blob:", error);
+      return [];
+    }),
+    readTemplateItemBlobs().catch((error) => {
+      console.error("Error reading admin template items from Blob:", error);
+      return [];
+    }),
+  ]);
+
+  return mergeAdminTemplates(legacyTemplates, itemTemplates);
+}
+
+async function writeTemplateItemBlob(template: any) {
+  const stored = sanitizeAdminTemplates([
+    {
+      ...template,
+      sortOrder: typeof template.sortOrder === "number" ? template.sortOrder : Date.now(),
+    },
+  ])[0];
+  if (!stored || typeof stored.id !== "string") {
+    throw new Error("Template was empty or invalid after cleanup.");
+  }
+
+  await putBlob(templateItemPath(stored.id), JSON.stringify(stored, null, 2), {
+    contentType: "application/json",
+    cacheControlMaxAge: 60,
+  });
+
+  return stored;
+}
+
+async function deleteTemplateItemBlob(id: string) {
+  await deleteBlob(templateItemPath(id)).catch(() => undefined);
+}
+
+async function deleteMissingTemplateItemBlobs(keptIds: Set<string>) {
+  const blobs = await listTemplateItemBlobs();
+  await Promise.all(
+    blobs.map(async (blob) => {
+      const id = templateItemIdFromPathname(blob.pathname);
+      if (id && keptIds.has(id)) return;
+      await deleteBlob(blob.pathname).catch(() => undefined);
+    }),
+  );
+}
+
 async function localTemplatesFile() {
   const fs = await import("fs");
   const path = await import("path");
@@ -137,7 +284,7 @@ async function localTemplatesFile() {
 export const getAdminTemplates = createServerFn({ method: "GET" }).handler(async () => {
   if (hasBlobStorage()) {
     try {
-      return await readBlobJson();
+      return await readBlobTemplates();
     } catch (error) {
       console.error("Error reading admin templates from Blob:", error);
       return [];
@@ -167,7 +314,9 @@ export const saveAdminTemplates = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     if (hasBlobStorage()) {
       try {
-        await writeBlobJson(sanitizeAdminTemplates(data));
+        const templates = sanitizeAdminTemplates(data);
+        await writeBlobJson(templates);
+        await deleteMissingTemplateItemBlobs(new Set(templates.map((template: any) => template.id)));
         return { success: true };
       } catch (error) {
         console.error("Error writing admin templates to Blob:", error);
@@ -196,8 +345,7 @@ export const appendAdminTemplates = createServerFn({ method: "POST" })
 
     if (hasBlobStorage()) {
       try {
-        const current = await readBlobJson();
-        await writeBlobJson([...current, ...incoming]);
+        await Promise.all(incoming.map((template) => writeTemplateItemBlob(template)));
         return { success: true, count: incoming.length };
       } catch (error) {
         console.error("Error appending admin templates to Blob:", error);
@@ -269,7 +417,27 @@ export const appendAdminTemplateChecked = createServerFn({ method: "POST" })
 
     if (hasBlobStorage()) {
       try {
-        return await appendAndVerify(readBlobJson, writeBlobJson);
+        const stored = await writeTemplateItemBlob(incoming);
+
+        for (let attempt = 1; attempt <= 5; attempt += 1) {
+          if (await verifyTemplateItemBlob(stored.id)) {
+            return {
+              success: true,
+              count: 1,
+              verified: true,
+              attempts: attempt,
+              total: 1,
+            };
+          }
+          await delay(400 * attempt);
+        }
+
+        return {
+          success: false,
+          error: `Template "${stored.label || stored.id}" was written but not found during direct verification.`,
+          count: 0,
+          verified: false,
+        };
       } catch (error) {
         console.error("Error appending checked admin template to Blob:", error);
         return { success: false, error: String(error), count: 0, verified: false };
@@ -301,13 +469,14 @@ export const deleteAdminTemplateById = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     try {
       const current = hasBlobStorage()
-        ? await readBlobJson()
+        ? await readBlobTemplates()
         : (() => {
             throw new Error("Local delete requires async file access.");
           })();
       const next = current.filter((template: any) => template.id !== data.id);
       if (hasBlobStorage()) {
         await writeBlobJson(next);
+        await deleteTemplateItemBlob(data.id);
         return { success: true, count: current.length - next.length };
       }
       return { success: false, error: "Missing Blob storage.", count: 0 };
@@ -351,7 +520,10 @@ export const updateAdminTemplateById = createServerFn({ method: "POST" })
 
     if (hasBlobStorage()) {
       try {
-        await writeBlobJson(applyPatch(await readBlobJson()));
+        const next = applyPatch(await readBlobTemplates());
+        await writeBlobJson(next);
+        const updated = next.find((template: any) => template.id === data.id);
+        if (updated) await writeTemplateItemBlob(updated);
         return { success: true };
       } catch (error) {
         console.error("Error updating admin template in Blob:", error);
