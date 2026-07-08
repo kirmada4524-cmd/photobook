@@ -193,10 +193,26 @@ export function DesignSidebar() {
     }
   };
 
+  const safeApplyLayout = (templateId: (typeof TEMPLATES)[number]["id"]) => {
+    try {
+      applyLayout(templateId);
+      useBookStore.getState().selectElement(null);
+      setActiveTab("layouts");
+    } catch (error) {
+      console.error("Failed to apply layout", error);
+      toast.error("This layout could not be applied. Please try another layout.");
+    }
+  };
+
   const applyAndFill = (templateId: (typeof TEMPLATES)[number]["id"]) => {
-    applyLayout(templateId);
-    const result = useBookStore.getState().autofillLeastUsedImages(currentPageId);
-    reportFill(result);
+    try {
+      safeApplyLayout(templateId);
+      const result = useBookStore.getState().autofillLeastUsedImages(currentPageId);
+      reportFill(result);
+    } catch (error) {
+      console.error("Failed to apply and fill layout", error);
+      toast.error("This layout could not be filled. Please try another layout.");
+    }
   };
 
   const fillCurrentPage = () =>
@@ -527,7 +543,7 @@ export function DesignSidebar() {
                             key={t.id}
                             className="group rounded-xl border bg-card p-2 text-left transition hover:border-accent hover:shadow-md snap-start"
                           >
-                            <button className="w-full text-left" onClick={() => applyLayout(t.id)}>
+                            <button className="w-full text-left" onClick={() => safeApplyLayout(t.id)}>
                               <LayoutThumb id={t.id} />
                               <div className="mt-1.5 px-0.5 text-[11px] font-semibold leading-tight truncate">
                                 {t.label}
@@ -545,7 +561,7 @@ export function DesignSidebar() {
                                 size="sm"
                                 variant="outline"
                                 className="h-7 text-[10px] font-semibold"
-                                onClick={() => applyLayout(t.id)}
+                                onClick={() => safeApplyLayout(t.id)}
                               >
                                 Apply
                               </Button>
@@ -744,10 +760,10 @@ export function DesignSidebar() {
                                 deleteCustomSticker(stk.id);
                               }
                             }}
-                            className="absolute right-0.5 top-0.5 z-10 hidden group-hover:flex h-5 w-5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-md hover:scale-115"
+                            className="absolute right-0.5 top-0.5 z-10 hidden h-5 w-5 items-center justify-center rounded-full bg-sky-500 text-white shadow-md hover:scale-115 hover:bg-sky-600 group-hover:flex"
                             title="Delete sticker"
                           >
-                            <X className="h-3.5 w-3.5" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       ))}
@@ -919,10 +935,10 @@ export function DesignSidebar() {
                                 deleteCustomBackground(bg.id);
                               }
                             }}
-                            className="absolute right-1 top-1 z-10 hidden group-hover:flex h-4.5 w-4.5 items-center justify-center rounded-full bg-destructive text-destructive-foreground shadow-md hover:scale-115"
+                            className="absolute right-1 top-1 z-10 hidden h-4.5 w-4.5 items-center justify-center rounded-full bg-sky-500 text-white shadow-md hover:scale-115 hover:bg-sky-600 group-hover:flex"
                             title="Delete background"
                           >
-                            <X className="h-2.5 w-2.5" />
+                            <Trash2 className="h-2.5 w-2.5" />
                           </button>
                         </div>
                       ))}
@@ -1272,6 +1288,11 @@ function PhotoControls({
   updateElement: (id: string, p: Partial<PhotoElement>) => void;
   moveElementLayer: (id: string, direction: "front" | "back" | "forward" | "backward") => void;
 }) {
+  const isEraserMode = useBookStore((s) => s.isEraserMode);
+  const setIsEraserMode = useBookStore((s) => s.setIsEraserMode);
+  const eraserBrushSize = useBookStore((s) => s.eraserBrushSize);
+  const setEraserBrushSize = useBookStore((s) => s.setEraserBrushSize);
+
   return (
     <div className="space-y-3 rounded-xl border bg-card p-3">
       <div>
@@ -1348,6 +1369,49 @@ function PhotoControls({
           step={0.01}
           onValueChange={([v]) => updateElement(selected.id, { opacity: v })}
         />
+      </div>
+      <div className="border-t pt-3 mt-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Image Eraser
+          </span>
+          <Button
+            size="sm"
+            variant={isEraserMode ? "default" : "outline"}
+            className="h-8 gap-1.5 text-xs font-semibold"
+            disabled={!selected.imageId}
+            onClick={() => setIsEraserMode(!isEraserMode)}
+            title="Erase only inside the selected photo frame"
+          >
+            <Eraser className="h-3.5 w-3.5" />
+            {isEraserMode ? "On" : "Erase"}
+          </Button>
+        </div>
+        {isEraserMode && selected.imageId && (
+          <div>
+            <div className="mb-1 flex justify-between text-xs">
+              <span className="text-[11px] font-medium text-muted-foreground">Brush Size</span>
+              <span className="text-[10px] tabular-nums font-semibold">{eraserBrushSize}px</span>
+            </div>
+            <Slider
+              value={[eraserBrushSize]}
+              max={90}
+              min={8}
+              step={1}
+              onValueChange={([v]) => setEraserBrushSize(v)}
+            />
+          </div>
+        )}
+        {selected.eraseMask && (
+          <Button
+            variant="outline"
+            className="h-8 w-full gap-1.5 text-xs font-semibold"
+            onClick={() => updateElement(selected.id, { eraseMask: undefined })}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset Erased Areas
+          </Button>
+        )}
       </div>
       <div className="border-t pt-3 mt-3 space-y-3">
         <span className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">

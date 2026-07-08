@@ -190,6 +190,60 @@ const drawImageContain = (
   ctx.drawImage(img, x, y, w, h);
 };
 
+const drawImageCoverWithMasks = async (
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  photo: PhotoElement,
+  scale: number,
+) => {
+  const masks = [photo.magicMask, photo.eraseMask].filter((src): src is string => Boolean(src));
+  if (masks.length === 0) {
+    drawImageCover(
+      ctx,
+      img,
+      photo.x,
+      photo.y,
+      photo.w,
+      photo.h,
+      photo.imageX ?? 0,
+      photo.imageY ?? 0,
+      photo.imageScale ?? 1,
+    );
+    return;
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(photo.w * scale));
+  canvas.height = Math.max(1, Math.round(photo.h * scale));
+  const maskedCtx = canvas.getContext("2d");
+  if (!maskedCtx) return;
+
+  drawImageCover(
+    maskedCtx,
+    img,
+    0,
+    0,
+    canvas.width,
+    canvas.height,
+    (photo.imageX ?? 0) * scale,
+    (photo.imageY ?? 0) * scale,
+    photo.imageScale ?? 1,
+  );
+
+  for (const maskSrc of masks) {
+    try {
+      const maskImg = await loadImg(maskSrc);
+      maskedCtx.globalCompositeOperation = "destination-in";
+      maskedCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+      maskedCtx.globalCompositeOperation = "source-over";
+    } catch {
+      // If a mask fails to load, keep the already composited photo rather than dropping it.
+    }
+  }
+
+  ctx.drawImage(canvas, photo.x, photo.y, photo.w, photo.h);
+};
+
 
 /**
  * Draw frame decoration around a photo element.
@@ -643,17 +697,7 @@ export async function exportBookPdf(title: string) {
           ctx.save();
           applyShapeClip(ctx, photo.shape, photo.x, photo.y, photo.w, photo.h, clipRadius);
 
-          drawImageCover(
-            ctx,
-            libImg,
-            photo.x,
-            photo.y,
-            photo.w,
-            photo.h,
-            photo.imageX ?? 0,
-            photo.imageY ?? 0,
-            photo.imageScale ?? 1,
-          );
+          await drawImageCoverWithMasks(ctx, libImg, photo, SCALE);
           ctx.restore();
 
           // Draw frame decoration (outside the clip)
@@ -669,7 +713,7 @@ export async function exportBookPdf(title: string) {
             ctx.textBaseline = "top";
             ctx.fillText(photo.caption, photo.x + photo.w / 2, photo.y + photo.h + 4);
           }
-        } else {
+        } else if (!photo.magicFrame) {
           // Empty frame placeholder
           ctx.fillStyle = "#e5e7eb";
           ctx.fillRect(el.x, el.y, el.w, el.h);

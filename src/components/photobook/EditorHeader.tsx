@@ -1,16 +1,8 @@
 import { useRef, useState } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
-import { THEMES } from "@/lib/photobook/catalogs";
 import { exportBookPdf } from "@/lib/photobook/exportPdf";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Download,
   Eye,
@@ -25,7 +17,6 @@ import {
   FileDown,
   Trash,
   RefreshCw,
-  Eraser,
   Sparkles,
   Shield,
 } from "lucide-react";
@@ -66,14 +57,7 @@ export function EditorHeader() {
   const toggleDesignSidebar = useBookStore((s) => s.toggleDesignSidebar);
   const projectFilePath = useBookStore((s) => s.projectFilePath);
   const setProjectFilePath = useBookStore((s) => s.setProjectFilePath);
-  const isEraserMode = useBookStore((s) => s.isEraserMode);
-  const setIsEraserMode = useBookStore((s) => s.setIsEraserMode);
-  const eraserBrushSize = useBookStore((s) => s.eraserBrushSize);
-  const setEraserBrushSize = useBookStore((s) => s.setEraserBrushSize);
   const currentPageId = useBookStore((s) => s.currentPageId);
-  const currentPageOverlay = useBookStore(
-    (s) => s.book.pages.find((p) => p.id === s.currentPageId)?.eraserOverlay,
-  );
   const emptyFrameCount = useBookStore((s) =>
     s.book.pages.reduce(
       (sum, p) =>
@@ -551,43 +535,6 @@ export function EditorHeader() {
         >
           <Palette className="h-4 w-4" />
         </Button>
-        <Button
-          variant={isEraserMode ? "secondary" : "ghost"}
-          size="icon"
-          onClick={() => setIsEraserMode(!isEraserMode)}
-          title="Toggle Eraser Tool"
-          className={isEraserMode ? "bg-accent/15 text-accent" : ""}
-        >
-          <Eraser className="h-4 w-4" />
-        </Button>
-        {isEraserMode && (
-          <div className="flex items-center gap-2 px-2.5 bg-muted/60 border rounded-lg h-9 animate-in fade-in slide-in-from-top-1 duration-200">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider select-none">
-              Brush Size
-            </span>
-            <Slider
-              value={[eraserBrushSize]}
-              max={100}
-              min={5}
-              step={1}
-              onValueChange={([v]) => setEraserBrushSize(v)}
-              className="w-20 cursor-pointer"
-            />
-            <span className="text-[10px] font-mono font-bold min-w-[28px] text-right">
-              {eraserBrushSize}px
-            </span>
-            {currentPageOverlay && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-[10px] font-semibold text-destructive hover:text-destructive hover:bg-destructive/10 gap-1 px-2 border border-destructive/20 ml-1"
-                onClick={() => useBookStore.getState().setPageOverlay(currentPageId, null)}
-              >
-                Clear Eraser
-              </Button>
-            )}
-          </div>
-        )}
       </div>
 
       <div className="mx-1 hidden h-6 w-px bg-border md:block" />
@@ -600,19 +547,6 @@ export function EditorHeader() {
           <Redo2 className="h-4 w-4" />
         </Button>
       </div>
-
-      <Select value={theme} onValueChange={(v) => setTheme(v as BackgroundTheme)}>
-        <SelectTrigger className="hidden w-36 md:flex">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {THEMES.map((t) => (
-            <SelectItem key={t.id} value={t.id}>
-              {t.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
 
       <Button variant="ghost" size="sm" asChild className="hidden gap-1.5 sm:inline-flex">
         <Link to="/preview">
@@ -634,11 +568,6 @@ export function EditorHeader() {
           </span>
         )}
       </Button>
-      <Button variant="outline" size="sm" onClick={handleSaveProject} className="hidden xl:inline-flex">
-        <Save className="mr-1.5 h-4 w-4" />
-        Save
-      </Button>
-      
       {isAdmin ? (
         <div className="flex gap-2">
           <Button size="sm" onClick={() => exportProject(title)} variant="outline" className="hidden sm:inline-flex gap-1.5 shadow-sm bg-background">

@@ -26,6 +26,7 @@ import type {
   GlobalBackgroundAsset,
   GlobalStickerFolder,
   LibraryImage,
+  MagicFrameSelection,
   Page,
   PageElement,
   PhotoElement,
@@ -205,6 +206,10 @@ type State = {
   projectFilePath: string | null;
   isEraserMode: boolean;
   eraserBrushSize: number;
+  isMagicLayoutMode: boolean;
+  magicLayoutTolerance: number;
+  magicLayoutFeather: number;
+  magicLayoutExpand: number;
   editingBackgroundPageId: string | null;
   adminTemplates: SavedPageTemplate[];
   adminStickerFolders: GlobalStickerFolder[];
@@ -284,6 +289,11 @@ type Actions = {
   setProjectFilePath: (path: string | null) => void;
   setIsEraserMode: (b: boolean) => void;
   setEraserBrushSize: (size: number) => void;
+  setIsMagicLayoutMode: (b: boolean) => void;
+  setMagicLayoutTolerance: (value: number) => void;
+  setMagicLayoutFeather: (value: number) => void;
+  setMagicLayoutExpand: (value: number) => void;
+  addMagicPhotoFrame: (pageId: string, selection: MagicFrameSelection) => string | null;
   replacePhotoImageAfterErase: (elementId: string, imageId: string) => void;
   setPageOverlay: (pageId: string, overlay: string | null) => void;
 
@@ -518,6 +528,10 @@ export const useBookStore = create<State & Actions>()(
         projectFilePath: null,
         isEraserMode: false,
         eraserBrushSize: 30,
+        isMagicLayoutMode: false,
+        magicLayoutTolerance: 25,
+        magicLayoutFeather: 1,
+        magicLayoutExpand: 0,
         editingBackgroundPageId: null,
           adminTemplates: [],
           adminStickerFolders: [],
@@ -712,7 +726,9 @@ export const useBookStore = create<State & Actions>()(
                   ? {
                       ...p,
                       elements: p.elements.map((e) =>
-                        e.id === elementId && e.type === "photo" ? { ...e, imageId } : e,
+                        e.id === elementId && e.type === "photo"
+                          ? { ...e, imageId, eraseMask: undefined }
+                          : e,
                       ),
                     }
                   : p,
@@ -729,7 +745,9 @@ export const useBookStore = create<State & Actions>()(
                   ? {
                       ...p,
                       elements: p.elements.map((e) =>
-                        e.id === elementId && e.type === "photo" ? { ...e, imageId: "" } : e,
+                        e.id === elementId && e.type === "photo"
+                          ? { ...e, imageId: "", eraseMask: undefined }
+                          : e,
                       ),
                     }
                   : p,
@@ -796,7 +814,18 @@ export const useBookStore = create<State & Actions>()(
             const ids = existing.length > 0 ? existing.map((e) => e.imageId) : [];
 
             const preset = PAGE_SIZES[0];
-            const newPhotos = applyTemplate(templateId, ids, preset.width, preset.height);
+            const templatePhotos = applyTemplate(templateId, ids, preset.width, preset.height);
+            const newPhotos = (Array.isArray(templatePhotos) ? templatePhotos : []).filter(
+              (el): el is PhotoElement =>
+                el?.type === "photo" &&
+                Number.isFinite(el.x) &&
+                Number.isFinite(el.y) &&
+                Number.isFinite(el.w) &&
+                Number.isFinite(el.h) &&
+                el.w > 0 &&
+                el.h > 0,
+            );
+            if (newPhotos.length === 0) return s;
 
             const nonPhotos = page.elements.filter((e) => e.type !== "photo");
             return {
@@ -806,6 +835,7 @@ export const useBookStore = create<State & Actions>()(
                   p.id === s.currentPageId ? { ...p, elements: [...newPhotos, ...nonPhotos] } : p,
                 ),
               },
+              selectedElementId: null,
             };
           }),
 
@@ -1372,6 +1402,48 @@ export const useBookStore = create<State & Actions>()(
         setProjectFilePath: (path) => set({ projectFilePath: path }),
         setIsEraserMode: (b) => set({ isEraserMode: b }),
         setEraserBrushSize: (size) => set({ eraserBrushSize: size }),
+        setIsMagicLayoutMode: (b) =>
+          set({ isMagicLayoutMode: b, isEraserMode: b ? false : get().isEraserMode }),
+        setMagicLayoutTolerance: (value) =>
+          set({ magicLayoutTolerance: Math.max(5, Math.min(60, Math.round(value))) }),
+        setMagicLayoutFeather: (value) =>
+          set({ magicLayoutFeather: Math.max(0, Math.min(2, Math.round(value))) }),
+        setMagicLayoutExpand: (value) =>
+          set({ magicLayoutExpand: Math.max(-3, Math.min(3, Math.round(value))) }),
+        addMagicPhotoFrame: (pageId, selection) => {
+          const id = nid("el");
+          set((s) => {
+            const page = s.book.pages.find((p) => p.id === pageId);
+            if (!page) return s;
+            const maxZ = Math.max(0, ...page.elements.map((el) => el.z));
+            const el: PhotoElement = {
+              id,
+              type: "photo",
+              imageId: "",
+              x: Math.max(0, Math.round(selection.x)),
+              y: Math.max(0, Math.round(selection.y)),
+              w: Math.max(1, Math.round(selection.w)),
+              h: Math.max(1, Math.round(selection.h)),
+              rotation: 0,
+              z: maxZ + 1,
+              frame: "none",
+              radius: 0,
+              magicMask: selection.maskSrc,
+              magicFrame: true,
+            };
+            return {
+              book: {
+                ...s.book,
+                pages: s.book.pages.map((p) =>
+                  p.id === pageId ? { ...p, elements: [...p.elements, el] } : p,
+                ),
+              },
+              currentPageId: pageId,
+              selectedElementId: id,
+            };
+          });
+          return id;
+        },
         replacePhotoImageAfterErase: (elementId, imageId) =>
           set((s) => ({
             book: {
@@ -1382,7 +1454,14 @@ export const useBookStore = create<State & Actions>()(
                       ...p,
                       elements: p.elements.map((e) =>
                         e.id === elementId && e.type === "photo"
-                          ? { ...e, imageId, imageScale: 1, imageX: 0, imageY: 0 }
+                          ? {
+                              ...e,
+                              imageId,
+                              imageScale: 1,
+                              imageX: 0,
+                              imageY: 0,
+                              eraseMask: undefined,
+                            }
                           : e,
                       ),
                     }

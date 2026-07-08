@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { Component, type ReactNode, useState, useEffect } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { EditorHeader } from "@/components/photobook/EditorHeader";
 import { LibrarySidebar } from "@/components/photobook/LibrarySidebar";
@@ -33,6 +33,39 @@ export const Route = createFileRoute("/editor")({
 /** Height constants for mobile layout */
 const MOBILE_TOOLBAR_H = 56;   // h-14 = 56px
 const MOBILE_PANEL_H   = 300;  // sidebar panel height
+
+class SidebarErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown) {
+    console.error("Editor sidebar crashed", error);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-4 text-center">
+        <div>
+          <p className="text-sm font-semibold">Design tools need a refresh.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The editor is still safe. Reopen the panel to continue.
+          </p>
+        </div>
+        <Button size="sm" variant="outline" onClick={() => this.setState({ hasError: false })}>
+          Reload tools
+        </Button>
+      </div>
+    );
+  }
+}
 
 function EditorPage() {
   const [mounted, setMounted] = useState(false);
@@ -94,7 +127,11 @@ function EditorPage() {
 
         {/* DESKTOP: Right sidebar */}
         <div className="hidden md:flex h-full shrink-0">
-          {showDesignSidebar && <DesignSidebar />}
+          {showDesignSidebar && (
+            <SidebarErrorBoundary>
+              <DesignSidebar />
+            </SidebarErrorBoundary>
+          )}
         </div>
       </div>
 
@@ -111,7 +148,9 @@ function EditorPage() {
           )}
           {showDesignSidebar && !showLibrarySidebar && (
             <div className="w-full h-full overflow-y-auto">
-              <DesignSidebar />
+              <SidebarErrorBoundary>
+                <DesignSidebar />
+              </SidebarErrorBoundary>
             </div>
           )}
         </div>

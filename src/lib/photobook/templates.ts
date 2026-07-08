@@ -978,5 +978,8 @@ export function applyTemplate(
         });
       });
     }
+
+    default:
+      return [makePhoto(getImg(0), PAD, PAD, pageW - PAD * 2, pageH - PAD * 2, { radius: 18 })];
   }
 }

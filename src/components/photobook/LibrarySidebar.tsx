@@ -2,11 +2,34 @@ import { useRef, useState } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Upload, Heart, Trash2, Search, ImagePlus, Check, X } from "lucide-react";
+import {
+  Upload,
+  Heart,
+  Trash2,
+  Search,
+  ImagePlus,
+  Check,
+  LayoutGrid,
+  Plus,
+  Copy,
+} from "lucide-react";
 import { toast } from "sonner";
+import { Page } from "./Page";
+
+const pageLabel = (index: number, total: number) => {
+  if (index === 0) return "Cover";
+  if (total > 2 && index === total - 1) return "Back cover";
+  return `Page ${index}`;
+};
 
 export function LibrarySidebar() {
   const library = useBookStore((s) => s.library);
+  const pages = useBookStore((s) => s.book.pages);
+  const currentPageId = useBookStore((s) => s.currentPageId);
+  const setCurrentPage = useBookStore((s) => s.setCurrentPage);
+  const addPage = useBookStore((s) => s.addPage);
+  const duplicatePage = useBookStore((s) => s.duplicatePage);
+  const deletePage = useBookStore((s) => s.deletePage);
   const addImagesFromFiles = useBookStore((s) => s.addImagesFromFiles);
   const removeImage = useBookStore((s) => s.removeImage);
   const toggleFavorite = useBookStore((s) => s.toggleFavorite);
@@ -14,6 +37,11 @@ export function LibrarySidebar() {
   const addPhotoToCurrentPage = useBookStore((s) => s.addPhotoToCurrentPage);
   const [q, setQ] = useState("");
   const [drag, setDrag] = useState(false);
+  const [activeSection, setActiveSection] = useState<"pages" | "photos">("photos");
+  const [pageDragState, setPageDragState] = useState<{ id: string | null; dropped: boolean }>({
+    id: null,
+    dropped: false,
+  });
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleFiles = async (files: FileList | File[]) => {
@@ -57,8 +85,8 @@ export function LibrarySidebar() {
   };
 
   return (
-    <aside 
-      style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }} 
+    <aside
+      style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
       className="editor-sidebar relative flex h-full shrink-0 flex-col md:border-r w-full md:w-auto bg-background"
     >
       <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
@@ -73,93 +101,243 @@ export function LibrarySidebar() {
           onClick={useBookStore((s) => s.toggleLibrarySidebar)}
           title="Hide sidebar"
         >
-          <X className="h-4 w-4" />
+          <LayoutGrid className="h-4 w-4" />
         </Button>
       </div>
 
       <div className="space-y-3 p-3">
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDrag(true);
-          }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setDrag(false);
-            if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
-          }}
-          onClick={() => inputRef.current?.click()}
-          className={`editor-upload-zone flex cursor-pointer flex-row md:flex-col items-center justify-center gap-2 md:gap-1.5 rounded-lg md:rounded-xl p-2 md:p-5 text-center text-sm ${
-            drag ? "is-dragging" : ""
-          }`}
-        >
-          <div className="grid h-8 w-8 md:h-10 md:w-10 place-items-center rounded-full bg-accent/10 text-accent shrink-0">
-            <Upload className="h-4 w-4 md:h-5 md:w-5" />
-          </div>
-          <div className="font-semibold text-foreground text-xs md:text-sm">Upload photos</div>
-          <div className="hidden md:block text-[11px] text-muted-foreground">JPG, PNG, WebP · drag or click</div>
+        <div className="hidden md:grid grid-cols-2 gap-2 rounded-xl border bg-card p-2 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setActiveSection("pages")}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              activeSection === "pages"
+                ? "bg-accent text-accent-foreground"
+                : "bg-muted/50 hover:bg-muted"
+            }`}
+          >
+            Pages
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveSection("photos")}
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+              activeSection === "photos"
+                ? "bg-accent text-accent-foreground"
+                : "bg-muted/50 hover:bg-muted"
+            }`}
+          >
+            Photos
+          </button>
         </div>
-        <input
-          ref={inputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => e.target.files && handleFiles(e.target.files)}
-        />
 
-        <div className="relative hidden md:block">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="Search"
-            className="pl-8"
-          />
-        </div>
+        {activeSection === "pages" ? (
+          <div className="hidden md:flex max-h-[calc(100vh-185px)] min-h-0 flex-col rounded-xl border bg-card p-3 shadow-sm">
+            <div className="mb-2 flex items-center justify-between">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Pages
+                </p>
+                <p className="text-[11px] text-muted-foreground">{pages.length} pages in this book</p>
+              </div>
+              <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2" onClick={addPage}>
+                <Plus className="h-3.5 w-3.5" />
+                Add
+              </Button>
+            </div>
+            <div className="grid min-h-0 flex-1 auto-rows-max grid-cols-2 content-start gap-2 overflow-y-scroll pr-2">
+              {pages.map((page, index) => {
+                const active = page.id === currentPageId;
+                return (
+                  <div
+                    key={page.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setCurrentPage(page.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setCurrentPage(page.id);
+                      }
+                    }}
+                    draggable
+                    onDragStart={() => setPageDragState({ id: page.id, dropped: false })}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const draggedId = pageDragState.id;
+                      if (!draggedId || draggedId === page.id) return;
+                      const ids = pages.map((p) => p.id);
+                      const from = ids.indexOf(draggedId);
+                      const to = ids.indexOf(page.id);
+                      if (from < 0 || to < 0) return;
+                      ids.splice(from, 1);
+                      ids.splice(to, 0, draggedId);
+                      useBookStore.getState().reorderPages(ids);
+                      setPageDragState({ id: draggedId, dropped: true });
+                    }}
+                    onDragEnd={() => {
+                      if (pageDragState.id && !pageDragState.dropped && typeof window !== "undefined" && window.innerWidth < 768) {
+                        deletePage(pageDragState.id);
+                      }
+                      setPageDragState({ id: null, dropped: false });
+                    }}
+                    className={`group relative self-start overflow-hidden rounded-lg border text-left transition ${
+                      active
+                        ? "border-accent ring-2 ring-accent/20"
+                        : "border-border/80 hover:border-accent/40"
+                    }`}
+                  >
+                    <div className="relative aspect-square w-full overflow-hidden bg-muted">
+                      <div className="absolute inset-0 scale-[0.22] origin-top-left">
+                        <Page pageId={page.id} interactive={false} />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-semibold">
+                      <span className="truncate">{pageLabel(index, pages.length)}</span>
+                      <span className="text-muted-foreground">{index + 1}</span>
+                    </div>
+                    <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        title="Duplicate page"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          duplicatePage(page.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            duplicatePage(page.id);
+                          }
+                        }}
+                        className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        title="Delete page"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deletePage(page.id);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            deletePage(page.id);
+                          }
+                        }}
+                        className={`grid h-6 w-6 place-items-center rounded-md bg-background/90 shadow-sm ${
+                          pages.length <= 1
+                            ? "pointer-events-none text-muted-foreground/40"
+                            : "text-sky-600"
+                        }`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDrag(true);
+              }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDrag(false);
+                if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
+              }}
+              onClick={() => inputRef.current?.click()}
+              className={`editor-upload-zone flex cursor-pointer flex-row md:flex-col items-center justify-center gap-2 md:gap-1.5 rounded-lg md:rounded-xl p-2 md:p-5 text-center text-sm ${
+                drag ? "is-dragging" : ""
+              }`}
+            >
+              <div className="grid h-8 w-8 md:h-10 md:w-10 place-items-center rounded-full bg-accent/10 text-accent shrink-0">
+                <Upload className="h-4 w-4 md:h-5 md:w-5" />
+              </div>
+              <div className="font-semibold text-foreground text-xs md:text-sm">Upload photos</div>
+              <div className="hidden md:block text-[11px] text-muted-foreground">
+                JPG, PNG, WebP · drag or click
+              </div>
+            </div>
+            <input
+              ref={inputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(e) => e.target.files && handleFiles(e.target.files)}
+            />
+
+            <div className="relative hidden md:block">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Search"
+                className="pl-8"
+              />
+            </div>
+          </>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4">
-        {library.length === 0 && (
-          <div className="grid place-items-center py-10 text-center text-xs text-muted-foreground">
-            <ImagePlus className="mb-2 h-8 w-8 opacity-50" />
-            Upload photos to get started.
-          </div>
-        )}
-
-        {favorites.length > 0 && (
+        {activeSection === "photos" && (
           <>
-            <div className="mb-2 mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Favorites
-            </div>
-            <Grid
-              items={favorites}
-              onAdd={addPhotoToCurrentPage}
-              onFav={toggleFavorite}
-              onDel={removeImage}
-              onExclude={toggleExclude}
-            />
-          </>
-        )}
-        {rest.length > 0 && (
-          <>
-            {favorites.length > 0 && (
-              <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                All photos
+            {library.length === 0 && (
+              <div className="grid place-items-center py-10 text-center text-xs text-muted-foreground">
+                <ImagePlus className="mb-2 h-8 w-8 opacity-50" />
+                Upload photos to get started.
               </div>
             )}
-            <Grid
-              items={rest}
-              onAdd={addPhotoToCurrentPage}
-              onFav={toggleFavorite}
-              onDel={removeImage}
-              onExclude={toggleExclude}
-            />
+
+            {favorites.length > 0 && (
+              <>
+                <div className="mb-2 mt-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Favorites
+                </div>
+                <Grid
+                  items={favorites}
+                  onAdd={addPhotoToCurrentPage}
+                  onFav={toggleFavorite}
+                  onDel={removeImage}
+                  onExclude={toggleExclude}
+                />
+              </>
+            )}
+            {rest.length > 0 && (
+              <>
+                {favorites.length > 0 && (
+                  <div className="mb-2 mt-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    All photos
+                  </div>
+                )}
+                <Grid
+                  items={rest}
+                  onAdd={addPhotoToCurrentPage}
+                  onFav={toggleFavorite}
+                  onDel={removeImage}
+                  onExclude={toggleExclude}
+                />
+              </>
+            )}
           </>
         )}
       </div>
-      {/* Resizer Handle */}
+
       <div
         onMouseDown={startResize}
         className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-accent/40 active:bg-accent transition z-50"
@@ -200,7 +378,6 @@ function Grid({
           onDoubleClick={() => onAdd(img.id)}
           className="group relative aspect-square overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm transition hover:border-accent/40 hover:shadow-md snap-start"
         >
-          {/* Tick option to exclude from random selections */}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -213,11 +390,7 @@ function Grid({
             }`}
             title={img.excluded ? "Excluded from random autofill" : "Include in random autofill"}
           >
-            {img.excluded ? (
-              <Check className="h-3 w-3 stroke-[3.5]" />
-            ) : (
-              <Check className="h-3 w-3 opacity-30" />
-            )}
+            {img.excluded ? <Check className="h-3 w-3 stroke-[3.5]" /> : <Check className="h-3 w-3 opacity-30" />}
           </button>
 
           <img
@@ -242,7 +415,7 @@ function Grid({
             <Button
               size="icon"
               variant="ghost"
-              className="h-7 w-7 text-white hover:bg-destructive/70"
+              className="h-7 w-7 text-white hover:bg-sky-500/80"
               onClick={(e) => {
                 e.stopPropagation();
                 onDel(img.id);

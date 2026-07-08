@@ -90,6 +90,17 @@ export type PhotoElement = ElementBase & {
   imageY?: number;
   opacity?: number;
   frameColor?: string;
+  eraseMask?: string;
+  magicMask?: string;
+  magicFrame?: boolean;
+};
+
+export type MagicFrameSelection = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  maskSrc: string;
 };
 
 export type StickerElement = ElementBase & {
