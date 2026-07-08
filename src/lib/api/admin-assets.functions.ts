@@ -120,6 +120,41 @@ const parseDataUrl = (dataUrl: string) => {
   };
 };
 
+async function writeLocalAdminAsset(kind: "stickers" | "backgrounds", filename: string, buffer: Buffer): Promise<string> {
+  const fs = await import("fs");
+  const path = await import("path");
+  const cwd = process.cwd();
+
+  const candidates = [
+    path.resolve(cwd, "public", "admin-assets", kind),
+    path.resolve(cwd, ".output", "public", "admin-assets", kind),
+    path.resolve(cwd, "dist", "public", "admin-assets", kind),
+  ];
+
+  const dirs = candidates.filter((dir, idx, self) => self.indexOf(dir) === idx);
+
+  let lastError = null;
+  let success = false;
+
+  for (const dir of dirs) {
+    try {
+      await fs.promises.mkdir(dir, { recursive: true });
+      const filePath = path.join(dir, filename);
+      await fs.promises.writeFile(filePath, buffer);
+      success = true;
+    } catch (err) {
+      lastError = err;
+      console.warn(`Could not write local admin asset to ${dir}:`, err);
+    }
+  }
+
+  if (!success && lastError) {
+    throw lastError;
+  }
+
+  return `/admin-assets/${kind}/${filename}`;
+}
+
 async function saveImageDataUrl(
   kind: "stickers" | "backgrounds",
   id: string,
@@ -140,12 +175,7 @@ async function saveImageDataUrl(
     throw missingBlobStorageError();
   }
 
-  const { fs, path, stickersDir, backgroundsDir } = await localAssetPaths();
-  const dir = kind === "stickers" ? stickersDir : backgroundsDir;
-  await fs.promises.mkdir(dir, { recursive: true });
-  const filePath = path.join(dir, filename);
-  await fs.promises.writeFile(filePath, buffer);
-  return `/admin-assets/${kind}/${filename}`;
+  return writeLocalAdminAsset(kind, filename, buffer);
 }
 
 async function deletePublicAsset(src: string) {
@@ -159,12 +189,22 @@ async function deletePublicAsset(src: string) {
   }
 
   if (!src.startsWith("/admin-assets/")) return;
-  const { fs, path, adminAssetsDir } = await localAssetPaths();
-  const publicRoot = adminAssetsDir;
+
+  const fs = await import("fs");
+  const path = await import("path");
+  const cwd = process.cwd();
+
   const relative = src.replace(/^\/+/, "").split(/[?#]/)[0];
-  const filePath = path.resolve(process.cwd(), "public", relative);
-  if (!filePath.startsWith(publicRoot)) return;
-  await fs.promises.unlink(filePath).catch(() => undefined);
+
+  const candidates = [
+    path.resolve(cwd, "public", relative),
+    path.resolve(cwd, ".output", "public", relative),
+    path.resolve(cwd, "dist", "public", relative),
+  ];
+
+  for (const filePath of candidates) {
+    await fs.promises.unlink(filePath).catch(() => undefined);
+  }
 }
 
 const fileInputSchema = z.object({

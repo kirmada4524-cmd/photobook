@@ -547,6 +547,41 @@ export const updateAdminTemplateById = createServerFn({ method: "POST" })
     }
   });
 
+async function writeLocalTemplateAsset(kind: string, filename: string, buffer: Buffer): Promise<string> {
+  const fs = await import("fs");
+  const path = await import("path");
+  const cwd = process.cwd();
+
+  const candidates = [
+    path.resolve(cwd, "public", "template-assets", kind),
+    path.resolve(cwd, ".output", "public", "template-assets", kind),
+    path.resolve(cwd, "dist", "public", "template-assets", kind),
+  ];
+
+  const dirs = candidates.filter((dir, idx, self) => self.indexOf(dir) === idx);
+
+  let lastError = null;
+  let success = false;
+
+  for (const dir of dirs) {
+    try {
+      await fs.promises.mkdir(dir, { recursive: true });
+      const filePath = path.join(dir, filename);
+      await fs.promises.writeFile(filePath, buffer);
+      success = true;
+    } catch (err) {
+      lastError = err;
+      console.warn(`Could not write local template asset to ${dir}:`, err);
+    }
+  }
+
+  if (!success && lastError) {
+    throw lastError;
+  }
+
+  return `/template-assets/${kind}/${filename}`;
+}
+
 export const uploadTemplateAsset = createServerFn({ method: "POST" })
   .validator(
     z.object({
@@ -572,5 +607,15 @@ export const uploadTemplateAsset = createServerFn({ method: "POST" })
       return { url: blob.url as string };
     }
 
-    throw missingBlobStorageError();
+    if (isVercelRuntime()) {
+      throw missingBlobStorageError();
+    }
+
+    try {
+      const url = await writeLocalTemplateAsset(data.kind, filename, buffer);
+      return { url };
+    } catch (error) {
+      console.error("Error writing template asset locally:", error);
+      throw new Error(`Failed to save template asset locally: ${String(error)}`);
+    }
   });
