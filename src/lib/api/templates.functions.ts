@@ -221,6 +221,81 @@ export const appendAdminTemplates = createServerFn({ method: "POST" })
     }
   });
 
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const appendAdminTemplateChecked = createServerFn({ method: "POST" })
+  .validator((data: any) => data)
+  .handler(async ({ data }) => {
+    const incoming = sanitizeAdminTemplates([data?.template ?? data])[0];
+    if (!incoming || typeof incoming.id !== "string") {
+      return {
+        success: false,
+        error: "Template was empty or invalid after cleanup.",
+        count: 0,
+        verified: false,
+      };
+    }
+
+    const appendAndVerify = async (
+      readCurrent: () => Promise<any[]>,
+      writeNext: (templates: any[]) => Promise<void>,
+    ) => {
+      const current = await readCurrent();
+      const next = [...current.filter((template: any) => template.id !== incoming.id), incoming];
+      await writeNext(next);
+
+      for (let attempt = 1; attempt <= 3; attempt += 1) {
+        const verifiedTemplates = await readCurrent();
+        const verified = verifiedTemplates.some((template: any) => template.id === incoming.id);
+        if (verified) {
+          return {
+            success: true,
+            count: 1,
+            verified: true,
+            attempts: attempt,
+            total: verifiedTemplates.length,
+          };
+        }
+        await delay(500 * attempt);
+      }
+
+      return {
+        success: false,
+        error: `Template "${incoming.label || incoming.id}" was written but not found during verification.`,
+        count: 0,
+        verified: false,
+      };
+    };
+
+    if (hasBlobStorage()) {
+      try {
+        return await appendAndVerify(readBlobJson, writeBlobJson);
+      } catch (error) {
+        console.error("Error appending checked admin template to Blob:", error);
+        return { success: false, error: String(error), count: 0, verified: false };
+      }
+    }
+
+    try {
+      const { fs, templatesFile } = await localTemplatesFile();
+      if (isVercelRuntime()) {
+        throw missingBlobStorageError();
+      }
+      return await appendAndVerify(
+        async () =>
+          fs.existsSync(templatesFile)
+            ? sanitizeAdminTemplates(JSON.parse(await fs.promises.readFile(templatesFile, "utf-8")))
+            : [],
+        async (templates) => {
+          await fs.promises.writeFile(templatesFile, JSON.stringify(sanitizeAdminTemplates(templates), null, 2));
+        },
+      );
+    } catch (error) {
+      console.error("Error appending checked admin template locally:", error);
+      return { success: false, error: String(error), count: 0, verified: false };
+    }
+  });
+
 export const deleteAdminTemplateById = createServerFn({ method: "POST" })
   .validator(z.object({ id: z.string().min(1) }))
   .handler(async ({ data }) => {
