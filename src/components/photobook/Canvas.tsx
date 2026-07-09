@@ -4,7 +4,17 @@ import { Page } from "./Page";
 import { PAGE_SIZES, type PhotoElement } from "@/lib/photobook/types";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
-import { Copy, LayoutGrid, Plus, Shuffle, Sparkles, Trash2, WandSparkles } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  LayoutGrid,
+  Plus,
+  Shuffle,
+  Sparkles,
+  Trash2,
+  WandSparkles,
+} from "lucide-react";
 import { AddTemplatesModal } from "./AddTemplatesModal";
 import { toast } from "sonner";
 
@@ -16,10 +26,11 @@ export const pageLabel = (index: number, total: number) => {
 
 // ─── Known fixed chrome heights (px) ────────────────────────────────────────
 // EditorHeader: h-[60px] = 60
-// Canvas tabs bar: py-2 (8+8) + h-7 items (28) = 44
+// Canvas top bar: ~48px
+// Next/Prev bar on mobile: 40px
 // Mobile bottom toolbar: h-14 = 56
-// Total chrome consumed above+below the workspace on mobile = 60 + 44 + 56 = 160px
-const MOBILE_CHROME_H = 160;
+// Total chrome consumed above+below the workspace on mobile = 60 + 48 + 40 + 56 = 204px
+const MOBILE_CHROME_H = 204;
 const MOBILE_BREAKPOINT = 768;
 
 /** Compute workspace available dimensions from window right now (synchronous). */
@@ -37,7 +48,7 @@ function getAvailableSize() {
 interface WorkspaceProps {
   pageW: number;
   pageH: number;
-  zoom: number;          // desktop zoom (from store)
+  zoom: number;
   currentPageId: string;
   currentIdx: number;
   totalPages: number;
@@ -46,11 +57,9 @@ interface WorkspaceProps {
 function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalPages }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // ── Lazy initial state: read window synchronously so first render is correct ──
   const [size, setSize] = useState(() => getAvailableSize());
 
   useLayoutEffect(() => {
-    // Refine with actual measured container (accounts for any chrome we missed)
     const measure = () => {
       if (containerRef.current) {
         const mobile = window.innerWidth < MOBILE_BREAKPOINT;
@@ -90,15 +99,10 @@ function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalP
         "md:overflow-auto md:p-10"
       }
     >
-      {/* Outer wrapper at scaled pixel dimensions.
-           overflow-hidden is CRITICAL: CSS transform does not affect layout, so
-           the inner 550px div still occupies 550px of layout space. Without
-           overflow-hidden it bleeds off-screen to the right on mobile. */}
       <div
         className="shrink-0 overflow-hidden rounded-sm shadow-photo ring-1 ring-black/5 animate-float-in"
         style={{ width: scaledW, height: scaledH }}
       >
-        {/* Inner page at natural size, CSS-scaled from top-left */}
         <div
           style={{
             transform: `scale(${effectiveZoom})`,
@@ -115,6 +119,77 @@ function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalP
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Prev / Next navigation bar ──────────────────────────────────────────────
+interface PageNavProps {
+  currentIdx: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+  label: string;
+  mobile?: boolean;
+}
+
+function PageNav({ currentIdx, total, onPrev, onNext, label, mobile }: PageNavProps) {
+  if (mobile) {
+    // Compact pill-style bar for mobile — sits just above the canvas
+    return (
+      <div className="md:hidden flex items-center justify-between gap-2 px-3 py-1.5 border-b bg-background/95 backdrop-blur">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 px-2 text-xs font-medium disabled:opacity-30"
+          onClick={onPrev}
+          disabled={currentIdx === 0}
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Prev
+        </Button>
+
+        <span className="text-xs font-semibold text-muted-foreground">
+          {label} &nbsp;·&nbsp; {currentIdx + 1} / {total}
+        </span>
+
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 gap-1 px-2 text-xs font-medium disabled:opacity-30"
+          onClick={onNext}
+          disabled={currentIdx >= total - 1}
+        >
+          Next
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  }
+
+  // Desktop inline prev/next in the top bar
+  return (
+    <>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 disabled:opacity-30"
+        title="Previous page"
+        onClick={onPrev}
+        disabled={currentIdx === 0}
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </Button>
+      <Button
+        size="icon"
+        variant="ghost"
+        className="h-8 w-8 disabled:opacity-30"
+        title="Next page"
+        onClick={onNext}
+        disabled={currentIdx >= total - 1}
+      >
+        <ChevronRight className="h-4 w-4" />
+      </Button>
+    </>
   );
 }
 
@@ -202,6 +277,14 @@ export function Canvas() {
   const pageW      = preset.width;
   const pageH      = preset.height;
 
+  const goToPrev = () => {
+    if (currentIdx > 0) setCurrentPage(pages[currentIdx - 1].id);
+  };
+
+  const goToNext = () => {
+    if (currentIdx < pages.length - 1) setCurrentPage(pages[currentIdx + 1].id);
+  };
+
   const autofillCurrentPage = () => {
     if (!activePage) return;
     const result = useBookStore.getState().autofillLeastUsedImages(activePage.id);
@@ -224,17 +307,34 @@ export function Canvas() {
     toast.success("Shuffled unlocked photos on this page.");
   };
 
+  const currentLabel = pageLabel(currentIdx, pages.length);
+
   return (
     <div className="flex h-full w-full min-w-0 min-h-0 flex-col">
+      {/* ── Top toolbar ── */}
       <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur md:px-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2">
+          {/* Page label pill */}
           <div className="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
-            {pageLabel(currentIdx, pages.length)} / {pages.length}
+            {currentLabel} / {pages.length}
           </div>
+
+          {/* Desktop Prev / Next */}
+          <div className="hidden md:flex items-center">
+            <PageNav
+              currentIdx={currentIdx}
+              total={pages.length}
+              onPrev={goToPrev}
+              onNext={goToNext}
+              label={currentLabel}
+            />
+          </div>
+
+          {/* Page actions — hidden on mobile to save horizontal space */}
           <Button
             size="sm"
             variant="outline"
-            className="gap-2 shadow-sm"
+            className="hidden md:flex gap-2 shadow-sm"
             onClick={addPage}
           >
             <Plus className="h-4 w-4" />
@@ -243,7 +343,7 @@ export function Canvas() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8"
+            className="hidden md:grid h-8 w-8"
             title="Duplicate current page"
             disabled={!activePage}
             onClick={() => activePage && duplicatePage(activePage.id)}
@@ -253,7 +353,7 @@ export function Canvas() {
           <Button
             size="icon"
             variant="ghost"
-            className="h-8 w-8 text-sky-600 hover:bg-sky-50 hover:text-sky-700"
+            className="hidden md:grid h-8 w-8 text-sky-600 hover:bg-sky-50 hover:text-sky-700"
             title="Delete current page"
             disabled={!activePage || pages.length <= 1}
             onClick={() => activePage && deletePage(activePage.id)}
@@ -261,48 +361,50 @@ export function Canvas() {
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+
+        <div className="flex flex-wrap items-center justify-end gap-1.5 md:gap-2">
           <Button
             size="sm"
             variant="outline"
-            className="gap-2 shadow-sm"
+            className="gap-1.5 shadow-sm px-2 md:px-3"
             disabled={!activePage}
             onClick={shuffleCurrentPage}
           >
             <Shuffle className="h-4 w-4" />
-            Shuffle
+            <span className="hidden sm:inline">Shuffle</span>
           </Button>
           <Button
             size="sm"
-            className="gap-2 bg-accent text-accent-foreground shadow-sm hover:bg-accent/90"
+            className="gap-1.5 bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 px-2 md:px-3"
             disabled={!activePage}
             onClick={autofillCurrentPage}
           >
             <Sparkles className="h-4 w-4" />
-            Autofill
+            <span className="hidden sm:inline">Autofill</span>
           </Button>
           <Button
             size="sm"
             variant={isMagicLayoutMode ? "default" : "outline"}
-            className={`gap-2 shadow-sm ${
+            className={`gap-1.5 shadow-sm px-2 md:px-3 ${
               isMagicLayoutMode ? "bg-sky-500 text-white hover:bg-sky-600" : ""
             }`}
             disabled={!activePage}
             onClick={() => setIsMagicLayoutMode(!isMagicLayoutMode)}
           >
             <WandSparkles className="h-4 w-4" />
-            Magic Layout
+            <span className="hidden sm:inline">Magic Layout</span>
           </Button>
           <Button
             size="sm"
             variant="outline"
-            className="gap-2 shadow-sm"
+            className="gap-1.5 shadow-sm hidden md:flex px-2 md:px-3"
             onClick={() => setShowAddTemplates(true)}
           >
             <LayoutGrid className="h-4 w-4" />
-            Multiple Templates
+            <span className="hidden lg:inline">Multiple Templates</span>
           </Button>
         </div>
+
         {isMagicLayoutMode && (
           <div className="flex basis-full flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-2 text-xs text-sky-900 shadow-sm">
             <div className="flex min-w-[220px] items-center gap-2 font-semibold">
@@ -360,7 +462,17 @@ export function Canvas() {
         )}
       </div>
 
-      {/* ── Workspace (isolated sub-component) ── */}
+      {/* ── Mobile Prev / Next navigation strip ── */}
+      <PageNav
+        currentIdx={currentIdx}
+        total={pages.length}
+        onPrev={goToPrev}
+        onNext={goToNext}
+        label={currentLabel}
+        mobile
+      />
+
+      {/* ── Workspace ── */}
       <CanvasWorkspace
         pageW={pageW}
         pageH={pageH}
