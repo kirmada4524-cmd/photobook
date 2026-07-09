@@ -1,6 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { deleteBlob, getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
+import { deleteBlob, getBlobText, getBlobUrlContent, hasBlobReadWriteToken, headBlob, listBlobs, putBlob } from "./blob-storage.server";
 
 const TEMPLATES_BLOB_PATH = "admin-templates.json";
 const TEMPLATE_ITEM_BLOB_PREFIX = "admin-templates/items";
@@ -147,11 +147,7 @@ async function listTemplateItemBlobs() {
   let cursor: string | undefined;
 
   do {
-    const result = await list({
-      prefix: `${TEMPLATE_ITEM_BLOB_PREFIX}/`,
-      limit: 1000,
-      cursor,
-    });
+    const result = await listBlobs(`${TEMPLATE_ITEM_BLOB_PREFIX}/`, cursor);
     blobs.push(...result.blobs);
     cursor = result.cursor;
   } while (cursor);
@@ -167,8 +163,8 @@ async function readTemplateItemBlob(id: string) {
 
 async function verifyTemplateItemBlob(id: string) {
   try {
-    const metadata = await head(templateItemPath(id));
-    return metadata.pathname === templateItemPath(id);
+    const metadata = await headBlob(templateItemPath(id));
+    return metadata?.pathname === templateItemPath(id);
   } catch {
     return false;
   }
@@ -179,7 +175,7 @@ async function readTemplateItemBlobs() {
   const templates = await Promise.all(
     blobs.map(async (blob) => {
       try {
-        const content = await getBlobText(blob.pathname);
+        const content = await getBlobUrlContent(blob.url);
         if (!content) return null;
         return sanitizeAdminTemplates([JSON.parse(content)])[0] ?? null;
       } catch (error) {
