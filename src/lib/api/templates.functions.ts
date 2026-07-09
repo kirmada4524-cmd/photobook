@@ -1,5 +1,4 @@
 import { createServerFn } from "@tanstack/react-start";
-import { head, list } from "@vercel/blob";
 import { z } from "zod";
 import { deleteBlob, getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
 

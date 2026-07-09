@@ -20,19 +20,9 @@ export default defineConfig({
         },
       },
     }),
-    nitro({
-      externals: {
-        external: ["@vercel/blob", "@vercel/oidc"]
-      },
-      rollupConfig: {
-        external: ["@vercel/blob", "@vercel/oidc"]
-      }
-    }),
+    nitro(),
     viteReact(),
   ],
-  ssr: {
-    external: ["@vercel/blob", "@vercel/oidc"],
-  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

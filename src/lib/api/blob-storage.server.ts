@@ -1,18 +1,18 @@
-import { put, del, list } from "@vercel/blob";
+// Vercel Blob storage - pure fetch implementation.
+// Does NOT import @vercel/blob SDK to avoid the CJS/ESM crash:
+//   @vercel/blob -> @vercel/oidc -> @vercel/cli-config -> xdg-app-paths
+//   which uses require() and crashes in Nitro's ESM bundle on Vercel.
 
 const readWriteToken = () => process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
 
 export const hasBlobReadWriteToken = () => Boolean(readWriteToken());
 
-const parseStoreIdFromToken = (token: string) => {
-  const parts = token.split("_");
-  const storeId = parts[3] || "";
-  return storeId.startsWith("store_") ? storeId.slice("store_".length) : storeId;
-};
+// The Vercel Blob upload endpoint - note this is blob.vercel-storage.com, NOT vercel.com/api/blob
+const BLOB_UPLOAD_URL = "https://blob.vercel-storage.com";
 
 export async function putBlob(
   pathname: string,
-  body: Buffer | string | Blob,
+  body: Buffer | string,
   options: {
     contentType: string;
     cacheControlMaxAge: number;
@@ -21,66 +21,81 @@ export async function putBlob(
   const token = readWriteToken();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN.");
 
-  const blob = await put(pathname, body, {
-    access: "public",
-    contentType: options.contentType,
-    addRandomSuffix: false,
-    token,
+  const url = `${BLOB_UPLOAD_URL}/${encodeURIComponent(pathname).replace(/%2F/g, "/")}`;
+
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": options.contentType,
+      "x-api-version": "7",
+      "x-allow-overwrite": "1",
+      "cache-control": `public, max-age=${options.cacheControlMaxAge}`,
+    },
+    body,
   });
 
-  return blob;
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(`Vercel Blob upload failed: ${response.status} ${response.statusText} — ${details}`);
+  }
+
+  const result = await response.json() as { url: string; pathname: string };
+  return result;
 }
 
 export async function getBlobText(pathname: string): Promise<string | null> {
   const token = readWriteToken();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN.");
 
-  // Reconstruct the direct Vercel Blob URL for instant access
-  const storeId = parseStoreIdFromToken(token);
-  const url = `https://${storeId}.public.blob.vercel-storage.com/${pathname}?v=${Date.now()}`;
+  // Use the Vercel Blob list API to find the file URL
+  const listUrl = `${BLOB_UPLOAD_URL}?prefix=${encodeURIComponent(pathname)}&limit=1`;
 
-  let response = await fetch(url, {
+  const listResp = await fetch(listUrl, {
     method: "GET",
-    cache: "no-store",
     headers: {
       authorization: `Bearer ${token}`,
+      "x-api-version": "7",
     },
   });
 
-  // Fallback: if direct URL fails or storeId extraction is incorrect, use list() to find the URL
-  if (!response.ok && response.status !== 404) {
-    try {
-      const result = await list({
-        prefix: pathname,
-        limit: 1,
-        token,
-      });
-      const blob = result.blobs.find((b) => b.pathname === pathname);
-      if (blob) {
-        response = await fetch(`${blob.url}?v=${Date.now()}`, {
-          method: "GET",
-          cache: "no-store",
-          headers: {
-            authorization: `Bearer ${token}`,
-          },
-        });
-      }
-    } catch (err) {
-      console.warn("Vercel Blob list fallback failed:", err);
-    }
+  if (!listResp.ok) {
+    const details = await listResp.text().catch(() => "");
+    throw new Error(`Vercel Blob list failed: ${listResp.status} ${listResp.statusText} — ${details}`);
   }
 
-  if (response.status === 404) return null;
-  if (!response.ok) {
-    throw new Error(`Vercel Blob read failed: ${response.status} ${response.statusText}`);
+  const data = await listResp.json() as { blobs: Array<{ pathname: string; url: string }> };
+  const blob = data.blobs.find((b) => b.pathname === pathname);
+  if (!blob) return null;
+
+  const fileResp = await fetch(`${blob.url}?v=${Date.now()}`, {
+    cache: "no-store",
+  });
+
+  if (fileResp.status === 404) return null;
+  if (!fileResp.ok) {
+    throw new Error(`Vercel Blob read failed: ${fileResp.status} ${fileResp.statusText}`);
   }
 
-  return response.text();
+  return fileResp.text();
 }
 
 export async function deleteBlob(urlOrPathname: string) {
   const token = readWriteToken();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN.");
 
-  await del(urlOrPathname, { token });
+  const response = await fetch(`${BLOB_UPLOAD_URL}/delete`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+      "x-api-version": "7",
+    },
+    body: JSON.stringify({ urls: [urlOrPathname] }),
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(`Vercel Blob delete failed: ${response.status} ${response.statusText} — ${details}`);
+  }
 }
