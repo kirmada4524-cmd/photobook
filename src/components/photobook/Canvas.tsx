@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { AddTemplatesModal } from "./AddTemplatesModal";
 import { toast } from "sonner";
+import { MobilePagesStrip } from "./LibrarySidebar";
 
 export const pageLabel = (index: number, total: number) => {
   if (index === 0) return "Cover";
@@ -228,6 +229,25 @@ export function Canvas() {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if ((e.ctrlKey || e.metaKey) && e.key === "ArrowLeft") {
+        const state = useBookStore.getState();
+        const pages = state.book.pages;
+        const currentIdx = pages.findIndex((p) => p.id === state.currentPageId);
+        if (currentIdx > 0) {
+          e.preventDefault();
+          state.setCurrentPage(pages[currentIdx - 1].id);
+        }
+        return;
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "ArrowRight") {
+        const state = useBookStore.getState();
+        const pages = state.book.pages;
+        const currentIdx = pages.findIndex((p) => p.id === state.currentPageId);
+        if (currentIdx < pages.length - 1) {
+          e.preventDefault();
+          state.setCurrentPage(pages[currentIdx + 1].id);
+        }
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) { redo(); } else { undo(); }
@@ -471,6 +491,9 @@ export function Canvas() {
         label={currentLabel}
         mobile
       />
+
+      {/* ── Mobile collapsible page strip ── */}
+      <MobilePagesStrip />
 
       {/* ── Workspace ── */}
       <CanvasWorkspace

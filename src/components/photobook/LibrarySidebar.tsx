@@ -12,9 +12,14 @@ import {
   LayoutGrid,
   Plus,
   Copy,
+  ChevronDown,
+  ChevronUp,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "./Page";
+import { PAGE_SIZES } from "@/lib/photobook/types";
 
 const pageLabel = (index: number, total: number) => {
   if (index === 0) return "Cover";
@@ -165,6 +170,7 @@ export function LibrarySidebar() {
                       pageDragState={pageDragState}
                       setPageDragState={setPageDragState}
                       fullWidth
+                      sidebarWidth={width}
                     />
                   </div>
                 );
@@ -198,6 +204,7 @@ export function LibrarySidebar() {
                               pages={pages}
                               pageDragState={pageDragState}
                               setPageDragState={setPageDragState}
+                              sidebarWidth={width}
                             />
                           );
                         })
@@ -226,6 +233,7 @@ export function LibrarySidebar() {
                         pages={pages}
                         pageDragState={pageDragState}
                         setPageDragState={setPageDragState}
+                        sidebarWidth={width}
                       />
                     </div>
                   </div>
@@ -251,6 +259,7 @@ export function LibrarySidebar() {
                       pageDragState={pageDragState}
                       setPageDragState={setPageDragState}
                       fullWidth
+                      sidebarWidth={width}
                     />
                   </div>
                 );
@@ -357,6 +366,165 @@ export function LibrarySidebar() {
   );
 }
 
+// ─── Mobile collapsible page strip ───────────────────────────────────────────
+export function MobilePagesStrip() {
+  const pages = useBookStore((s) => s.book.pages);
+  const currentPageId = useBookStore((s) => s.currentPageId);
+  const setCurrentPage = useBookStore((s) => s.setCurrentPage);
+  const deletePage = useBookStore((s) => s.deletePage);
+  const addPage = useBookStore((s) => s.addPage);
+  const [open, setOpen] = useState(false);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+
+  const preset = PAGE_SIZES[0];
+  const THUMB_W = 72;
+  const THUMB_H = Math.round(THUMB_W * (preset.height / preset.width)); // keeps 1:1 ratio
+  const scale = THUMB_W / preset.width;
+
+  return (
+    <div className="md:hidden border-t bg-card">
+      {/* Toggle header */}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted/40 transition"
+      >
+        <span>Pages ({pages.length})</span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+
+      {/* Collapsible content */}
+      {open && (
+        <div className="px-3 pb-3">
+          {/* Scrollable thumbnail row */}
+          <div
+            ref={stripRef}
+            className="flex gap-2 overflow-x-auto pb-1 snap-x touch-pan-x"
+          >
+            {pages.map((page, index) => {
+              const active = page.id === currentPageId;
+              return (
+                <div
+                  key={page.id}
+                  draggable
+                  onDragStart={() => setDragId(page.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (!dragId || dragId === page.id) return;
+                    const ids = pages.map((p) => p.id);
+                    const from = ids.indexOf(dragId);
+                    const to = ids.indexOf(page.id);
+                    if (from < 0 || to < 0) return;
+                    ids.splice(from, 1);
+                    ids.splice(to, 0, dragId);
+                    useBookStore.getState().reorderPages(ids);
+                    setDragId(null);
+                  }}
+                  onDragEnd={() => setDragId(null)}
+                  onClick={() => setCurrentPage(page.id)}
+                  className={`shrink-0 snap-start cursor-pointer rounded-lg border overflow-hidden transition ${
+                    active
+                      ? "border-accent ring-2 ring-accent/30"
+                      : "border-border/70 hover:border-accent/40"
+                  } ${dragId === page.id ? "opacity-50" : ""}`}
+                  style={{ width: THUMB_W }}
+                >
+                  {/* Thumbnail */}
+                  <div
+                    className="relative overflow-hidden bg-muted"
+                    style={{ width: THUMB_W, height: THUMB_H }}
+                  >
+                    <div
+                      style={{
+                        transform: `scale(${scale})`,
+                        transformOrigin: "top left",
+                        width: preset.width,
+                        height: preset.height,
+                        pointerEvents: "none",
+                      }}
+                    >
+                      <Page pageId={page.id} interactive={false} />
+                    </div>
+                  </div>
+                  {/* Controls for Rearranging & Deleting */}
+                  <div className="flex items-center justify-between border-t bg-muted/40 px-1 py-0.5">
+                    <button
+                      type="button"
+                      disabled={index === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const ids = pages.map((p) => p.id);
+                        const from = index;
+                        const to = index - 1;
+                        ids.splice(from, 1);
+                        ids.splice(to, 0, page.id);
+                        useBookStore.getState().reorderPages(ids);
+                      }}
+                      className="rounded p-0.5 hover:bg-muted text-foreground disabled:opacity-30 animate-scale-in"
+                      title="Move left"
+                    >
+                      <ChevronLeft className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={pages.length <= 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePage(page.id);
+                      }}
+                      className="rounded p-0.5 text-sky-600 hover:bg-sky-50 disabled:opacity-30 animate-scale-in"
+                      title="Delete page"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      disabled={index === pages.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const ids = pages.map((p) => p.id);
+                        const from = index;
+                        const to = index + 1;
+                        ids.splice(from, 1);
+                        ids.splice(to, 0, page.id);
+                        useBookStore.getState().reorderPages(ids);
+                      }}
+                      className="rounded p-0.5 hover:bg-muted text-foreground disabled:opacity-30 animate-scale-in"
+                      title="Move right"
+                    >
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {/* Label */}
+                  <div className="px-1 py-0.5 text-[9px] font-semibold text-center truncate">
+                    {pageLabel(index, pages.length)}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Add page button */}
+            <button
+              type="button"
+              onClick={addPage}
+              className="shrink-0 snap-start flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-border/70 text-muted-foreground hover:border-accent hover:text-accent transition"
+              style={{ width: THUMB_W, height: THUMB_H + 26 }}
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-[9px] font-semibold">Add</span>
+            </button>
+          </div>
+          <p className="mt-1.5 text-[10px] text-muted-foreground text-center">
+            Tap to select · Drag to reorder
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PageThumb({
   page,
   index,
@@ -369,6 +537,7 @@ function PageThumb({
   pageDragState,
   setPageDragState,
   fullWidth,
+  sidebarWidth,
 }: {
   page: { id: string };
   index: number;
@@ -381,7 +550,16 @@ function PageThumb({
   pageDragState: { id: string | null; dropped: boolean };
   setPageDragState: (s: { id: string | null; dropped: boolean }) => void;
   fullWidth?: boolean;
+  sidebarWidth: number;
 }) {
+  // Container width inside the sidebar layout
+  const containerWidth = fullWidth
+    ? (sidebarWidth - 48)
+    : (sidebarWidth - 48 - 8) / 2;
+
+  // Since FIXED_PAGE_SIZE width/height is 550, scale factor is containerWidth / 550
+  const scale = Math.max(0.05, containerWidth / 550);
+
   return (
     <div
       role="button"
@@ -415,16 +593,28 @@ function PageThumb({
         }
         setPageDragState({ id: null, dropped: false });
       }}
-      className={`group relative self-start overflow-hidden rounded-lg border text-left transition ${
+      className={`group relative overflow-hidden rounded-lg border text-left transition select-none ${
         active ? "border-accent ring-2 ring-accent/20" : "border-border/80 hover:border-accent/40"
       }`}
+      style={{ width: containerWidth }}
     >
-      <div className={`relative overflow-hidden bg-muted ${fullWidth ? "aspect-[3/2] w-full" : "aspect-square w-full"}`}>
-        <div className="absolute inset-0 scale-[0.22] origin-top-left">
+      <div
+        className="relative overflow-hidden bg-muted aspect-square w-full"
+        style={{ height: containerWidth }}
+      >
+        <div
+          style={{
+            transform: `scale(${scale})`,
+            transformOrigin: "top left",
+            width: 550,
+            height: 550,
+            pointerEvents: "none",
+          }}
+        >
           <Page pageId={page.id} interactive={false} />
         </div>
       </div>
-      <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] font-semibold">
+      <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] bg-card border-t font-semibold">
         <span className="truncate">{pageLabel(index, total)}</span>
         <span className="text-muted-foreground">{index + 1}</span>
       </div>
@@ -435,7 +625,7 @@ function PageThumb({
           title="Duplicate page"
           onClick={(e) => { e.stopPropagation(); duplicatePage(page.id); }}
           onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); duplicatePage(page.id); } }}
-          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm"
+          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm hover:bg-background"
         >
           <Copy className="h-3.5 w-3.5" />
         </span>
