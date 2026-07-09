@@ -2129,3 +2129,37 @@
     margin-bottom: env(safe-area-inset-bottom);
   }
 }
+
+/* ═══════════════════════════════════════════════════
+   Home Page Animations
+═══════════════════════════════════════════════════ */
+
+@keyframes homeFloat {
+  0%   { transform: translateY(0px) rotate(var(--rot, 0deg)); }
+  100% { transform: translateY(-10px) rotate(var(--rot, 0deg)); }
+}
+
+@keyframes homeFadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes homeBookEnter {
+  from { opacity: 0; transform: rotateY(-80deg); }
+  to   { opacity: 1; transform: rotateY(-25deg); }
+}
+
+.home-fade-up {
+  opacity: 0;
+  animation: homeFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.home-fade-up-scroll {
+  animation: homeFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-play-state: paused;
+}
+
+.home-book-enter {
+  animation: homeBookEnter 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+}
+
