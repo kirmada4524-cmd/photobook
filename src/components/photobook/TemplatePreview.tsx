@@ -30,7 +30,10 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
   const embeddedAssets = Array.isArray(template.embeddedAssets) ? template.embeddedAssets : [];
 
   // Render background style
-  let bgSrc = typeof template.background === "string" && template.background ? template.background : "#f8f4ea";
+  let bgSrc =
+    typeof template.background === "string" && template.background
+      ? template.background
+      : "#f8f4ea";
   if (!bgSrc.startsWith("#") && embeddedAssets.length > 0) {
     const embeddedBg = embeddedAssets.find((a) => a.id === bgSrc);
     if (embeddedBg) {
@@ -46,7 +49,10 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
   };
 
   return (
-    <div className={`relative w-full h-full overflow-hidden @container bg-background ${className}`} style={bgStyle}>
+    <div
+      className={`relative w-full h-full overflow-hidden @container bg-background ${className}`}
+      style={bgStyle}
+    >
       <div className="absolute inset-0 opacity-90">
         {elements.map((el, i) => {
           const isPhoto = el.type === "photo";
@@ -103,8 +109,8 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
                     fontWeight: (el as any).fontWeight || "normal",
                   }}
                 >
-                    <span
-                      style={{
+                  <span
+                    style={{
                       fontSize: `${Math.max(4, (h / ph) * 100 * 0.4)}cqh`,
                       lineHeight: 1.1,
                     }}

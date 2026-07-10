@@ -28,12 +28,15 @@ export function AddTemplatesModal({
   // Allow user to access all templates, regardless of current page size.
   const availableTemplates = adminTemplates;
 
-  const templatesByCategory = availableTemplates.reduce((acc, t) => {
-    const cat = t.category || "General";
-    if (!acc[cat]) acc[cat] = [];
-    acc[cat].push(t);
-    return acc;
-  }, {} as Record<string, typeof availableTemplates>);
+  const templatesByCategory = availableTemplates.reduce(
+    (acc, t) => {
+      const cat = t.category || "General";
+      if (!acc[cat]) acc[cat] = [];
+      acc[cat].push(t);
+      return acc;
+    },
+    {} as Record<string, typeof availableTemplates>,
+  );
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
@@ -48,9 +51,9 @@ export function AddTemplatesModal({
   const handleAddSelected = async () => {
     if (selectedIds.size === 0) return;
     setIsAdding(true);
-    
+
     try {
-      const selectedTemplates = availableTemplates.filter(t => selectedIds.has(t.id));
+      const selectedTemplates = availableTemplates.filter((t) => selectedIds.has(t.id));
       for (const tmpl of selectedTemplates) {
         addPage();
         await applyPageTemplate(tmpl);
@@ -100,19 +103,27 @@ export function AddTemplatesModal({
                           key={tmpl.id}
                           onClick={() => handleToggle(tmpl.id)}
                           className={`relative cursor-pointer rounded-lg border-2 transition-all overflow-hidden bg-muted/30 flex items-center justify-center ${
-                            isSelected ? "border-accent shadow-sm" : "border-transparent hover:border-accent/30"
+                            isSelected
+                              ? "border-accent shadow-sm"
+                              : "border-transparent hover:border-accent/30"
                           }`}
                           style={{ aspectRatio: "1/1" }}
                         >
                           <TemplatePreview template={tmpl} className="opacity-80" />
-                          
+
                           {/* Overlay check */}
                           <div className="absolute top-2 right-2">
-                            <div className={`h-5 w-5 rounded-md flex items-center justify-center ${isSelected ? "bg-accent text-accent-foreground" : "bg-black/20 text-white/50"}`}>
-                              {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                            <div
+                              className={`h-5 w-5 rounded-md flex items-center justify-center ${isSelected ? "bg-accent text-accent-foreground" : "bg-black/20 text-white/50"}`}
+                            >
+                              {isSelected ? (
+                                <CheckSquare className="h-4 w-4" />
+                              ) : (
+                                <Square className="h-4 w-4" />
+                              )}
                             </div>
                           </div>
-                          
+
                           {/* Label */}
                           <div className="absolute bottom-0 inset-x-0 bg-black/60 p-2 text-white text-[10px] font-medium truncate backdrop-blur-sm">
                             {tmpl.label}

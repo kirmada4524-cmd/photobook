@@ -61,7 +61,9 @@ export function TemplateStartModal({
     setIsStarting(true);
     try {
       resetBook();
-      const selectedTemplates = adminTemplates.filter((template) => selectedTemplateIds.has(template.id));
+      const selectedTemplates = adminTemplates.filter((template) =>
+        selectedTemplateIds.has(template.id),
+      );
       for (let index = 0; index < selectedTemplates.length; index += 1) {
         const template = selectedTemplates[index];
         if (index > 0) addPage();
@@ -134,7 +136,11 @@ export function TemplateStartModal({
                         >
                           <TemplatePreview template={template} className="opacity-90" />
                           <span className="absolute right-2 top-2 rounded-md bg-black/40 p-1 text-white backdrop-blur-sm">
-                            {isSelected ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                            {isSelected ? (
+                              <CheckSquare className="h-4 w-4" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
                           </span>
                           <span className="absolute inset-x-0 bottom-0 truncate bg-slate-950/65 px-2 py-2 text-left text-[11px] font-semibold text-white backdrop-blur-sm">
                             {template.label}

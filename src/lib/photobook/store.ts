@@ -60,8 +60,7 @@ const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 800_000;
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
 
-const shouldUploadTemplateAsset = (value: string) =>
-  isDataUrl(value) || value.startsWith("blob:");
+const shouldUploadTemplateAsset = (value: string) => isDataUrl(value) || value.startsWith("blob:");
 
 const readBlobAsDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -273,13 +272,18 @@ type Actions = {
   setLibrarySidebarWidth: (w: number) => void;
   setDesignSidebarWidth: (w: number) => void;
 
-  savePageAsTemplate: (pageId: string, label: string, thumbnail?: string, opts?: {
-    sizeId?: string;
-    category?: string;
-    frameLocked?: boolean;
-    backgroundLocked?: boolean;
-    isAdminTemplate?: boolean;
-  }) => Promise<void>;
+  savePageAsTemplate: (
+    pageId: string,
+    label: string,
+    thumbnail?: string,
+    opts?: {
+      sizeId?: string;
+      category?: string;
+      frameLocked?: boolean;
+      backgroundLocked?: boolean;
+      isAdminTemplate?: boolean;
+    },
+  ) => Promise<void>;
   deleteCustomTemplate: (templateId: string) => void;
   importCustomTemplate: (template: SavedPageTemplate) => void;
   applyPageTemplate: (template: SavedPageTemplate) => Promise<void>;
@@ -300,7 +304,6 @@ type Actions = {
   replacePhotoImageAfterErase: (elementId: string, imageId: string) => void;
   setPageOverlay: (pageId: string, overlay: string | null) => void;
 
-
   addAdminTemplate: (template: SavedPageTemplate) => void;
   addAdminTemplates: (templates: SavedPageTemplate[]) => void;
   deleteAdminTemplate: (templateId: string) => Promise<void>;
@@ -319,7 +322,7 @@ type Actions = {
   deleteAdminSticker: (folderId: string, stickerId: string) => Promise<void>;
   addAdminBackgrounds: (files: { name: string; dataUrl: string }[]) => Promise<void>;
   deleteAdminBackground: (backgroundId: string) => Promise<void>;
-  
+
   addRecentProject: (id: string, title: string, sizeId?: string) => void;
   clearRecentProjects: () => void;
 };
@@ -536,11 +539,11 @@ export const useBookStore = create<State & Actions>()(
         magicLayoutFeather: 1,
         magicLayoutExpand: 0,
         editingBackgroundPageId: null,
-          adminTemplates: [],
-          adminStickerFolders: [],
-          adminBackgrounds: [],
-          adminAssetsLoaded: false,
-          recentProjects: [],
+        adminTemplates: [],
+        adminStickerFolders: [],
+        adminBackgrounds: [],
+        adminAssetsLoaded: false,
+        recentProjects: [],
         savedProjects: [],
 
         setTitle: (t) => set((s) => ({ book: { ...s.book, title: t } })),
@@ -857,7 +860,9 @@ export const useBookStore = create<State & Actions>()(
           }
 
           // 2. Otherwise, if there is an empty photo frame, fill the first one
-          const emptyFrame = page.elements.find((e) => e.type === "photo" && !("imageId" in e) || !(e as PhotoElement).imageId);
+          const emptyFrame = page.elements.find(
+            (e) => (e.type === "photo" && !("imageId" in e)) || !(e as PhotoElement).imageId,
+          );
           if (emptyFrame) {
             state.updateElement(emptyFrame.id, { imageId });
             return;
@@ -1119,7 +1124,13 @@ export const useBookStore = create<State & Actions>()(
           if (customBg) {
             bgSrc = customBg.src;
             bgName = customBg.name;
-          } else if (bgId && (bgId.startsWith("data:") || bgId.startsWith("blob:") || bgId.startsWith("http") || bgId.startsWith("/"))) {
+          } else if (
+            bgId &&
+            (bgId.startsWith("data:") ||
+              bgId.startsWith("blob:") ||
+              bgId.startsWith("http") ||
+              bgId.startsWith("/"))
+          ) {
             bgSrc = bgId;
           }
 
@@ -1156,7 +1167,7 @@ export const useBookStore = create<State & Actions>()(
                       reader.onerror = reject;
                       reader.readAsDataURL(blob);
                     });
-                    const name = customStk ? customStk.name : ((el as any).name || "sticker");
+                    const name = customStk ? customStk.name : (el as any).name || "sticker";
                     embeddedAssets.push({ id: sid, name, base64, type: "sticker" });
                   } catch {
                     /* ignore */
@@ -1175,7 +1186,11 @@ export const useBookStore = create<State & Actions>()(
             eraserOverlay: page.eraserOverlay,
             elements: page.elements.map((el) => {
               const templateElement = { ...el, id: nid("el") } as PageElement;
-              if (templateElement.type === "sticker" && !templateElement.stickerId && !templateElement.src) {
+              if (
+                templateElement.type === "sticker" &&
+                !templateElement.stickerId &&
+                !templateElement.src
+              ) {
                 templateElement.stickerId = el.id;
               }
               return templateElement;
@@ -1198,15 +1213,25 @@ export const useBookStore = create<State & Actions>()(
 
             for (const asset of embeddedAssets) {
               if (asset.type === "background" && asset.id === adminTemplate.background) {
-                adminTemplate.background = await uploadGlobalTemplateAsset("background", asset.name, asset.base64);
+                adminTemplate.background = await uploadGlobalTemplateAsset(
+                  "background",
+                  asset.name,
+                  asset.base64,
+                );
               }
 
               if (asset.type === "sticker") {
-                const uploadedUrl = await uploadGlobalTemplateAsset("sticker", asset.name, asset.base64);
+                const uploadedUrl = await uploadGlobalTemplateAsset(
+                  "sticker",
+                  asset.name,
+                  asset.base64,
+                );
                 adminTemplate.elements = adminTemplate.elements.map((element) => {
                   if (element.type !== "sticker") return element;
                   const stickerId = (element as any).stickerId || element.id;
-                  return stickerId === asset.id ? { ...element, src: uploadedUrl, stickerId: undefined } : element;
+                  return stickerId === asset.id
+                    ? { ...element, src: uploadedUrl, stickerId: undefined }
+                    : element;
                 });
               }
             }
@@ -1234,7 +1259,9 @@ export const useBookStore = create<State & Actions>()(
             const result = await appendAdminTemplates({ data: [adminTemplate] });
             if (!result.success) {
               set((prev) => ({
-                adminTemplates: prev.adminTemplates.filter((template) => template.id !== adminTemplate.id),
+                adminTemplates: prev.adminTemplates.filter(
+                  (template) => template.id !== adminTemplate.id,
+                ),
               }));
               throw new Error(result.error || "Failed to save global template");
             }
@@ -1499,7 +1526,9 @@ export const useBookStore = create<State & Actions>()(
               sortOrder: Date.now(),
             };
             const adminTemplates = [...s.adminTemplates, newAdminTmpl];
-            appendAdminTemplates({ data: [newAdminTmpl] }).catch(err => console.error("API error", err));
+            appendAdminTemplates({ data: [newAdminTmpl] }).catch((err) =>
+              console.error("API error", err),
+            );
             return { adminTemplates };
           });
         },
@@ -1514,7 +1543,9 @@ export const useBookStore = create<State & Actions>()(
               sortOrder: now + index,
             }));
             const adminTemplates = [...s.adminTemplates, ...newAdminTemplates];
-            saveAdminTemplates({ data: adminTemplates }).catch((err) => console.error("API error", err));
+            saveAdminTemplates({ data: adminTemplates }).catch((err) =>
+              console.error("API error", err),
+            );
             return { adminTemplates };
           });
         },
@@ -1542,8 +1573,12 @@ export const useBookStore = create<State & Actions>()(
         },
         reorderAdminTemplates: (ids) => {
           set((s) => {
-            const adminTemplates = ids.map((id) => s.adminTemplates.find((t) => t.id === id)!).filter(Boolean);
-            saveAdminTemplates({ data: adminTemplates }).catch(err => console.error("API error", err));
+            const adminTemplates = ids
+              .map((id) => s.adminTemplates.find((t) => t.id === id)!)
+              .filter(Boolean);
+            saveAdminTemplates({ data: adminTemplates }).catch((err) =>
+              console.error("API error", err),
+            );
             return { adminTemplates };
           });
         },
@@ -1552,7 +1587,9 @@ export const useBookStore = create<State & Actions>()(
             const adminTemplates = s.adminTemplates.map((t) =>
               t.id === templateId ? { ...t, ...patch, sizeId: FIXED_PAGE_SIZE_ID } : t,
             );
-            updateAdminTemplateById({ data: { id: templateId, patch: { ...patch, sizeId: FIXED_PAGE_SIZE_ID } } }).catch(err => console.error("API error", err));
+            updateAdminTemplateById({
+              data: { id: templateId, patch: { ...patch, sizeId: FIXED_PAGE_SIZE_ID } },
+            }).catch((err) => console.error("API error", err));
             return { adminTemplates };
           });
         },

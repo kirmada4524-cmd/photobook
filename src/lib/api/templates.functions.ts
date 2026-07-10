@@ -1,6 +1,14 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import { deleteBlob, getBlobText, getBlobUrlContent, hasBlobReadWriteToken, headBlob, listBlobs, putBlob } from "./blob-storage.server";
+import {
+  deleteBlob,
+  getBlobText,
+  getBlobUrlContent,
+  hasBlobReadWriteToken,
+  headBlob,
+  listBlobs,
+  putBlob,
+} from "./blob-storage.server";
 
 const TEMPLATES_BLOB_PATH = "admin-templates.json";
 const TEMPLATE_ITEM_BLOB_PREFIX = "admin-templates/items";
@@ -26,8 +34,7 @@ const safeImageReference = (value: unknown) => {
   return isImageUrl(value) ? value : undefined;
 };
 
-const nid = (prefix: string) =>
-  `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const nid = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const extFromMime = (mime: string) => {
   if (mime === "image/png") return ".png";
@@ -54,7 +61,10 @@ function sanitizeAdminTemplates(raw: unknown) {
     .map((template: any) => {
       const elements = Array.isArray(template.elements)
         ? template.elements
-            .filter((element: any) => element && typeof element === "object" && typeof element.type === "string")
+            .filter(
+              (element: any) =>
+                element && typeof element === "object" && typeof element.type === "string",
+            )
             .map((element: any) => {
               const next = { ...element };
               if (next.type === "photo") next.imageId = "";
@@ -65,7 +75,10 @@ function sanitizeAdminTemplates(raw: unknown) {
               ) {
                 delete next.src;
               }
-              if (typeof next.stickerId === "string" && next.stickerId.length > MAX_ASSET_ID_LENGTH) {
+              if (
+                typeof next.stickerId === "string" &&
+                next.stickerId.length > MAX_ASSET_ID_LENGTH
+              ) {
                 delete next.stickerId;
               }
               return next;
@@ -90,22 +103,23 @@ function sanitizeAdminTemplates(raw: unknown) {
         background:
           typeof template.background === "string" &&
           template.background &&
-          (!isDataUrl(template.background) || template.background.length <= MAX_EMBEDDED_DATA_URL_LENGTH)
+          (!isDataUrl(template.background) ||
+            template.background.length <= MAX_EMBEDDED_DATA_URL_LENGTH)
             ? template.background
             : "cream",
         elements,
         embeddedAssets: embeddedAssets.length > 0 ? embeddedAssets : undefined,
         thumbnail,
         eraserOverlay,
-        backgroundScale: typeof template.backgroundScale === "number" ? template.backgroundScale : 1,
+        backgroundScale:
+          typeof template.backgroundScale === "number" ? template.backgroundScale : 1,
         backgroundX: typeof template.backgroundX === "number" ? template.backgroundX : 0,
         backgroundY: typeof template.backgroundY === "number" ? template.backgroundY : 0,
       };
     });
 }
 
-const hasBlobStorage = () =>
-  hasBlobReadWriteToken();
+const hasBlobStorage = () => hasBlobReadWriteToken();
 
 const isVercelRuntime = () => Boolean(process.env.VERCEL);
 
@@ -131,10 +145,16 @@ const templateItemPath = (id: string) =>
   `${TEMPLATE_ITEM_BLOB_PREFIX}/${encodeURIComponent(id)}${TEMPLATE_ITEM_BLOB_SUFFIX}`;
 
 const templateItemIdFromPathname = (pathname: string) => {
-  if (!pathname.startsWith(`${TEMPLATE_ITEM_BLOB_PREFIX}/`) || !pathname.endsWith(TEMPLATE_ITEM_BLOB_SUFFIX)) {
+  if (
+    !pathname.startsWith(`${TEMPLATE_ITEM_BLOB_PREFIX}/`) ||
+    !pathname.endsWith(TEMPLATE_ITEM_BLOB_SUFFIX)
+  ) {
     return "";
   }
-  const encoded = pathname.slice(TEMPLATE_ITEM_BLOB_PREFIX.length + 1, -TEMPLATE_ITEM_BLOB_SUFFIX.length);
+  const encoded = pathname.slice(
+    TEMPLATE_ITEM_BLOB_PREFIX.length + 1,
+    -TEMPLATE_ITEM_BLOB_SUFFIX.length,
+  );
   try {
     return decodeURIComponent(encoded);
   } catch {
@@ -185,7 +205,9 @@ async function readTemplateItemBlobs() {
     }),
   );
 
-  return templates.filter((template): template is NonNullable<typeof template> => Boolean(template));
+  return templates.filter((template): template is NonNullable<typeof template> =>
+    Boolean(template),
+  );
 }
 
 function mergeAdminTemplates(legacyTemplates: any[], itemTemplates: any[]) {
@@ -311,7 +333,9 @@ export const saveAdminTemplates = createServerFn({ method: "POST" })
       try {
         const templates = sanitizeAdminTemplates(data);
         await writeBlobJson(templates);
-        await deleteMissingTemplateItemBlobs(new Set(templates.map((template: any) => template.id)));
+        await deleteMissingTemplateItemBlobs(
+          new Set(templates.map((template: any) => template.id)),
+        );
         return { success: true };
       } catch (error) {
         console.error("Error writing admin templates to Blob:", error);
@@ -324,7 +348,10 @@ export const saveAdminTemplates = createServerFn({ method: "POST" })
       if (isVercelRuntime()) {
         throw missingBlobStorageError();
       }
-      await fs.promises.writeFile(templatesFile, JSON.stringify(sanitizeAdminTemplates(data), null, 2));
+      await fs.promises.writeFile(
+        templatesFile,
+        JSON.stringify(sanitizeAdminTemplates(data), null, 2),
+      );
       return { success: true };
     } catch (error) {
       console.error("Error writing admin-templates.json:", error);
@@ -356,7 +383,10 @@ export const appendAdminTemplates = createServerFn({ method: "POST" })
       const current = fs.existsSync(templatesFile)
         ? sanitizeAdminTemplates(JSON.parse(await fs.promises.readFile(templatesFile, "utf-8")))
         : [];
-      await fs.promises.writeFile(templatesFile, JSON.stringify([...current, ...incoming], null, 2));
+      await fs.promises.writeFile(
+        templatesFile,
+        JSON.stringify([...current, ...incoming], null, 2),
+      );
       return { success: true, count: incoming.length };
     } catch (error) {
       console.error("Error appending admin-templates.json:", error);
@@ -432,7 +462,10 @@ export const appendAdminTemplateChecked = createServerFn({ method: "POST" })
             ? sanitizeAdminTemplates(JSON.parse(await fs.promises.readFile(templatesFile, "utf-8")))
             : [],
         async (templates) => {
-          await fs.promises.writeFile(templatesFile, JSON.stringify(sanitizeAdminTemplates(templates), null, 2));
+          await fs.promises.writeFile(
+            templatesFile,
+            JSON.stringify(sanitizeAdminTemplates(templates), null, 2),
+          );
         },
       );
     } catch (error: any) {
@@ -529,7 +562,11 @@ export const updateAdminTemplateById = createServerFn({ method: "POST" })
     }
   });
 
-async function writeLocalTemplateAsset(kind: string, filename: string, buffer: Buffer): Promise<string> {
+async function writeLocalTemplateAsset(
+  kind: string,
+  filename: string,
+  buffer: Buffer,
+): Promise<string> {
   const fs = await import("fs");
   const path = await import("path");
   const cwd = process.cwd();

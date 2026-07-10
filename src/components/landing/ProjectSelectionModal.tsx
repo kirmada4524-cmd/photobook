@@ -72,20 +72,24 @@ export function ProjectSelectionModal({ open, onOpenChange, mode }: ProjectSelec
 
     if (projectData.customStickers) {
       await Promise.all(
-        projectData.customStickers.map(async (stk: { id: string; name: string; base64: string }) => {
-          const response = await fetch(stk.base64);
-          const blob = await response.blob();
-          await saveCustomSticker(stk.id, blob, stk.name);
-        }),
+        projectData.customStickers.map(
+          async (stk: { id: string; name: string; base64: string }) => {
+            const response = await fetch(stk.base64);
+            const blob = await response.blob();
+            await saveCustomSticker(stk.id, blob, stk.name);
+          },
+        ),
       );
     }
     if (projectData.customBackgrounds) {
       await Promise.all(
-        projectData.customBackgrounds.map(async (bg: { id: string; name: string; base64: string }) => {
-          const response = await fetch(bg.base64);
-          const blob = await response.blob();
-          await saveCustomBg(bg.id, blob, bg.name);
-        }),
+        projectData.customBackgrounds.map(
+          async (bg: { id: string; name: string; base64: string }) => {
+            const response = await fetch(bg.base64);
+            const blob = await response.blob();
+            await saveCustomBg(bg.id, blob, bg.name);
+          },
+        ),
       );
     }
 
@@ -141,9 +145,13 @@ export function ProjectSelectionModal({ open, onOpenChange, mode }: ProjectSelec
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {mode === "recent" ? (
-              <><Clock className="h-5 w-5 text-blue-500" /> Recently Used Projects</>
+              <>
+                <Clock className="h-5 w-5 text-blue-500" /> Recently Used Projects
+              </>
             ) : (
-              <><FolderOpen className="h-5 w-5 text-green-600" /> Open My Projects</>
+              <>
+                <FolderOpen className="h-5 w-5 text-green-600" /> Open My Projects
+              </>
             )}
           </DialogTitle>
           <DialogDescription>

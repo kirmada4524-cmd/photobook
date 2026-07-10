@@ -27,7 +27,6 @@ import {
   type PreviewSettings,
 } from "@/lib/photobook/preview-atmosphere";
 
-
 export const Route = createFileRoute("/preview")({
   head: () => ({
     meta: [
@@ -77,8 +76,6 @@ function PreviewPage() {
   const bookRef = useRef<FlipBookApi | null>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
-
-
 
   const [settings, setSettings] = useState<PreviewSettings>(() => loadPreviewSettings());
   const [currentPage, setCurrentPage] = useState(0);
@@ -150,7 +147,8 @@ function PreviewPage() {
   const isPortraitBook = singlePageMode;
   const isMobileFullscreen = isPhonePreview && isFullscreen && !singlePageMode;
   const useFullscreenSpread = isFullscreen && !singlePageMode;
-  const isFullscreenSinglePage = useFullscreenSpread && (currentPage <= 0 || currentPage >= totalPages - 1);
+  const isFullscreenSinglePage =
+    useFullscreenSpread && (currentPage <= 0 || currentPage >= totalPages - 1);
   const isFullscreenCoverPage = useFullscreenSpread && currentPage <= 0;
   const isFullscreenBackCoverPage = useFullscreenSpread && currentPage >= totalPages - 1;
 
@@ -212,8 +210,16 @@ function PreviewPage() {
   const effectiveBookOffsetY = isMobilePreview
     ? clamp(settings.bookOffsetY, -mobileOffsetLimitY, mobileOffsetLimitY)
     : settings.bookOffsetY;
-  const effectiveRotateX = isFullscreen ? 0 : isMobilePreview ? clamp(settings.rotateX, 0, 16) : settings.rotateX;
-  const effectiveRotateY = isFullscreen ? 0 : isMobilePreview ? clamp(settings.rotateY, -12, 12) : settings.rotateY;
+  const effectiveRotateX = isFullscreen
+    ? 0
+    : isMobilePreview
+      ? clamp(settings.rotateX, 0, 16)
+      : settings.rotateX;
+  const effectiveRotateY = isFullscreen
+    ? 0
+    : isMobilePreview
+      ? clamp(settings.rotateY, -12, 12)
+      : settings.rotateY;
   const mobileFullscreenBookScale = isMobileFullscreen ? 2 : 1;
   const bookTransform = `${isMobileFullscreen ? "rotate(90deg) " : ""}translate(${effectiveBookOffsetX}px, ${effectiveBookOffsetY}px) scale(${mobileFullscreenBookScale}) rotateX(${effectiveRotateX}deg) rotateY(${effectiveRotateY}deg)`;
 
@@ -226,23 +232,26 @@ function PreviewPage() {
           ? "Blank page"
           : `Page ${pages.findIndex((p) => p.id === activePage?.id) + 1}`;
 
-  const triggerFlip = useCallback((direction: "next" | "prev") => {
-    setIsFlipping(true);
-    if (direction === "next") {
-      if (bookRef.current) {
-        bookRef.current.pageFlip().flipNext();
+  const triggerFlip = useCallback(
+    (direction: "next" | "prev") => {
+      setIsFlipping(true);
+      if (direction === "next") {
+        if (bookRef.current) {
+          bookRef.current.pageFlip().flipNext();
+        } else {
+          setCurrentPage((page) => Math.min(totalPages - 1, page + 1));
+        }
       } else {
-        setCurrentPage((page) => Math.min(totalPages - 1, page + 1));
+        if (bookRef.current) {
+          bookRef.current.pageFlip().flipPrev();
+        } else {
+          setCurrentPage((page) => Math.max(0, page - 1));
+        }
       }
-    } else {
-      if (bookRef.current) {
-        bookRef.current.pageFlip().flipPrev();
-      } else {
-        setCurrentPage((page) => Math.max(0, page - 1));
-      }
-    }
-    window.setTimeout(() => setIsFlipping(false), 950);
-  }, [totalPages]);
+      window.setTimeout(() => setIsFlipping(false), 950);
+    },
+    [totalPages],
+  );
 
   const goPrev = useCallback(() => triggerFlip("prev"), [triggerFlip]);
   const goNext = useCallback(() => triggerFlip("next"), [triggerFlip]);
@@ -317,8 +326,12 @@ function PreviewPage() {
       const nextX = bookMoveStartRef.current.ox + dx;
       const nextY = bookMoveStartRef.current.oy + dy;
       patchSettings({
-        bookOffsetX: isMobilePreview ? clamp(nextX, -mobileOffsetLimitX, mobileOffsetLimitX) : nextX,
-        bookOffsetY: isMobilePreview ? clamp(nextY, -mobileOffsetLimitY, mobileOffsetLimitY) : nextY,
+        bookOffsetX: isMobilePreview
+          ? clamp(nextX, -mobileOffsetLimitX, mobileOffsetLimitX)
+          : nextX,
+        bookOffsetY: isMobilePreview
+          ? clamp(nextY, -mobileOffsetLimitY, mobileOffsetLimitY)
+          : nextY,
       });
       return;
     }
@@ -326,8 +339,16 @@ function PreviewPage() {
       const dx = e.clientX - orbitStartRef.current.x;
       const dy = e.clientY - orbitStartRef.current.y;
       patchSettings({
-        rotateX: clamp(orbitStartRef.current.rotX - dy * 0.15, isMobilePreview ? 0 : -35, isMobilePreview ? 16 : 35),
-        rotateY: clamp(orbitStartRef.current.rotY + dx * 0.2, isMobilePreview ? -12 : -65, isMobilePreview ? 12 : 65),
+        rotateX: clamp(
+          orbitStartRef.current.rotX - dy * 0.15,
+          isMobilePreview ? 0 : -35,
+          isMobilePreview ? 16 : 35,
+        ),
+        rotateY: clamp(
+          orbitStartRef.current.rotY + dx * 0.2,
+          isMobilePreview ? -12 : -65,
+          isMobilePreview ? 12 : 65,
+        ),
       });
     }
   };
@@ -342,8 +363,6 @@ function PreviewPage() {
       /* ignore */
     }
   };
-
-
 
   const atmosphereMeta = PREVIEW_ATMOSPHERES.find((a) => a.id === settings.atmosphere);
   const shellClass =
@@ -397,7 +416,10 @@ function PreviewPage() {
           : undefined
       }
     >
-      <PreviewAtmosphere customBg={settings.customBackground} isCustom={settings.atmosphere === "custom"} />
+      <PreviewAtmosphere
+        customBg={settings.customBackground}
+        isCustom={settings.atmosphere === "custom"}
+      />
 
       <header className="book-preview-header-container">
         <div className="book-preview-topbar">
@@ -448,7 +470,11 @@ function PreviewPage() {
           Move Book
         </button>
 
-        {(settings.enable3DOrbit || settings.bookOffsetX !== 0 || settings.bookOffsetY !== 0 || settings.rotateX !== 12 || settings.rotateY !== 0) && (
+        {(settings.enable3DOrbit ||
+          settings.bookOffsetX !== 0 ||
+          settings.bookOffsetY !== 0 ||
+          settings.rotateX !== 12 ||
+          settings.rotateY !== 0) && (
           <button
             type="button"
             onClick={() =>
@@ -499,12 +525,12 @@ function PreviewPage() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          className="book-preview-tool-btn"
-        >
-          {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        <button type="button" onClick={toggleFullscreen} className="book-preview-tool-btn">
+          {isFullscreen ? (
+            <Minimize2 className="h-3.5 w-3.5" />
+          ) : (
+            <Maximize2 className="h-3.5 w-3.5" />
+          )}
           {isFullscreen ? "Exit Full" : "Full Screen"}
         </button>
 
@@ -529,7 +555,7 @@ function PreviewPage() {
           <Minimize2 className="h-5 w-5" />
         </button>
       )}
-      
+
       {settings.showGuide && (
         <PreviewGuideAvatar
           currentPage={currentPage}
@@ -591,7 +617,9 @@ function PreviewPage() {
 
         <div
           className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${singlePageMode ? "is-single-page" : ""} ${
-            isFullscreen && !isFullscreenSinglePage && !singlePageMode ? "has-fullscreen-binding" : ""
+            isFullscreen && !isFullscreenSinglePage && !singlePageMode
+              ? "has-fullscreen-binding"
+              : ""
           } ${isFullscreenCoverPage ? "is-fullscreen-cover-page" : ""} ${isFullscreenBackCoverPage ? "is-fullscreen-back-cover-page" : ""}`}
           style={
             {
@@ -672,8 +700,6 @@ function PreviewPage() {
         >
           <ChevronRight className="h-7 w-7" />
         </button>
-
-
       </main>
 
       <nav className="book-preview-dots" aria-label="Preview pages">
@@ -691,20 +717,11 @@ function PreviewPage() {
   );
 }
 
-function PreviewAtmosphere({
-  customBg,
-  isCustom,
-}: {
-  customBg?: string;
-  isCustom?: boolean;
-}) {
+function PreviewAtmosphere({ customBg, isCustom }: { customBg?: string; isCustom?: boolean }) {
   return (
     <div className="book-preview-atmosphere" aria-hidden="true">
       {isCustom && customBg ? (
-        <div
-          className="book-preview-custom-bg"
-          style={{ backgroundImage: `url(${customBg})` }}
-        />
+        <div className="book-preview-custom-bg" style={{ backgroundImage: `url(${customBg})` }} />
       ) : null}
       <div className="book-preview-desk" />
       <div className="book-preview-light" />
@@ -727,73 +744,78 @@ const BookPage = forwardRef<
     pageH: number;
     isBlankPlaceholder?: boolean;
   }
->(({ pageId, pageNumber, isCover, isBackCover, fit, renderFit, pageW, pageH, isBlankPlaceholder }, ref) => {
-  const pageFit = renderFit ?? fit;
-  const scaledW = Math.floor(pageW * pageFit);
-  const scaledH = Math.floor(pageH * pageFit);
-  const leafRef = useRef<HTMLDivElement | null>(null);
-  const [contentFit, setContentFit] = useState(pageFit);
+>(
+  (
+    { pageId, pageNumber, isCover, isBackCover, fit, renderFit, pageW, pageH, isBlankPlaceholder },
+    ref,
+  ) => {
+    const pageFit = renderFit ?? fit;
+    const scaledW = Math.floor(pageW * pageFit);
+    const scaledH = Math.floor(pageH * pageFit);
+    const leafRef = useRef<HTMLDivElement | null>(null);
+    const [contentFit, setContentFit] = useState(pageFit);
 
-  const setLeafRef = useCallback(
-    (node: HTMLDivElement | null) => {
-      leafRef.current = node;
-      if (typeof ref === "function") {
-        ref(node);
-      } else if (ref) {
-        ref.current = node;
-      }
-    },
-    [ref],
-  );
+    const setLeafRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        leafRef.current = node;
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref) {
+          ref.current = node;
+        }
+      },
+      [ref],
+    );
 
-  useEffect(() => {
-    const node = leafRef.current;
-    if (!node) return;
+    useEffect(() => {
+      const node = leafRef.current;
+      if (!node) return;
 
-    const updateContentFit = () => {
-      const leafW = node.offsetWidth;
-      const leafH = node.offsetHeight;
-      if (!leafW || !leafH) return;
-      const nextFit = Math.min(leafW / pageW, leafH / pageH);
-      setContentFit((current) => (Math.abs(current - nextFit) > 0.002 ? nextFit : current));
-    };
+      const updateContentFit = () => {
+        const leafW = node.offsetWidth;
+        const leafH = node.offsetHeight;
+        if (!leafW || !leafH) return;
+        const nextFit = Math.min(leafW / pageW, leafH / pageH);
+        setContentFit((current) => (Math.abs(current - nextFit) > 0.002 ? nextFit : current));
+      };
 
-    updateContentFit();
-    const observer = new ResizeObserver(updateContentFit);
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [pageFit, pageH, pageW]);
+      updateContentFit();
+      const observer = new ResizeObserver(updateContentFit);
+      observer.observe(node);
+      return () => observer.disconnect();
+    }, [pageFit, pageH, pageW]);
 
-  return (
-    <div
-      ref={setLeafRef}
-      className={[
-        "book-preview-leaf",
-        isCover ? "book-preview-leaf-cover" : "",
-        isBackCover ? "book-preview-leaf-back" : "",
-        isBlankPlaceholder ? "book-preview-leaf-blank" : "",
-      ].join(" ")}
-      style={{ width: scaledW, height: scaledH }}
-      data-density={isCover || isBackCover ? "hard" : "soft"}
-    >
+    return (
       <div
-        className="book-preview-page-content"
-        style={{
-          width: pageW,
-          height: pageH,
-          transform: `scale(${contentFit})`,
-          transformOrigin: "top left",
-        }}
+        ref={setLeafRef}
+        className={[
+          "book-preview-leaf",
+          isCover ? "book-preview-leaf-cover" : "",
+          isBackCover ? "book-preview-leaf-back" : "",
+          isBlankPlaceholder ? "book-preview-leaf-blank" : "",
+        ].join(" ")}
+        style={{ width: scaledW, height: scaledH }}
+        data-density={isCover || isBackCover ? "hard" : "soft"}
       >
-        {isBlankPlaceholder ? (
-          <div className="h-full w-full bg-[#fbf7ed]" />
-        ) : (
-          <Page pageId={pageId} interactive={false} pageNumber={pageNumber} />
-        )}
+        <div
+          className="book-preview-page-content"
+          style={{
+            width: pageW,
+            height: pageH,
+            transform: `scale(${contentFit})`,
+            transformOrigin: "top left",
+          }}
+        >
+          {isBlankPlaceholder ? (
+            <div className="h-full w-full bg-[#fbf7ed]" />
+          ) : (
+            <Page pageId={pageId} interactive={false} pageNumber={pageNumber} />
+          )}
+        </div>
+        {(isCover || isBackCover) && <div className="book-preview-cover-finish" />}
       </div>
-      {(isCover || isBackCover) && <div className="book-preview-cover-finish" />}
-    </div>
-  );
-});
+    );
+  },
+);
 
 BookPage.displayName = "BookPage";

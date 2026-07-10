@@ -283,7 +283,9 @@
   background: color-mix(in oklab, var(--editor-panel) 92%, transparent);
   backdrop-filter: blur(20px) saturate(180%);
   border-bottom: 1px solid color-mix(in oklab, var(--border) 90%, transparent);
-  box-shadow: 0 1px 0 oklch(1 0 0 / 0.6), 0 8px 24px -16px oklch(0.2 0.02 265 / 0.12);
+  box-shadow:
+    0 1px 0 oklch(1 0 0 / 0.6),
+    0 8px 24px -16px oklch(0.2 0.02 265 / 0.12);
 }
 
 .editor-sidebar {
@@ -346,7 +348,10 @@
 .editor-upload-zone {
   border: 1.5px dashed color-mix(in oklab, var(--accent) 35%, var(--border));
   background: linear-gradient(180deg, oklch(0.98 0.01 265), oklch(0.96 0.015 265));
-  transition: border-color 0.2s, background 0.2s, transform 0.2s;
+  transition:
+    border-color 0.2s,
+    background 0.2s,
+    transform 0.2s;
 }
 
 .editor-upload-zone:hover,
@@ -421,14 +426,22 @@
 }
 .frame-wood {
   padding: 14px;
-  background: var(--frame-color, repeating-linear-gradient(90deg, #8a5a30 0 4px, #6f4622 4px 9px, #7c4f29 9px 14px));
+  background: var(
+    --frame-color,
+    repeating-linear-gradient(90deg, #8a5a30 0 4px, #6f4622 4px 9px, #7c4f29 9px 14px)
+  );
   box-shadow:
     inset 0 0 0 2px rgba(0, 0, 0, 0.2),
     0 10px 26px -12px rgba(60, 30, 10, 0.4);
 }
 .frame-marble {
   padding: 12px;
-  background: var(--frame-color, radial-gradient(circle at 20% 30%, #f4ecdf, transparent 40%), radial-gradient(circle at 70% 60%, #d9c8b0, transparent 50%), linear-gradient(135deg, #efe6d4, #cfbf9f));
+  background: var(
+    --frame-color,
+    radial-gradient(circle at 20% 30%, #f4ecdf, transparent 40%),
+    radial-gradient(circle at 70% 60%, #d9c8b0, transparent 50%),
+    linear-gradient(135deg, #efe6d4, #cfbf9f)
+  );
   box-shadow: 0 10px 28px -12px rgba(80, 60, 30, 0.35);
 }
 .frame-double {
@@ -473,16 +486,27 @@
 .frame-linen {
   padding: 12px;
   background:
-    repeating-linear-gradient(45deg, rgba(130, 96, 58, 0.08) 0 2px, transparent 2px 6px), var(--frame-color, #f2e6cf);
+    repeating-linear-gradient(45deg, rgba(130, 96, 58, 0.08) 0 2px, transparent 2px 6px),
+    var(--frame-color, #f2e6cf);
   box-shadow: 0 12px 28px -14px rgba(90, 60, 25, 0.32);
 }
 .frame-negative {
   padding: 22px 14px;
   background:
-    repeating-linear-gradient(0deg, #0f0f10 0 16px, var(--frame-color, #f5efe0) 16px 24px, #0f0f10 24px 40px) left/12px
-      100% no-repeat,
-    repeating-linear-gradient(0deg, #0f0f10 0 16px, var(--frame-color, #f5efe0) 16px 24px, #0f0f10 24px 40px) right/12px
-      100% no-repeat,
+    repeating-linear-gradient(
+        0deg,
+        #0f0f10 0 16px,
+        var(--frame-color, #f5efe0) 16px 24px,
+        #0f0f10 24px 40px
+      )
+      left/12px 100% no-repeat,
+    repeating-linear-gradient(
+        0deg,
+        #0f0f10 0 16px,
+        var(--frame-color, #f5efe0) 16px 24px,
+        #0f0f10 24px 40px
+      )
+      right/12px 100% no-repeat,
     #0f0f10;
   box-shadow: 0 12px 30px -12px rgba(0, 0, 0, 0.42);
 }
@@ -548,7 +572,7 @@
   inset: -4px;
   pointer-events: none;
   z-index: 5;
-  background: 
+  background:
     linear-gradient(to right, var(--frame-color, #222) 14px, transparent 14px) 0 0,
     linear-gradient(to bottom, var(--frame-color, #222) 14px, transparent 14px) 0 0,
     linear-gradient(to left, var(--frame-color, #222) 14px, transparent 14px) 100% 0,
@@ -568,13 +592,90 @@
 .frame-torn {
   padding: 12px;
   background: var(--frame-color, #fff);
-  filter: drop-shadow(2px 2px 5px rgba(0,0,0,0.15));
+  filter: drop-shadow(2px 2px 5px rgba(0, 0, 0, 0.15));
   border-radius: 2px;
   clip-path: polygon(
-    0% 0%, 5% 1%, 10% 0%, 15% 2%, 20% 0%, 25% 1%, 30% 0%, 35% 2%, 40% 0%, 45% 1%, 50% 0%, 55% 2%, 60% 0%, 65% 1%, 70% 0%, 75% 2%, 80% 0%, 85% 1%, 90% 0%, 95% 2%, 100% 0%,
-    99% 5%, 100% 10%, 98% 15%, 100% 20%, 99% 25%, 100% 30%, 98% 35%, 100% 40%, 99% 45%, 100% 50%, 98% 55%, 100% 60%, 99% 65%, 100% 70%, 98% 75%, 100% 80%, 99% 85%, 100% 90%, 98% 95%, 100% 100%,
-    95% 99%, 90% 100%, 85% 98%, 80% 100%, 75% 99%, 70% 100%, 65% 98%, 60% 100%, 55% 99%, 50% 100%, 45% 98%, 40% 100%, 35% 99%, 30% 100%, 25% 98%, 20% 100%, 15% 99%, 10% 100%, 5% 98%, 0% 100%,
-    1% 95%, 0% 90%, 2% 85%, 0% 80%, 1% 75%, 0% 70%, 2% 65%, 0% 60%, 1% 55%, 0% 50%, 2% 45%, 0% 40%, 1% 35%, 0% 30%, 2% 25%, 0% 20%, 1% 15%, 0% 10%, 2% 5%, 0% 0%
+    0% 0%,
+    5% 1%,
+    10% 0%,
+    15% 2%,
+    20% 0%,
+    25% 1%,
+    30% 0%,
+    35% 2%,
+    40% 0%,
+    45% 1%,
+    50% 0%,
+    55% 2%,
+    60% 0%,
+    65% 1%,
+    70% 0%,
+    75% 2%,
+    80% 0%,
+    85% 1%,
+    90% 0%,
+    95% 2%,
+    100% 0%,
+    99% 5%,
+    100% 10%,
+    98% 15%,
+    100% 20%,
+    99% 25%,
+    100% 30%,
+    98% 35%,
+    100% 40%,
+    99% 45%,
+    100% 50%,
+    98% 55%,
+    100% 60%,
+    99% 65%,
+    100% 70%,
+    98% 75%,
+    100% 80%,
+    99% 85%,
+    100% 90%,
+    98% 95%,
+    100% 100%,
+    95% 99%,
+    90% 100%,
+    85% 98%,
+    80% 100%,
+    75% 99%,
+    70% 100%,
+    65% 98%,
+    60% 100%,
+    55% 99%,
+    50% 100%,
+    45% 98%,
+    40% 100%,
+    35% 99%,
+    30% 100%,
+    25% 98%,
+    20% 100%,
+    15% 99%,
+    10% 100%,
+    5% 98%,
+    0% 100%,
+    1% 95%,
+    0% 90%,
+    2% 85%,
+    0% 80%,
+    1% 75%,
+    0% 70%,
+    2% 65%,
+    0% 60%,
+    1% 55%,
+    0% 50%,
+    2% 45%,
+    0% 40%,
+    1% 35%,
+    0% 30%,
+    2% 25%,
+    0% 20%,
+    1% 15%,
+    0% 10%,
+    2% 5%,
+    0% 0%
   );
 }
 .frame-elegant {
@@ -588,8 +689,8 @@
 }
 .frame-shadow-offset {
   padding: 0;
-  box-shadow: 8px 8px 0px var(--frame-color, rgba(0,0,0,0.15));
-  border: 1px solid rgba(0,0,0,0.1);
+  box-shadow: 8px 8px 0px var(--frame-color, rgba(0, 0, 0, 0.15));
+  border: 1px solid rgba(0, 0, 0, 0.1);
 }
 .frame-deco {
   border: 3px double var(--frame-color, #d4af37);
@@ -876,7 +977,11 @@
   font-weight: 800;
   padding: 8px 12px;
   white-space: nowrap;
-  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 }
 
 .book-preview-tool-btn:hover {
@@ -911,7 +1016,10 @@
   border-radius: 999px;
   color: #fff7e9;
   cursor: pointer;
-  transition: opacity 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  transition:
+    opacity 0.18s ease,
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
 }
 
 .book-preview-swatch:hover,
@@ -1421,11 +1529,7 @@
 .book-preview-shell.atmosphere-gallery .book-preview-desk {
   background:
     linear-gradient(180deg, #f5f3ef 0%, #e8e4dc 100%),
-    repeating-linear-gradient(
-      90deg,
-      transparent 0 120px,
-      rgba(0, 0, 0, 0.02) 120px 121px
-    );
+    repeating-linear-gradient(90deg, transparent 0 120px, rgba(0, 0, 0, 0.02) 120px 121px);
 }
 .book-preview-shell.atmosphere-gallery .book-preview-light {
   background:
@@ -1477,7 +1581,10 @@
     radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.06) 0 1px, transparent 2px),
     radial-gradient(circle at 70% 60%, rgba(255, 255, 255, 0.05) 0 1px, transparent 2px),
     radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.04) 0 1px, transparent 2px);
-  background-size: 200px 200px, 280px 280px, 240px 240px;
+  background-size:
+    200px 200px,
+    280px 280px,
+    240px 240px;
   animation: preview-drift 20s linear infinite;
 }
 
@@ -1813,7 +1920,9 @@
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
+  transition:
+    background 0.2s,
+    transform 0.15s;
 }
 
 .preview-guide-btn:hover:not(:disabled) {
@@ -2136,32 +2245,64 @@
 
 /* Fade up on load */
 @keyframes hpFadeUp {
-  from { opacity: 0; transform: translateY(28px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* 3D book entrance: rotates in from -80deg to -25deg */
 @keyframes hpBookEnter {
-  from { opacity: 0; transform: rotateY(-80deg); }
-  to   { opacity: 1; transform: rotateY(-25deg); }
+  from {
+    opacity: 0;
+    transform: rotateY(-80deg);
+  }
+  to {
+    opacity: 1;
+    transform: rotateY(-25deg);
+  }
 }
 
 /* Floating photo cards — four variants with different amplitude + timing */
 @keyframes hpFloat1 {
-  0%, 100% { transform: translateY(0px) rotate(-5deg); }
-  50%       { transform: translateY(-12px) rotate(-5deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(-5deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(-5deg);
+  }
 }
 @keyframes hpFloat2 {
-  0%, 100% { transform: translateY(0px) rotate(7deg); }
-  50%       { transform: translateY(-9px) rotate(7deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(7deg);
+  }
+  50% {
+    transform: translateY(-9px) rotate(7deg);
+  }
 }
 @keyframes hpFloat3 {
-  0%, 100% { transform: translateY(0px) rotate(-6deg); }
-  50%       { transform: translateY(-14px) rotate(-6deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(-6deg);
+  }
+  50% {
+    transform: translateY(-14px) rotate(-6deg);
+  }
 }
 @keyframes hpFloat4 {
-  0%, 100% { transform: translateY(0px) rotate(8deg); }
-  50%       { transform: translateY(-10px) rotate(8deg); }
+  0%,
+  100% {
+    transform: translateY(0px) rotate(8deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(8deg);
+  }
 }
 
 /* ── Utility classes ── */
@@ -2183,11 +2324,20 @@
   /* base styles live on the element via className in React */
 }
 
-.hp-float-1 { animation: hpFloat1 3.6s ease-in-out 0s   infinite; }
-.hp-float-2 { animation: hpFloat2 4.0s ease-in-out 0.5s infinite; }
-.hp-float-3 { animation: hpFloat3 3.8s ease-in-out 1.0s infinite; }
-.hp-float-4 { animation: hpFloat4 4.2s ease-in-out 1.5s infinite; }
+.hp-float-1 {
+  animation: hpFloat1 3.6s ease-in-out 0s infinite;
+}
+.hp-float-2 {
+  animation: hpFloat2 4s ease-in-out 0.5s infinite;
+}
+.hp-float-3 {
+  animation: hpFloat3 3.8s ease-in-out 1s infinite;
+}
+.hp-float-4 {
+  animation: hpFloat4 4.2s ease-in-out 1.5s infinite;
+}
 
 /* Generic float used as fallback */
-.hp-float   { animation: hpFloat1 3.8s ease-in-out infinite; }
-
+.hp-float {
+  animation: hpFloat1 3.8s ease-in-out infinite;
+}

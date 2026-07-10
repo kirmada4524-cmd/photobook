@@ -72,11 +72,11 @@ const drawBackground = async (ctx: CanvasRenderingContext2D, opts: MagicLayoutIn
     mode === "contain"
       ? Math.min(pageW / img.naturalWidth, pageH / img.naturalHeight)
       : Math.max(pageW / img.naturalWidth, pageH / img.naturalHeight);
-  const scale = baseScale * (mode === "cover" ? opts.backgroundScale ?? 1 : 1);
+  const scale = baseScale * (mode === "cover" ? (opts.backgroundScale ?? 1) : 1);
   const w = img.naturalWidth * scale;
   const h = img.naturalHeight * scale;
-  const x = (pageW - w) / 2 + (mode === "cover" ? opts.backgroundX ?? 0 : 0);
-  const y = (pageH - h) / 2 + (mode === "cover" ? opts.backgroundY ?? 0 : 0);
+  const x = (pageW - w) / 2 + (mode === "cover" ? (opts.backgroundX ?? 0) : 0);
+  const y = (pageH - h) / 2 + (mode === "cover" ? (opts.backgroundY ?? 0) : 0);
   ctx.drawImage(img, x, y, w, h);
 };
 
@@ -295,7 +295,9 @@ export async function createMagicLayoutSelection(
   try {
     imageData = ctx.getImageData(0, 0, pageW, pageH);
   } catch {
-    throw new Error("This background image cannot be inspected. Upload it as a local image/template and try again.");
+    throw new Error(
+      "This background image cannot be inspected. Upload it as a local image/template and try again.",
+    );
   }
 
   const tolerance = Math.max(5, Math.min(60, Math.round(opts.tolerance)));

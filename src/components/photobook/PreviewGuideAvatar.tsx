@@ -23,7 +23,12 @@ export function PreviewGuideAvatar({
 
   return (
     <div className="preview-guide-avatar" aria-label="Preview guide">
-      <button type="button" className="preview-guide-dismiss" onClick={onDismiss} title="Hide guide">
+      <button
+        type="button"
+        className="preview-guide-dismiss"
+        onClick={onDismiss}
+        title="Hide guide"
+      >
         ×
       </button>
 

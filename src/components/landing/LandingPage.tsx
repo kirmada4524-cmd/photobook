@@ -5,6 +5,8 @@ import { LoginModal } from "./LoginModal";
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectSelectionModal } from "./ProjectSelectionModal";
 import { TemplateStartModal } from "./TemplateStartModal";
+import { useBookStore } from "@/lib/photobook/store";
+import { TemplatePreview } from "@/components/photobook/TemplatePreview";
 import {
   BookOpen,
   Clock,
@@ -143,6 +145,69 @@ function FloatingPhoto({
   );
 }
 
+// ─── Home templates grid ─────────────────────────────────────────────────────
+function TemplateCard({ template, onClick }: { template: any; onClick: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      className="group relative rounded-2xl overflow-hidden cursor-pointer transition-all hover:-translate-y-1 hover:shadow-xl"
+      style={{ border: `1px solid rgba(0,0,0,0.04)`, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+    >
+      <div className="relative aspect-[3/4]">
+        <TemplatePreview
+          template={template}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+        <div className="absolute bottom-4 left-4 text-white">
+          <div
+            className="text-lg font-semibold"
+            style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
+          >
+            {template.label}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeTemplatesGrid({
+  templates,
+  onShowMore,
+}: {
+  templates: any[];
+  onShowMore: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const first = 8;
+  if (!templates || templates.length === 0) {
+    return <div className="py-12 text-center text-muted-foreground">No templates available.</div>;
+  }
+
+  const toShow = showAll ? templates : templates.slice(0, first);
+
+  return (
+    <div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {toShow.map((t) => (
+          <TemplateCard key={t.id} template={t} onClick={() => onShowMore()} />
+        ))}
+      </div>
+      {templates.length > first && (
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => setShowAll((s) => !s)}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition"
+            style={{ border: `1px solid ${C.ink}22`, color: C.ink }}
+          >
+            {showAll ? "Show fewer" : `Show ${templates.length - first} more`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Main LandingPage ─────────────────────────────────────────────────────────
 export function LandingPage() {
   const { currentUser, logout, isAdmin } = useAuthStore();
@@ -150,6 +215,7 @@ export function LandingPage() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showProjects, setShowProjects] = useState<"recent" | "open" | null>(null);
+  const adminTemplates = useBookStore((s) => s.adminTemplates ?? []);
 
   const heroRef = useRef<HTMLDivElement>(null);
   const [scrollPct, setScrollPct] = useState(0);
@@ -201,9 +267,15 @@ export function LandingPage() {
 
           {/* Nav links */}
           <nav className="hidden md:flex gap-8 text-sm" style={{ color: `${C.ink}b3` }}>
-            <a href="#how" className="hover:opacity-100 opacity-70 transition">How it works</a>
-            <a href="#samples" className="hover:opacity-100 opacity-70 transition">Samples</a>
-            <a href="#features" className="hover:opacity-100 opacity-70 transition">Features</a>
+            <a href="#how" className="hover:opacity-100 opacity-70 transition">
+              How it works
+            </a>
+            <a href="#samples" className="hover:opacity-100 opacity-70 transition">
+              Samples
+            </a>
+            <a href="#features" className="hover:opacity-100 opacity-70 transition">
+              Features
+            </a>
           </nav>
 
           {/* Right-side auth */}
@@ -251,7 +323,6 @@ export function LandingPage() {
       ═══════════════════════════════════════ */}
       <section ref={heroRef} className="relative overflow-hidden">
         <div className="mx-auto max-w-6xl px-6 pt-16 pb-28 grid md:grid-cols-2 gap-12 items-center">
-
           {/* Left copy */}
           <div className="hp-fade-up">
             {/* Badge */}
@@ -288,8 +359,8 @@ export function LandingPage() {
             </h1>
 
             <p className="mt-5 text-lg max-w-md" style={{ color: `${C.ink}b3` }}>
-              Design beautiful 5.5 × 5.5 photobooks for birthdays, weddings, travel, family
-              stories, and gifts — with easy templates, stickers, and print-ready PDF export.
+              Design beautiful 5.5 × 5.5 photobooks for birthdays, weddings, travel, family stories,
+              and gifts — with easy templates, stickers, and print-ready PDF export.
             </p>
 
             {/* CTA Buttons */}
@@ -534,9 +605,7 @@ export function LandingPage() {
               </span>
             </h2>
           </div>
-          <p className="hidden md:block max-w-xs text-sm" style={{ color: `${C.ink}80` }}>
-            Every book is fully customizable — start from a template or a blank page.
-          </p>
+          {/* intentionally removed verbose descriptor */}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -582,6 +651,42 @@ export function LandingPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          TEMPLATES (Home gallery)
+      ═══════════════════════════════════════ */}
+      <section id="templates" className="mx-auto max-w-6xl px-6 py-12">
+        <div className="flex items-end justify-between mb-8">
+          <div>
+            <div
+              className="text-xs tracking-[0.3em] uppercase mb-3 font-semibold"
+              style={{ color: `${C.ink}70` }}
+            >
+              Templates
+            </div>
+            <h2
+              className="text-3xl md:text-4xl tracking-tight"
+              style={{
+                fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              Ready-made layouts to get started
+            </h2>
+          </div>
+          <div>
+            <button
+              onClick={() => setShowTemplates(true)}
+              className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-white"
+              style={{ border: `1px solid ${C.ink}22`, color: C.ink }}
+            >
+              Browse all templates
+            </button>
+          </div>
+        </div>
+
+        <HomeTemplatesGrid templates={adminTemplates} onShowMore={() => setShowTemplates(true)} />
       </section>
 
       {/* ═══════════════════════════════════════
@@ -713,7 +818,9 @@ export function LandingPage() {
       {showProjects && (
         <ProjectSelectionModal
           open={true}
-          onOpenChange={(v) => { if (!v) setShowProjects(null); }}
+          onOpenChange={(v) => {
+            if (!v) setShowProjects(null);
+          }}
           mode={showProjects}
         />
       )}

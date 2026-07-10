@@ -2,10 +2,7 @@ import { Rnd } from "react-rnd";
 import { useRef, useState, useEffect } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { themeClass, shapeStyle, THEMES } from "@/lib/photobook/catalogs";
-import {
-  createMagicLayoutSelection,
-  type MagicLayoutSelection,
-} from "@/lib/photobook/magicLayout";
+import { createMagicLayoutSelection, type MagicLayoutSelection } from "@/lib/photobook/magicLayout";
 import {
   PAGE_SIZES,
   type PageElement,
@@ -364,7 +361,6 @@ export function Page({
             </div>
           </>
         )}
-
       </div>
     </div>
   );
@@ -423,15 +419,15 @@ function ElementRenderer({
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
   const isEraserMode = useBookStore((s) => s.isEraserMode);
   const isMagicLayoutMode = useBookStore((s) => s.isMagicLayoutMode);
-  const isTextEditing = interactive && editingTextId === el.id && (el.type === "text" || el.type === "quote");
+  const isTextEditing =
+    interactive && editingTextId === el.id && (el.type === "text" || el.type === "quote");
   const isElementLocked = Boolean(
-    isFrameLocked ||
-      (el.type === "photo" && el.locked) ||
-      (el.type === "sticker" && el.locked),
+    isFrameLocked || (el.type === "photo" && el.locked) || (el.type === "sticker" && el.locked),
   );
   const stickerSrc =
     el.type === "sticker"
-      ? el.src || (el.stickerId ? customStickersList.find((s) => s.id === el.stickerId)?.src : undefined)
+      ? el.src ||
+        (el.stickerId ? customStickersList.find((s) => s.id === el.stickerId)?.src : undefined)
       : undefined;
 
   const uploadReplacement = async (file: File) => {
@@ -596,8 +592,11 @@ function ElementRenderer({
       position={{ x: el.x, y: el.y }}
       onDragStart={isElementLocked ? undefined : onSelect}
       onDragStop={isElementLocked ? undefined : (_, d) => onChange({ x: d.x, y: d.y })}
-      onResizeStop={isElementLocked ? undefined : (_, __, ref, ___, pos) =>
-        onChange({ w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })
+      onResizeStop={
+        isElementLocked
+          ? undefined
+          : (_, __, ref, ___, pos) =>
+              onChange({ w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })
       }
       disableDragging={isEraserMode || isMagicLayoutMode || isElementLocked}
       enableResizing={isEraserMode || isMagicLayoutMode || isElementLocked ? false : undefined}
@@ -799,7 +798,6 @@ function ElementRenderer({
           <span className="h-3 w-px bg-sky-400/70" />
         </div>
       )}
-
     </Rnd>
   );
 }

@@ -55,7 +55,14 @@ interface WorkspaceProps {
   totalPages: number;
 }
 
-function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalPages }: WorkspaceProps) {
+function CanvasWorkspace({
+  pageW,
+  pageH,
+  zoom,
+  currentPageId,
+  currentIdx,
+  totalPages,
+}: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const [size, setSize] = useState(() => getAvailableSize());
@@ -65,8 +72,8 @@ function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalP
       if (containerRef.current) {
         const mobile = window.innerWidth < MOBILE_BREAKPOINT;
         setSize({
-          w: containerRef.current.clientWidth  || window.innerWidth,
-          h: containerRef.current.clientHeight || (window.innerHeight - MOBILE_CHROME_H),
+          w: containerRef.current.clientWidth || window.innerWidth,
+          h: containerRef.current.clientHeight || window.innerHeight - MOBILE_CHROME_H,
           mobile,
         });
       }
@@ -76,16 +83,17 @@ function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalP
     const ro = new ResizeObserver(measure);
     if (containerRef.current) ro.observe(containerRef.current);
     window.addEventListener("resize", measure);
-    return () => { ro.disconnect(); window.removeEventListener("resize", measure); };
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
 
   // Mobile → auto-fit to available space (8px padding each side)
   // Desktop → use user-controlled zoom from store
   const PAD = 16;
   const effectiveZoom = size.mobile
-    ? Math.max(0.05, Math.min(1.0,
-        Math.min((size.w - PAD) / pageW, (size.h - PAD) / pageH)
-      ))
+    ? Math.max(0.05, Math.min(1.0, Math.min((size.w - PAD) / pageW, (size.h - PAD) / pageH)))
     : zoom;
 
   const scaledW = pageW * effectiveZoom;
@@ -108,7 +116,7 @@ function CanvasWorkspace({ pageW, pageH, zoom, currentPageId, currentIdx, totalP
           style={{
             transform: `scale(${effectiveZoom})`,
             transformOrigin: "top left",
-            width:  pageW,
+            width: pageW,
             height: pageH,
           }}
         >
@@ -196,14 +204,14 @@ function PageNav({ currentIdx, total, onPrev, onNext, label, mobile }: PageNavPr
 
 // ─── Main Canvas component ───────────────────────────────────────────────────
 export function Canvas() {
-  const pages          = useBookStore((s) => s.book.pages);
-  const currentPageId  = useBookStore((s) => s.currentPageId);
-  const zoom           = useBookStore((s) => s.zoom);
-  const selectedId     = useBookStore((s) => s.selectedElementId);
-  const removeElement  = useBookStore((s) => s.removeElement);
-  const addPage        = useBookStore((s) => s.addPage);
-  const duplicatePage  = useBookStore((s) => s.duplicatePage);
-  const deletePage     = useBookStore((s) => s.deletePage);
+  const pages = useBookStore((s) => s.book.pages);
+  const currentPageId = useBookStore((s) => s.currentPageId);
+  const zoom = useBookStore((s) => s.zoom);
+  const selectedId = useBookStore((s) => s.selectedElementId);
+  const removeElement = useBookStore((s) => s.removeElement);
+  const addPage = useBookStore((s) => s.addPage);
+  const duplicatePage = useBookStore((s) => s.duplicatePage);
+  const deletePage = useBookStore((s) => s.deletePage);
   const setCurrentPage = useBookStore((s) => s.setCurrentPage);
   const isMagicLayoutMode = useBookStore((s) => s.isMagicLayoutMode);
   const setIsMagicLayoutMode = useBookStore((s) => s.setIsMagicLayoutMode);
@@ -250,19 +258,27 @@ export function Canvas() {
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        if (e.shiftKey) { redo(); } else { undo(); }
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
-        e.preventDefault(); redo();
+        e.preventDefault();
+        redo();
       } else if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedId) {
           const state = useBookStore.getState();
-          const page = state.book.pages.find(p => p.id === state.currentPageId);
+          const page = state.book.pages.find((p) => p.id === state.currentPageId);
           const selected = page?.elements.find((el) => el.id === selectedId);
           const isLocked =
             page?.frameLocked ||
             (selected?.type === "photo" && selected.locked) ||
             (selected?.type === "sticker" && selected.locked);
-          if (!isLocked) { e.preventDefault(); removeElement(selectedId); }
+          if (!isLocked) {
+            e.preventDefault();
+            removeElement(selectedId);
+          }
         }
       } else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
         if (selectedId) {
@@ -289,13 +305,13 @@ export function Canvas() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selectedId, removeElement]);
 
-  const idx        = pages.findIndex((p) => p.id === currentPageId);
+  const idx = pages.findIndex((p) => p.id === currentPageId);
   const currentIdx = idx < 0 ? 0 : idx;
   const activePage = pages[currentIdx];
 
   const preset = PAGE_SIZES[0];
-  const pageW      = preset.width;
-  const pageH      = preset.height;
+  const pageW = preset.width;
+  const pageH = preset.height;
 
   const goToPrev = () => {
     if (currentIdx > 0) setCurrentPage(pages[currentIdx - 1].id);

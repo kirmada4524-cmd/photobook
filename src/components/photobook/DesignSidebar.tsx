@@ -1,14 +1,7 @@
 import { useBookStore, type AutofillResult } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { TEMPLATES } from "@/lib/photobook/templates";
-import {
-  FRAMES,
-  QUOTES,
-  THEMES,
-  SHAPES,
-  PAGE_BORDERS,
-  shapeStyle,
-} from "@/lib/photobook/catalogs";
+import { FRAMES, QUOTES, THEMES, SHAPES, PAGE_BORDERS, shapeStyle } from "@/lib/photobook/catalogs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
@@ -57,7 +50,6 @@ const isBgImage = (bg?: string) => {
     /\.(png|jpe?g|gif|webp|svg)$/i.test(bg)
   );
 };
-
 
 export function DesignSidebar() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
@@ -227,8 +219,8 @@ export function DesignSidebar() {
   };
 
   return (
-    <aside 
-      style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }} 
+    <aside
+      style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
       className="editor-sidebar relative flex h-full shrink-0 flex-col md:border-l w-full md:w-auto bg-background"
     >
       <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
@@ -410,8 +402,12 @@ export function DesignSidebar() {
                               }
 
                               // Use DOM input elements since we don't have separate React state variables for these yet.
-                              const isFrameLocked = (document.getElementById("admin-frame-lock") as HTMLInputElement)?.checked ?? true;
-                              const isBgLocked = (document.getElementById("admin-bg-lock") as HTMLInputElement)?.checked ?? true;
+                              const isFrameLocked =
+                                (document.getElementById("admin-frame-lock") as HTMLInputElement)
+                                  ?.checked ?? true;
+                              const isBgLocked =
+                                (document.getElementById("admin-bg-lock") as HTMLInputElement)
+                                  ?.checked ?? true;
 
                               await useBookStore
                                 .getState()
@@ -419,7 +415,7 @@ export function DesignSidebar() {
                                   isAdminTemplate: true,
                                   category: templateCategoryInput.trim() || "General",
                                   frameLocked: isFrameLocked,
-                                  backgroundLocked: isBgLocked
+                                  backgroundLocked: isBgLocked,
                                 });
                               toast.success("Saved in global templates", { id: savingToast });
                               setIsSavingTemplate(false);
@@ -427,9 +423,12 @@ export function DesignSidebar() {
                               setTemplateCategoryInput("");
                             } catch (error) {
                               console.error(error);
-                              toast.error((error as Error).message || "Failed to save global template", {
-                                id: savingToast,
-                              });
+                              toast.error(
+                                (error as Error).message || "Failed to save global template",
+                                {
+                                  id: savingToast,
+                                },
+                              );
                             } finally {
                               setIsGlobalTemplateSaving(false);
                             }
@@ -461,11 +460,21 @@ export function DesignSidebar() {
                       <div className="flex flex-col gap-1.5 pt-1 border-t border-black/5 mt-1">
                         <div className="flex items-center gap-3 pl-1">
                           <label className="flex items-center gap-1 text-[9px] text-muted-foreground cursor-pointer">
-                            <input type="checkbox" id="admin-frame-lock" defaultChecked className="rounded h-2.5 w-2.5" />
+                            <input
+                              type="checkbox"
+                              id="admin-frame-lock"
+                              defaultChecked
+                              className="rounded h-2.5 w-2.5"
+                            />
                             Lock Frames
                           </label>
                           <label className="flex items-center gap-1 text-[9px] text-muted-foreground cursor-pointer">
-                            <input type="checkbox" id="admin-bg-lock" defaultChecked className="rounded h-2.5 w-2.5" />
+                            <input
+                              type="checkbox"
+                              id="admin-bg-lock"
+                              defaultChecked
+                              className="rounded h-2.5 w-2.5"
+                            />
                             Lock Background
                           </label>
                         </div>
@@ -521,7 +530,6 @@ export function DesignSidebar() {
                       />
                     </div>
                   ) : null}
-
                 </div>
 
                 {/* Predefined Layouts */}
@@ -544,7 +552,10 @@ export function DesignSidebar() {
                             key={t.id}
                             className="group rounded-xl border bg-card p-2 text-left transition hover:border-accent hover:shadow-md snap-start"
                           >
-                            <button className="w-full text-left" onClick={() => safeApplyLayout(t.id)}>
+                            <button
+                              className="w-full text-left"
+                              onClick={() => safeApplyLayout(t.id)}
+                            >
                               <LayoutThumb id={t.id} />
                               <div className="mt-1.5 px-0.5 text-[11px] font-semibold leading-tight truncate">
                                 {t.label}
@@ -739,7 +750,9 @@ export function DesignSidebar() {
                 ) : (
                   <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
                     <div className="font-semibold text-foreground">No admin stickers yet.</div>
-                    <div className="mt-1">Upload stickers from the Admin Panel to show them here.</div>
+                    <div className="mt-1">
+                      Upload stickers from the Admin Panel to show them here.
+                    </div>
                   </div>
                 )}
               </>
@@ -814,7 +827,9 @@ export function DesignSidebar() {
                 ) : (
                   <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
                     <div className="font-semibold text-foreground">No admin backgrounds yet.</div>
-                    <div className="mt-1">Upload backgrounds from the Admin Panel to show them here.</div>
+                    <div className="mt-1">
+                      Upload backgrounds from the Admin Panel to show them here.
+                    </div>
                   </div>
                 )}
 
@@ -823,10 +838,7 @@ export function DesignSidebar() {
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1 flex items-center justify-between">
                     <span>Paint Colours</span>
                     {/* Custom Color Picker */}
-                    <div
-                      className="flex items-center gap-1.5"
-                      title="Custom color picker"
-                    >
+                    <div className="flex items-center gap-1.5" title="Custom color picker">
                       <span className="text-[10px] font-medium text-accent">Custom Color</span>
                       <div className="relative h-5 w-5 rounded-full border border-border overflow-hidden hover:scale-110 cursor-pointer flex items-center justify-center">
                         <input
@@ -954,11 +966,13 @@ export function DesignSidebar() {
                           <span className="h-1.5 w-1.5 rounded-full bg-accent animate-ping shrink-0" />
                           <span>Layout Mode Active: Drag background image on the page to pan.</span>
                         </div>
-                        
+
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="text-muted-foreground">Zoom / Scale</span>
-                            <span className="font-semibold tabular-nums">{Math.round((page.backgroundScale ?? 1) * 100)}%</span>
+                            <span className="font-semibold tabular-nums">
+                              {Math.round((page.backgroundScale ?? 1) * 100)}%
+                            </span>
                           </div>
                           <Slider
                             min={1}
@@ -973,16 +987,24 @@ export function DesignSidebar() {
                         <div className="space-y-1">
                           <div className="flex items-center justify-between text-[11px]">
                             <span className="text-muted-foreground">Position Offset</span>
-                            <span className="font-semibold tabular-nums">X: {page.backgroundX ?? 0}px, Y: {page.backgroundY ?? 0}px</span>
+                            <span className="font-semibold tabular-nums">
+                              X: {page.backgroundX ?? 0}px, Y: {page.backgroundY ?? 0}px
+                            </span>
                           </div>
-                          
+
                           {/* D-Pad Pan Controls */}
                           <div className="flex flex-col items-center gap-1 mt-1 pb-1">
                             <Button
                               size="sm"
                               variant="outline"
                               className="h-6 w-10 p-0 text-[10px]"
-                              onClick={() => updatePageBackgroundPosition(page.id, page.backgroundX ?? 0, (page.backgroundY ?? 0) - 5)}
+                              onClick={() =>
+                                updatePageBackgroundPosition(
+                                  page.id,
+                                  page.backgroundX ?? 0,
+                                  (page.backgroundY ?? 0) - 5,
+                                )
+                              }
                               title="Pan Up"
                             >
                               ▲
@@ -992,7 +1014,13 @@ export function DesignSidebar() {
                                 size="sm"
                                 variant="outline"
                                 className="h-6 w-10 p-0 text-[10px]"
-                                onClick={() => updatePageBackgroundPosition(page.id, (page.backgroundX ?? 0) - 5, page.backgroundY ?? 0)}
+                                onClick={() =>
+                                  updatePageBackgroundPosition(
+                                    page.id,
+                                    (page.backgroundX ?? 0) - 5,
+                                    page.backgroundY ?? 0,
+                                  )
+                                }
                                 title="Pan Left"
                               >
                                 ◀
@@ -1001,7 +1029,13 @@ export function DesignSidebar() {
                                 size="sm"
                                 variant="outline"
                                 className="h-6 w-10 p-0 text-[10px]"
-                                onClick={() => updatePageBackgroundPosition(page.id, (page.backgroundX ?? 0) + 5, page.backgroundY ?? 0)}
+                                onClick={() =>
+                                  updatePageBackgroundPosition(
+                                    page.id,
+                                    (page.backgroundX ?? 0) + 5,
+                                    page.backgroundY ?? 0,
+                                  )
+                                }
                                 title="Pan Right"
                               >
                                 ▶
@@ -1011,7 +1045,13 @@ export function DesignSidebar() {
                               size="sm"
                               variant="outline"
                               className="h-6 w-10 p-0 text-[10px]"
-                              onClick={() => updatePageBackgroundPosition(page.id, page.backgroundX ?? 0, (page.backgroundY ?? 0) + 5)}
+                              onClick={() =>
+                                updatePageBackgroundPosition(
+                                  page.id,
+                                  page.backgroundX ?? 0,
+                                  (page.backgroundY ?? 0) + 5,
+                                )
+                              }
                               title="Pan Down"
                             >
                               ▼
@@ -1053,7 +1093,6 @@ export function DesignSidebar() {
                     )}
                   </div>
                 )}
-
               </>
             )}
           </TabsContent>
@@ -1524,9 +1563,15 @@ function LayoutThumb({ id }: { id: string }) {
       )}
       {id === "scatter3" && (
         <>
-          <div className={`${box} left-1 top-4 h-[48%] w-[28%] rotate-[-8deg] border border-white/60`} />
-          <div className={`${box} right-1 bottom-4 h-[48%] w-[28%] rotate-[6deg] border border-white/60`} />
-          <div className={`${box} left-[36%] top-3 h-[52%] w-[28%] rotate-[-3deg] border border-white/60`} />
+          <div
+            className={`${box} left-1 top-4 h-[48%] w-[28%] rotate-[-8deg] border border-white/60`}
+          />
+          <div
+            className={`${box} right-1 bottom-4 h-[48%] w-[28%] rotate-[6deg] border border-white/60`}
+          />
+          <div
+            className={`${box} left-[36%] top-3 h-[52%] w-[28%] rotate-[-3deg] border border-white/60`}
+          />
         </>
       )}
       {id === "fullHero3" && (

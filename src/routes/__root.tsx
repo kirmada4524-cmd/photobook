@@ -80,12 +80,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Yaara - Custom Photobook Studio" },
       {
         name: "description",
-        content: "Create beautiful 5.5 x 5.5 photobooks for birthdays, weddings, travel, family memories, and gifts.",
+        content:
+          "Create beautiful 5.5 x 5.5 photobooks for birthdays, weddings, travel, family memories, and gifts.",
       },
       { property: "og:title", content: "Yaara - Custom Photobook Studio" },
       {
         property: "og:description",
-        content: "Create beautiful 5.5 x 5.5 photobooks for birthdays, weddings, travel, family memories, and gifts.",
+        content:
+          "Create beautiful 5.5 x 5.5 photobooks for birthdays, weddings, travel, family memories, and gifts.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },

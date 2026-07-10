@@ -60,20 +60,14 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
             </DialogTitle>
             <DialogDescription>
               You are signed in as <strong>{user.username}</strong>{" "}
-              {isAdmin && (
-                <span className="text-amber-600 font-semibold">(Admin)</span>
-              )}
+              {isAdmin && <span className="text-amber-600 font-semibold">(Admin)</span>}
             </DialogDescription>
           </DialogHeader>
           <div className="flex gap-3 pt-2">
             <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
               Close
             </Button>
-            <Button
-              variant="destructive"
-              className="flex-1 gap-2"
-              onClick={handleLogout}
-            >
+            <Button variant="destructive" className="flex-1 gap-2" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
               Sign Out
             </Button>
@@ -84,16 +78,20 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); clearError(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        onOpenChange(v);
+        clearError();
+      }}
+    >
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <LogIn className="h-5 w-5" />
             Sign In to Yaara
           </DialogTitle>
-          <DialogDescription>
-            Enter your credentials to access your account.
-          </DialogDescription>
+          <DialogDescription>Enter your credentials to access your account.</DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-2">
           <div className="space-y-1.5">
@@ -102,7 +100,10 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
               id="login-userid"
               placeholder="Enter your user ID"
               value={userId}
-              onChange={(e) => { setUserId(e.target.value); clearError(); }}
+              onChange={(e) => {
+                setUserId(e.target.value);
+                clearError();
+              }}
               onKeyDown={handleKeyDown}
               autoComplete="username"
             />
@@ -114,14 +115,15 @@ export function LoginModal({ open, onOpenChange }: LoginModalProps) {
               type="password"
               placeholder="Enter your password"
               value={password}
-              onChange={(e) => { setPassword(e.target.value); clearError(); }}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                clearError();
+              }}
               onKeyDown={handleKeyDown}
               autoComplete="current-password"
             />
           </div>
-          {loginError && (
-            <p className="text-sm text-destructive font-medium">{loginError}</p>
-          )}
+          {loginError && <p className="text-sm text-destructive font-medium">{loginError}</p>}
           <Button
             className="w-full gap-2"
             onClick={handleLogin}

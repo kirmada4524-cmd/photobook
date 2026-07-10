@@ -663,7 +663,11 @@ export function applyTemplate(
       const cy = pageH / 2 - h / 2;
       return [
         makePhoto(getImg(0), cx - w * 0.82, cy - 25, w, h, { frame: "polaroid", rotation: -8 }),
-        makePhoto(getImg(1), cx + w * 0.82, cy + 25, w, h, { frame: "polaroid", rotation: 6, z: 2 }),
+        makePhoto(getImg(1), cx + w * 0.82, cy + 25, w, h, {
+          frame: "polaroid",
+          rotation: 6,
+          z: 2,
+        }),
         makePhoto(getImg(2), cx, cy - 5, w, h, { frame: "polaroid", rotation: -3, z: 3 }),
       ];
     }
@@ -677,7 +681,9 @@ export function applyTemplate(
       return [
         makePhoto(getImg(0), BORDER_PAD, BORDER_PAD, leftW, pageH - BORDER_PAD * 2, { radius: 8 }),
         makePhoto(getImg(1), BORDER_PAD + leftW + GAP, BORDER_PAD, rightW, rightH, { radius: 8 }),
-        makePhoto(getImg(2), BORDER_PAD + leftW + GAP, BORDER_PAD + rightH + GAP, rightW, rightH, { radius: 8 }),
+        makePhoto(getImg(2), BORDER_PAD + leftW + GAP, BORDER_PAD + rightH + GAP, rightW, rightH, {
+          radius: 8,
+        }),
       ];
     }
 
@@ -758,7 +764,14 @@ export function applyTemplate(
         makePhoto(getImg(0), PAD, PAD, leftW, topH, { radius: 8 }),
         makePhoto(getImg(1), PAD + leftW + xGap, PAD, rightW, topH - 30, { radius: 8 }),
         makePhoto(getImg(2), PAD, PAD + topH + yGap, leftW + 30, botH, { radius: 8 }),
-        makePhoto(getImg(3), PAD + leftW + xGap + 30, PAD + topH + yGap - 30, rightW - 30, botH + 30, { radius: 8 }),
+        makePhoto(
+          getImg(3),
+          PAD + leftW + xGap + 30,
+          PAD + topH + yGap - 30,
+          rightW - 30,
+          botH + 30,
+          { radius: 8 },
+        ),
       ];
     }
 
@@ -860,8 +873,12 @@ export function applyTemplate(
         makePhoto(getImg(0), BORDER_PAD, BORDER_PAD, topW, rowH, { radius: 8 }),
         makePhoto(getImg(1), BORDER_PAD + topW + GAP, BORDER_PAD, topW, rowH, { radius: 8 }),
         makePhoto(getImg(2), BORDER_PAD, BORDER_PAD + rowH + GAP, botW, rowH, { radius: 8 }),
-        makePhoto(getImg(3), BORDER_PAD + botW + GAP, BORDER_PAD + rowH + GAP, botW, rowH, { radius: 8 }),
-        makePhoto(getImg(4), BORDER_PAD + (botW + GAP) * 2, BORDER_PAD + rowH + GAP, botW, rowH, { radius: 8 }),
+        makePhoto(getImg(3), BORDER_PAD + botW + GAP, BORDER_PAD + rowH + GAP, botW, rowH, {
+          radius: 8,
+        }),
+        makePhoto(getImg(4), BORDER_PAD + (botW + GAP) * 2, BORDER_PAD + rowH + GAP, botW, rowH, {
+          radius: 8,
+        }),
       ];
     }
 

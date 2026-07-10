@@ -42,6 +42,10 @@ export default defineConfig({
   server: {
     host: "::",
     port: 8080,
-    allowedHosts: ["hexaemeric-parapsychological-shanda.ngrok-free.dev", "localhost", ".ngrok-free.dev"],
+    allowedHosts: [
+      "hexaemeric-parapsychological-shanda.ngrok-free.dev",
+      "localhost",
+      ".ngrok-free.dev",
+    ],
   },
 });

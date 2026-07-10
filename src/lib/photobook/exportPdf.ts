@@ -244,7 +244,6 @@ const drawImageCoverWithMasks = async (
   ctx.drawImage(canvas, photo.x, photo.y, photo.w, photo.h);
 };
 
-
 /**
  * Draw frame decoration around a photo element.
  * Only solid-color frames are approximated in canvas; complex CSS frames (polaroid, tape…)
@@ -403,11 +402,11 @@ const drawFrame = (
     // Draw shadow
     ctx.fillStyle = frameColor || "#000000";
     ctx.fillRect(x - pad + 6, y - pad + 6, w + pad * 2, h + pad * 2);
-    
+
     // Draw backing card
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-    
+
     // Draw border
     ctx.strokeStyle = frameColor || "#000000";
     ctx.lineWidth = 3;
@@ -416,28 +415,28 @@ const drawFrame = (
     const cSize = 14;
     ctx.strokeStyle = frameColor || "#222222";
     ctx.lineWidth = 3;
-    
+
     // Top-left
     ctx.beginPath();
     ctx.moveTo(x - 4 + cSize, y - 4);
     ctx.lineTo(x - 4, y - 4);
     ctx.lineTo(x - 4, y - 4 + cSize);
     ctx.stroke();
-    
+
     // Top-right
     ctx.beginPath();
     ctx.moveTo(x + w + 4 - cSize, y - 4);
     ctx.lineTo(x + w + 4, y - 4);
     ctx.lineTo(x + w + 4, y - 4 + cSize);
     ctx.stroke();
-    
+
     // Bottom-left
     ctx.beginPath();
     ctx.moveTo(x - 4 + cSize, y + h + 4);
     ctx.lineTo(x - 4, y + h + 4);
     ctx.lineTo(x - 4, y + h + 4 - cSize);
     ctx.stroke();
-    
+
     // Bottom-right
     ctx.beginPath();
     ctx.moveTo(x + w + 4 - cSize, y + h + 4);
@@ -455,12 +454,12 @@ const drawFrame = (
     // White backing
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-    
+
     // Outer border
     ctx.strokeStyle = frameColor || "#d4af37";
     ctx.lineWidth = 1;
     ctx.strokeRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-    
+
     // Inner border
     ctx.strokeRect(x - 1, y - 1, w + 2, h + 2);
   } else if (frame === "shadow-offset") {
@@ -476,7 +475,7 @@ const drawFrame = (
     // Black backing
     ctx.fillStyle = "#111111";
     ctx.fillRect(x - pad, y - pad, w + pad * 2, h + pad * 2);
-    
+
     // Double border
     ctx.strokeStyle = frameColor || "#d4af37";
     ctx.lineWidth = 3;
@@ -486,7 +485,7 @@ const drawFrame = (
   } else if (frame === "torn") {
     const pad = 12;
     ctx.fillStyle = frameColor || "#ffffff";
-    
+
     ctx.beginPath();
     // top edge
     ctx.moveTo(x - pad, y - pad);
@@ -509,7 +508,7 @@ const drawFrame = (
       ctx.lineTo(x - pad + (offset % 2 === 0 ? -1 : 1), y - pad + offset);
     }
     ctx.closePath();
-    
+
     ctx.save();
     ctx.shadowColor = "rgba(0,0,0,0.15)";
     ctx.shadowBlur = 5;

@@ -31,13 +31,10 @@ export const Route = createFileRoute("/editor")({
 });
 
 /** Height constants for mobile layout */
-const MOBILE_TOOLBAR_H = 56;   // h-14 = 56px
-const MOBILE_PANEL_H   = 300;  // sidebar panel height
+const MOBILE_TOOLBAR_H = 56; // h-14 = 56px
+const MOBILE_PANEL_H = 300; // sidebar panel height
 
-class SidebarErrorBoundary extends Component<
-  { children: ReactNode },
-  { hasError: boolean }
-> {
+class SidebarErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
 
   static getDerivedStateFromError() {
@@ -69,19 +66,23 @@ class SidebarErrorBoundary extends Component<
 
 function EditorPage() {
   const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const showLibrarySidebar = useBookStore((s) => s.showLibrarySidebar);
-  const showDesignSidebar  = useBookStore((s) => s.showDesignSidebar);
+  const showDesignSidebar = useBookStore((s) => s.showDesignSidebar);
   const toggleLibrarySidebar = useBookStore((s) => s.toggleLibrarySidebar);
-  const toggleDesignSidebar  = useBookStore((s) => s.toggleDesignSidebar);
+  const toggleDesignSidebar = useBookStore((s) => s.toggleDesignSidebar);
 
   if (!mounted) {
     return (
       <div className="flex h-[100dvh] w-full flex-col bg-background items-center justify-center">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
-          <p className="text-sm text-muted-foreground animate-pulse font-medium">Loading editor...</p>
+          <p className="text-sm text-muted-foreground animate-pulse font-medium">
+            Loading editor...
+          </p>
         </div>
       </div>
     );
@@ -108,13 +109,11 @@ function EditorPage() {
      *  └───────────────────────────────────────────────────┘
      */
     <div className="editor-shell flex h-[100dvh] w-full flex-col bg-background overflow-hidden">
-
       {/* ── Header ── */}
       <EditorHeader />
 
       {/* ── Body ── */}
       <div className="flex min-h-0 flex-1 overflow-hidden flex-col md:flex-row">
-
         {/* DESKTOP: Left sidebar */}
         <div className="hidden md:flex h-full shrink-0">
           {showLibrarySidebar && <LibrarySidebar />}

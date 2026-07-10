@@ -15,8 +15,7 @@ const emptyLibrary = (): AdminAssetLibrary => ({
   backgrounds: [],
 });
 
-const nid = (prefix: string) =>
-  `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const nid = (prefix: string) => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
 const normalizeLibrary = (raw: unknown): AdminAssetLibrary => {
   const data = raw as Partial<AdminAssetLibrary> | null;
@@ -31,8 +30,7 @@ const normalizeLibrary = (raw: unknown): AdminAssetLibrary => {
   };
 };
 
-const hasBlobStorage = () =>
-  hasBlobReadWriteToken();
+const hasBlobStorage = () => hasBlobReadWriteToken();
 
 const isVercelRuntime = () => Boolean(process.env.VERCEL);
 
@@ -120,7 +118,11 @@ const parseDataUrl = (dataUrl: string) => {
   };
 };
 
-async function writeLocalAdminAsset(kind: "stickers" | "backgrounds", filename: string, buffer: Buffer): Promise<string> {
+async function writeLocalAdminAsset(
+  kind: "stickers" | "backgrounds",
+  filename: string,
+  buffer: Buffer,
+): Promise<string> {
   const fs = await import("fs");
   const path = await import("path");
   const cwd = process.cwd();
@@ -155,11 +157,7 @@ async function writeLocalAdminAsset(kind: "stickers" | "backgrounds", filename: 
   return `/admin-assets/${kind}/${filename}`;
 }
 
-async function saveImageDataUrl(
-  kind: "stickers" | "backgrounds",
-  id: string,
-  dataUrl: string,
-) {
+async function saveImageDataUrl(kind: "stickers" | "backgrounds", id: string, dataUrl: string) {
   const { mime, buffer } = parseDataUrl(dataUrl);
   const filename = `${id}${extFromMime(mime)}`;
 

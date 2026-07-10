@@ -37,10 +37,12 @@ export async function putBlob(
 
   if (!response.ok) {
     const details = await response.text().catch(() => "");
-    throw new Error(`Vercel Blob upload failed: ${response.status} ${response.statusText} — ${details}`);
+    throw new Error(
+      `Vercel Blob upload failed: ${response.status} ${response.statusText} — ${details}`,
+    );
   }
 
-  const result = await response.json() as { url: string; pathname: string };
+  const result = (await response.json()) as { url: string; pathname: string };
   return result;
 }
 
@@ -61,10 +63,12 @@ export async function getBlobText(pathname: string): Promise<string | null> {
 
   if (!listResp.ok) {
     const details = await listResp.text().catch(() => "");
-    throw new Error(`Vercel Blob list failed: ${listResp.status} ${listResp.statusText} — ${details}`);
+    throw new Error(
+      `Vercel Blob list failed: ${listResp.status} ${listResp.statusText} — ${details}`,
+    );
   }
 
-  const data = await listResp.json() as { blobs: Array<{ pathname: string; url: string }> };
+  const data = (await listResp.json()) as { blobs: Array<{ pathname: string; url: string }> };
   const blob = data.blobs.find((b) => b.pathname === pathname);
   if (!blob) return null;
 
@@ -84,7 +88,8 @@ export async function getBlobText(pathname: string): Promise<string | null> {
 export async function getBlobUrlContent(url: string): Promise<string | null> {
   const response = await fetch(`${url}?v=${Date.now()}`, { cache: "no-store" });
   if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`Vercel Blob read failed: ${response.status} ${response.statusText}`);
+  if (!response.ok)
+    throw new Error(`Vercel Blob read failed: ${response.status} ${response.statusText}`);
   return response.text();
 }
 
@@ -104,11 +109,16 @@ export async function deleteBlob(urlOrPathname: string) {
 
   if (!response.ok) {
     const details = await response.text().catch(() => "");
-    throw new Error(`Vercel Blob delete failed: ${response.status} ${response.statusText} — ${details}`);
+    throw new Error(
+      `Vercel Blob delete failed: ${response.status} ${response.statusText} — ${details}`,
+    );
   }
 }
 
-export async function listBlobs(prefix: string, cursor?: string): Promise<{
+export async function listBlobs(
+  prefix: string,
+  cursor?: string,
+): Promise<{
   blobs: Array<{ pathname: string; url: string }>;
   cursor?: string;
   hasMore: boolean;
@@ -129,10 +139,12 @@ export async function listBlobs(prefix: string, cursor?: string): Promise<{
 
   if (!response.ok) {
     const details = await response.text().catch(() => "");
-    throw new Error(`Vercel Blob list failed: ${response.status} ${response.statusText} — ${details}`);
+    throw new Error(
+      `Vercel Blob list failed: ${response.status} ${response.statusText} — ${details}`,
+    );
   }
 
-  const data = await response.json() as {
+  const data = (await response.json()) as {
     blobs: Array<{ pathname: string; url: string }>;
     cursor?: string;
     hasMore?: boolean;
@@ -145,7 +157,9 @@ export async function listBlobs(prefix: string, cursor?: string): Promise<{
   };
 }
 
-export async function headBlob(pathname: string): Promise<{ pathname: string; url: string } | null> {
+export async function headBlob(
+  pathname: string,
+): Promise<{ pathname: string; url: string } | null> {
   const token = readWriteToken();
   if (!token) throw new Error("Missing BLOB_READ_WRITE_TOKEN.");
 

@@ -442,7 +442,9 @@ export function EditorHeader() {
             <span className="font-display block text-base font-semibold leading-none tracking-tight group-hover:text-primary transition-colors">
               Yaara
             </span>
-            <span className="text-[10px] font-medium text-muted-foreground">Custom Photobook Studio</span>
+            <span className="text-[10px] font-medium text-muted-foreground">
+              Custom Photobook Studio
+            </span>
           </div>
         </Link>
         {isAdmin && (
@@ -570,18 +572,31 @@ export function EditorHeader() {
       </Button>
       {isAdmin ? (
         <div className="flex gap-2">
-          <Button size="sm" onClick={() => exportProject(title)} variant="outline" className="hidden sm:inline-flex gap-1.5 shadow-sm bg-background">
+          <Button
+            size="sm"
+            onClick={() => exportProject(title)}
+            variant="outline"
+            className="hidden sm:inline-flex gap-1.5 shadow-sm bg-background"
+          >
             <Download className="h-4 w-4" />
             <span>Project File</span>
           </Button>
-          <Button size="sm" onClick={onExport} className="gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
+          <Button
+            size="sm"
+            onClick={onExport}
+            className="gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+          >
             <Download className="h-4 w-4" />
             <span className="hidden sm:inline">Export PDF</span>
             <span className="sm:hidden">PDF</span>
           </Button>
         </div>
       ) : (
-        <Button size="sm" onClick={() => exportProject(title)} className="gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
+        <Button
+          size="sm"
+          onClick={() => exportProject(title)}
+          className="gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+        >
           <Download className="h-4 w-4" />
           <span className="hidden sm:inline">Download</span>
         </Button>
@@ -591,7 +606,9 @@ export function EditorHeader() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-semibold ml-2">
-              <span className="hidden sm:inline">{isAdmin ? "Admin" : "User"} {currentUser.username}</span>
+              <span className="hidden sm:inline">
+                {isAdmin ? "Admin" : "User"} {currentUser.username}
+              </span>
               <span className="sm:hidden">{isAdmin ? "Admin" : "User"}</span>
             </Button>
           </DropdownMenuTrigger>

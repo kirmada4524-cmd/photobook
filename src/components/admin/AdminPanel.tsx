@@ -33,13 +33,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const TEMPLATE_CATEGORIES: string[] = [
-  "Cover Page",
-  "Back Cover",
-  "Birthday",
-  "Travel",
-  "Common",
-];
+const TEMPLATE_CATEGORIES: string[] = ["Cover Page", "Back Cover", "Birthday", "Travel", "Common"];
 
 const filesToPayload = (files: File[]) =>
   Promise.all(
@@ -299,11 +293,23 @@ const getLegacyPageSize = (projectData: any) => {
 };
 
 const normalizeImportedElements = (elements: any[], projectData: any) => {
-  const maxRight = elements.reduce((max, el) => Math.max(max, Number(el.x || 0) + Number(el.w || 0)), 0);
-  const maxBottom = elements.reduce((max, el) => Math.max(max, Number(el.y || 0) + Number(el.h || 0)), 0);
+  const maxRight = elements.reduce(
+    (max, el) => Math.max(max, Number(el.x || 0) + Number(el.w || 0)),
+    0,
+  );
+  const maxBottom = elements.reduce(
+    (max, el) => Math.max(max, Number(el.y || 0) + Number(el.h || 0)),
+    0,
+  );
   const legacySize = getLegacyPageSize(projectData);
-  const sourceWidth = legacySize.width && legacySize.width > 0 ? legacySize.width : Math.max(currentPageWidth, maxRight);
-  const sourceHeight = legacySize.height && legacySize.height > 0 ? legacySize.height : Math.max(currentPageHeight, maxBottom);
+  const sourceWidth =
+    legacySize.width && legacySize.width > 0
+      ? legacySize.width
+      : Math.max(currentPageWidth, maxRight);
+  const sourceHeight =
+    legacySize.height && legacySize.height > 0
+      ? legacySize.height
+      : Math.max(currentPageHeight, maxBottom);
 
   if (sourceWidth <= currentPageWidth * 1.05 && sourceHeight <= currentPageHeight * 1.05) {
     return elements;
@@ -340,10 +346,9 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
   const adminTemplates = useBookStore((s) => s.adminTemplates);
   const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
 
-  const allCategories = Array.from(new Set([
-    ...TEMPLATE_CATEGORIES,
-    ...adminTemplates.map((t) => t.category).filter(Boolean)
-  ])) as string[];
+  const allCategories = Array.from(
+    new Set([...TEMPLATE_CATEGORIES, ...adminTemplates.map((t) => t.category).filter(Boolean)]),
+  ) as string[];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -404,32 +409,55 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
               const bg = findAssetDataUrl(projectData.customBackgrounds, background);
               if (bg) {
                 try {
-                  background = await uploadCachedTemplateAsset(assetUploadCache, "background", bg, () => {
-                    setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
-                  });
+                  background = await uploadCachedTemplateAsset(
+                    assetUploadCache,
+                    "background",
+                    bg,
+                    () => {
+                      setImportProgress((current) => ({
+                        ...current,
+                        uploadedAssets: current.uploadedAssets + 1,
+                      }));
+                    },
+                  );
                 } catch (error) {
-                  throw new Error(`${file.name} page ${i + 1}: background upload failed (${errorMessage(error)})`);
+                  throw new Error(
+                    `${file.name} page ${i + 1}: background upload failed (${errorMessage(error)})`,
+                  );
                 }
               }
             }
 
             const elements = [];
-            const normalizedSourceElements = normalizeImportedElements(safeElements(page.elements), projectData);
+            const normalizedSourceElements = normalizeImportedElements(
+              safeElements(page.elements),
+              projectData,
+            );
             for (const el of normalizedSourceElements) {
               if (el.type === "photo") {
                 const photoEl = { ...el };
                 for (const maskKey of ["magicMask", "eraseMask"] as const) {
                   if (!isDataUrl(photoEl[maskKey])) continue;
                   try {
-                    photoEl[maskKey] = await uploadCachedTemplateAsset(assetUploadCache, "overlay", {
-                      id: `${el.id}_${maskKey}`,
-                      name: maskKey,
-                      base64: photoEl[maskKey],
-                    }, () => {
-                      setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
-                    });
+                    photoEl[maskKey] = await uploadCachedTemplateAsset(
+                      assetUploadCache,
+                      "overlay",
+                      {
+                        id: `${el.id}_${maskKey}`,
+                        name: maskKey,
+                        base64: photoEl[maskKey],
+                      },
+                      () => {
+                        setImportProgress((current) => ({
+                          ...current,
+                          uploadedAssets: current.uploadedAssets + 1,
+                        }));
+                      },
+                    );
                   } catch (error) {
-                    throw new Error(`${file.name} page ${i + 1}: ${maskKey} upload failed (${errorMessage(error)})`);
+                    throw new Error(
+                      `${file.name} page ${i + 1}: ${maskKey} upload failed (${errorMessage(error)})`,
+                    );
                   }
                 }
                 elements.push(photoEl);
@@ -443,17 +471,27 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
 
               if (isDataUrl(el.src)) {
                 try {
-                  const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", {
-                    id: el.id,
-                    name: "sticker",
-                    base64: el.src,
-                  }, () => {
-                    setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
-                  });
+                  const src = await uploadCachedTemplateAsset(
+                    assetUploadCache,
+                    "sticker",
+                    {
+                      id: el.id,
+                      name: "sticker",
+                      base64: el.src,
+                    },
+                    () => {
+                      setImportProgress((current) => ({
+                        ...current,
+                        uploadedAssets: current.uploadedAssets + 1,
+                      }));
+                    },
+                  );
                   elements.push({ ...el, src });
                   continue;
                 } catch (error) {
-                  throw new Error(`${file.name} page ${i + 1}: sticker upload failed (${errorMessage(error)})`);
+                  throw new Error(
+                    `${file.name} page ${i + 1}: sticker upload failed (${errorMessage(error)})`,
+                  );
                 }
               }
 
@@ -463,27 +501,47 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
                 continue;
               }
               try {
-                const src = await uploadCachedTemplateAsset(assetUploadCache, "sticker", sticker, () => {
-                  setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
-                });
+                const src = await uploadCachedTemplateAsset(
+                  assetUploadCache,
+                  "sticker",
+                  sticker,
+                  () => {
+                    setImportProgress((current) => ({
+                      ...current,
+                      uploadedAssets: current.uploadedAssets + 1,
+                    }));
+                  },
+                );
                 elements.push({ ...el, src });
               } catch (error) {
-                throw new Error(`${file.name} page ${i + 1}: sticker upload failed (${errorMessage(error)})`);
+                throw new Error(
+                  `${file.name} page ${i + 1}: sticker upload failed (${errorMessage(error)})`,
+                );
               }
             }
 
             let eraserOverlay: string | undefined;
             if (isDataUrl(page.eraserOverlay)) {
               try {
-                eraserOverlay = await uploadCachedTemplateAsset(assetUploadCache, "overlay", {
-                  id: `overlay_${page.id ?? i}`,
-                  name: "overlay",
-                  base64: page.eraserOverlay,
-                }, () => {
-                  setImportProgress((current) => ({ ...current, uploadedAssets: current.uploadedAssets + 1 }));
-                });
+                eraserOverlay = await uploadCachedTemplateAsset(
+                  assetUploadCache,
+                  "overlay",
+                  {
+                    id: `overlay_${page.id ?? i}`,
+                    name: "overlay",
+                    base64: page.eraserOverlay,
+                  },
+                  () => {
+                    setImportProgress((current) => ({
+                      ...current,
+                      uploadedAssets: current.uploadedAssets + 1,
+                    }));
+                  },
+                );
               } catch (error) {
-                throw new Error(`${file.name} page ${i + 1}: overlay upload failed (${errorMessage(error)})`);
+                throw new Error(
+                  `${file.name} page ${i + 1}: overlay upload failed (${errorMessage(error)})`,
+                );
               }
             }
 
@@ -508,7 +566,10 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
               sortOrder: Date.now() + templates.length,
             } satisfies SavedPageTemplate);
 
-            setImportProgress((current) => ({ ...current, convertedPages: current.convertedPages + 1 }));
+            setImportProgress((current) => ({
+              ...current,
+              convertedPages: current.convertedPages + 1,
+            }));
           } catch (error) {
             failedTemplates += 1;
             const message = `${tmplLabel}: ${errorMessage(error)}`;
@@ -559,9 +620,13 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
         detail: `${savedTemplates} of ${totalTemplates} template${totalTemplates === 1 ? "" : "s"} saved${failedTemplates > 0 ? `, ${failedTemplates} failed.` : "."}`,
       }));
       if (savedTemplates > 0 && failedTemplates > 0) {
-        toast.warning(`${savedTemplates} template${savedTemplates === 1 ? "" : "s"} saved, ${failedTemplates} failed.`);
+        toast.warning(
+          `${savedTemplates} template${savedTemplates === 1 ? "" : "s"} saved, ${failedTemplates} failed.`,
+        );
       } else if (savedTemplates > 0) {
-        toast.success(`${savedTemplates} template${savedTemplates === 1 ? "" : "s"} added successfully!`);
+        toast.success(
+          `${savedTemplates} template${savedTemplates === 1 ? "" : "s"} added successfully!`,
+        );
       } else {
         toast.error("No templates were saved. Check the import details.");
       }
@@ -583,8 +648,13 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
 
   const totalProgressUnits = Math.max(importProgress.totalPages * 2, 1);
   const completedProgressUnits =
-    importProgress.convertedPages + importProgress.savedTemplates + importProgress.failedTemplates * 2;
-  const progressPercent = Math.min(100, Math.round((completedProgressUnits / totalProgressUnits) * 100));
+    importProgress.convertedPages +
+    importProgress.savedTemplates +
+    importProgress.failedTemplates * 2;
+  const progressPercent = Math.min(
+    100,
+    Math.round((completedProgressUnits / totalProgressUnits) * 100),
+  );
 
   return (
     <Dialog
@@ -602,7 +672,8 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             Convert Project(s) to Templates
           </DialogTitle>
           <DialogDescription>
-            Upload one or more .wanderbook project files. Each page will become a separate admin template.
+            Upload one or more .wanderbook project files. Each page will become a separate admin
+            template.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 pt-1">
@@ -612,7 +683,9 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{importProgress.phase}</p>
                   {importProgress.detail && (
-                    <p className="mt-0.5 truncate text-xs text-muted-foreground">{importProgress.detail}</p>
+                    <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                      {importProgress.detail}
+                    </p>
                   )}
                 </div>
                 <Badge variant={importProgress.errors.length > 0 ? "destructive" : "secondary"}>
@@ -621,7 +694,9 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
               </div>
               <Progress value={progressPercent} />
               <div className="mt-2 grid grid-cols-4 gap-2 text-xs text-muted-foreground">
-                <span>{importProgress.convertedPages}/{importProgress.totalPages} pages</span>
+                <span>
+                  {importProgress.convertedPages}/{importProgress.totalPages} pages
+                </span>
                 <span>{importProgress.uploadedAssets} assets</span>
                 <span>{importProgress.savedTemplates} saved</span>
                 <span>{importProgress.failedTemplates} failed</span>
@@ -716,10 +791,9 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
   const [frameLocked, setFrameLocked] = useState(template?.frameLocked ?? true);
   const [backgroundLocked, setBackgroundLocked] = useState(template?.backgroundLocked ?? true);
 
-  const allCategories = Array.from(new Set([
-    ...TEMPLATE_CATEGORIES,
-    ...adminTemplates.map((t) => t.category).filter(Boolean)
-  ])) as string[];
+  const allCategories = Array.from(
+    new Set([...TEMPLATE_CATEGORIES, ...adminTemplates.map((t) => t.category).filter(Boolean)]),
+  ) as string[];
 
   if (!template) return null;
 
@@ -762,17 +836,31 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
           </div>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={frameLocked} onChange={(e) => setFrameLocked(e.target.checked)} className="rounded" />
+              <input
+                type="checkbox"
+                checked={frameLocked}
+                onChange={(e) => setFrameLocked(e.target.checked)}
+                className="rounded"
+              />
               Lock frames
             </label>
             <label className="flex items-center gap-2 text-sm cursor-pointer">
-              <input type="checkbox" checked={backgroundLocked} onChange={(e) => setBackgroundLocked(e.target.checked)} className="rounded" />
+              <input
+                type="checkbox"
+                checked={backgroundLocked}
+                onChange={(e) => setBackgroundLocked(e.target.checked)}
+                className="rounded"
+              />
               Lock background
             </label>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
-            <Button className="flex-1" onClick={handleSave}>Save Changes</Button>
+            <Button variant="outline" className="flex-1" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button className="flex-1" onClick={handleSave}>
+              Save Changes
+            </Button>
           </div>
         </div>
       </DialogContent>
@@ -839,7 +927,11 @@ function AdminStickerFoldersTab() {
             placeholder="Folder name, e.g. Birthday, Travel, Cute"
             className="h-9"
           />
-          <Button onClick={handleCreateFolder} disabled={busy || !newFolderName.trim()} className="gap-1.5">
+          <Button
+            onClick={handleCreateFolder}
+            disabled={busy || !newFolderName.trim()}
+            className="gap-1.5"
+          >
             <Plus className="h-4 w-4" />
             Add Folder
           </Button>
@@ -1120,7 +1212,9 @@ export function AdminPanel() {
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
   );
   const visibleTemplateIds = sortedTemplates.map((template) => template.id);
-  const selectedVisibleCount = visibleTemplateIds.filter((id) => selectedTemplateIds.has(id)).length;
+  const selectedVisibleCount = visibleTemplateIds.filter((id) =>
+    selectedTemplateIds.has(id),
+  ).length;
   const allVisibleSelected =
     visibleTemplateIds.length > 0 && selectedVisibleCount === visibleTemplateIds.length;
 
@@ -1151,7 +1245,9 @@ export function AdminPanel() {
   const deleteSelectedTemplates = async () => {
     const ids = Array.from(selectedTemplateIds);
     if (ids.length === 0) return;
-    if (!confirm(`Delete ${ids.length} selected template${ids.length === 1 ? "" : "s"} permanently?`)) {
+    if (
+      !confirm(`Delete ${ids.length} selected template${ids.length === 1 ? "" : "s"} permanently?`)
+    ) {
       return;
     }
     setIsDeletingTemplates(true);
@@ -1211,11 +1307,7 @@ export function AdminPanel() {
             <p className="text-xs text-muted-foreground">Manage templates and platform settings</p>
           </div>
         </div>
-        <Button
-          size="sm"
-          className="gap-1.5"
-          onClick={() => setShowConvert(true)}
-        >
+        <Button size="sm" className="gap-1.5" onClick={() => setShowConvert(true)}>
           <Plus className="h-4 w-4" />
           Upload Photobook as Templates
         </Button>
@@ -1224,15 +1316,30 @@ export function AdminPanel() {
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 px-6 py-4 border-b lg:grid-cols-4">
         {[
-          { label: "Admin Templates", value: adminTemplates.length, icon: <LayoutGrid className="h-4 w-4" />, color: "text-amber-600" },
-          { label: "User Templates", value: customTemplates.length, icon: <Tag className="h-4 w-4" />, color: "text-blue-600" },
+          {
+            label: "Admin Templates",
+            value: adminTemplates.length,
+            icon: <LayoutGrid className="h-4 w-4" />,
+            color: "text-amber-600",
+          },
+          {
+            label: "User Templates",
+            value: customTemplates.length,
+            icon: <Tag className="h-4 w-4" />,
+            color: "text-blue-600",
+          },
           {
             label: "Global Stickers",
             value: adminStickerFolders.reduce((sum, folder) => sum + folder.stickers.length, 0),
             icon: <LayoutGrid className="h-4 w-4" />,
             color: "text-pink-600",
           },
-          { label: "Global BGs", value: adminBackgrounds.length, icon: <FileCheck className="h-4 w-4" />, color: "text-green-600" },
+          {
+            label: "Global BGs",
+            value: adminBackgrounds.length,
+            icon: <FileCheck className="h-4 w-4" />,
+            color: "text-green-600",
+          },
         ].map((stat) => (
           <div key={stat.label} className="rounded-xl border bg-muted/30 p-4">
             <div className={`flex items-center gap-2 ${stat.color} mb-1`}>
@@ -1340,98 +1447,98 @@ export function AdminPanel() {
                         : "hover:border-primary/50"
                     }`}
                   >
-                  <label className="absolute left-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={selectedTemplateIds.has(tmpl.id)}
-                      onChange={() => toggleTemplateSelection(tmpl.id)}
-                      aria-label={`Select ${tmpl.label}`}
-                    />
-                  </label>
-                  {/* Thumbnail or placeholder */}
-                  <div className="relative w-full aspect-square shrink-0 rounded-lg bg-muted border overflow-hidden">
-                    <TemplatePreview template={tmpl} />
-                  </div>
+                    <label className="absolute left-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={selectedTemplateIds.has(tmpl.id)}
+                        onChange={() => toggleTemplateSelection(tmpl.id)}
+                        aria-label={`Select ${tmpl.label}`}
+                      />
+                    </label>
+                    {/* Thumbnail or placeholder */}
+                    <div className="relative w-full aspect-square shrink-0 rounded-lg bg-muted border overflow-hidden">
+                      <TemplatePreview template={tmpl} />
+                    </div>
 
-                  {/* Info */}
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-sm truncate">{tmpl.label}</p>
-                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                      {tmpl.category && (
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                          {tmpl.category}
-                        </Badge>
-                      )}
-                      {tmpl.sizeId && (
-                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                          {PAGE_SIZES[0].label}
-                        </Badge>
-                      )}
-                      {(tmpl.frameLocked || tmpl.backgroundLocked) && (
-                        <span className="flex items-center gap-0.5 text-[10px] text-amber-600">
-                          <Lock className="h-3 w-3" />
-                          {[tmpl.frameLocked && "frames", tmpl.backgroundLocked && "bg"]
-                            .filter(Boolean)
-                            .join("+")}
-                        </span>
-                      )}
+                    {/* Info */}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm truncate">{tmpl.label}</p>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {tmpl.category && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            {tmpl.category}
+                          </Badge>
+                        )}
+                        {tmpl.sizeId && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                            {PAGE_SIZES[0].label}
+                          </Badge>
+                        )}
+                        {(tmpl.frameLocked || tmpl.backgroundLocked) && (
+                          <span className="flex items-center gap-0.5 text-[10px] text-amber-600">
+                            <Lock className="h-3 w-3" />
+                            {[tmpl.frameLocked && "frames", tmpl.backgroundLocked && "bg"]
+                              .filter(Boolean)
+                              .join("+")}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {/* Actions (Absolute in grid) */}
+                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 backdrop-blur-sm rounded-lg shadow-sm border p-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => moveTemplate(tmpl.id, "up")}
+                        disabled={idx === 0}
+                      >
+                        <ArrowUp className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => moveTemplate(tmpl.id, "down")}
+                        disabled={idx === sortedTemplates.length - 1}
+                      >
+                        <ArrowDown className="h-3.5 w-3.5" />
+                      </Button>
+                      <div className="w-px h-4 bg-border mx-1" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setEditingTemplate(tmpl)}
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={async () => {
+                          if (!confirm(`Delete "${tmpl.label}" permanently?`)) return;
+                          setSelectedTemplateIds((current) => {
+                            const next = new Set(current);
+                            next.delete(tmpl.id);
+                            return next;
+                          });
+                          try {
+                            await deleteAdminTemplate(tmpl.id);
+                            toast.success("Template deleted");
+                          } catch (error) {
+                            toast.error((error as Error).message || "Failed to delete template");
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
                     </div>
                   </div>
-                                {/* Actions (Absolute in grid) */}
-                  <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 backdrop-blur-sm rounded-lg shadow-sm border p-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => moveTemplate(tmpl.id, "up")}
-                      disabled={idx === 0}
-                    >
-                      <ArrowUp className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => moveTemplate(tmpl.id, "down")}
-                      disabled={idx === sortedTemplates.length - 1}
-                    >
-                      <ArrowDown className="h-3.5 w-3.5" />
-                    </Button>
-                    <div className="w-px h-4 bg-border mx-1" />
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => setEditingTemplate(tmpl)}
-                    >
-                      <Tag className="h-3.5 w-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={async () => {
-                        if (!confirm(`Delete "${tmpl.label}" permanently?`)) return;
-                        setSelectedTemplateIds((current) => {
-                          const next = new Set(current);
-                          next.delete(tmpl.id);
-                          return next;
-                        });
-                        try {
-                          await deleteAdminTemplate(tmpl.id);
-                          toast.success("Template deleted");
-                        } catch (error) {
-                          toast.error((error as Error).message || "Failed to delete template");
-                        }
-                      }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             )}
           </div>
         </TabsContent>
@@ -1489,10 +1596,7 @@ export function AdminPanel() {
 
       {/* Dialogs */}
       <ConvertProjectDialog open={showConvert} onOpenChange={setShowConvert} />
-      <EditTemplateDialog
-        template={editingTemplate}
-        onClose={() => setEditingTemplate(null)}
-      />
+      <EditTemplateDialog template={editingTemplate} onClose={() => setEditingTemplate(null)} />
     </div>
   );
 }

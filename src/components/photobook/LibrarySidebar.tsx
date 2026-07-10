@@ -143,7 +143,9 @@ export function LibrarySidebar() {
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                   Pages
                 </p>
-                <p className="text-[11px] text-muted-foreground">{pages.length} pages in this book</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {pages.length} pages in this book
+                </p>
               </div>
               <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2" onClick={addPage}>
                 <Plus className="h-3.5 w-3.5" />
@@ -152,79 +154,18 @@ export function LibrarySidebar() {
             </div>
             <div className="min-h-0 flex-1 overflow-y-scroll pr-2 space-y-3">
               {/* ── Cover ── */}
-              {pages.length > 0 && (() => {
-                const coverPage = pages[0];
-                const active = coverPage.id === currentPageId;
-                return (
-                  <div>
-                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Cover</p>
-                    <PageThumb
-                      page={coverPage}
-                      index={0}
-                      total={pages.length}
-                      active={active}
-                      setCurrentPage={setCurrentPage}
-                      duplicatePage={duplicatePage}
-                      deletePage={deletePage}
-                      pages={pages}
-                      pageDragState={pageDragState}
-                      setPageDragState={setPageDragState}
-                      fullWidth
-                      sidebarWidth={width}
-                    />
-                  </div>
-                );
-              })()}
-
-              {/* ── Inner pages (pairs) ── */}
-              {pages.length > 2 && (() => {
-                const innerPages = pages.slice(1, pages.length - 1);
-                // Group into pairs
-                const pairs: (typeof pages)[] = [];
-                for (let i = 0; i < innerPages.length; i += 2) {
-                  pairs.push(innerPages.slice(i, i + 2));
-                }
-                return (
-                  <div>
-                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pages</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      {pairs.map((pair, pairIdx) =>
-                        pair.map((page) => {
-                          const realIdx = pages.findIndex((p) => p.id === page.id);
-                          return (
-                            <PageThumb
-                              key={page.id}
-                              page={page}
-                              index={realIdx}
-                              total={pages.length}
-                              active={page.id === currentPageId}
-                              setCurrentPage={setCurrentPage}
-                              duplicatePage={duplicatePage}
-                              deletePage={deletePage}
-                              pages={pages}
-                              pageDragState={pageDragState}
-                              setPageDragState={setPageDragState}
-                              sidebarWidth={width}
-                            />
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {/* Single inner page when exactly 3 pages total */}
-              {pages.length === 3 && (() => {
-                const page = pages[1];
-                const active = page.id === currentPageId;
-                return (
-                  <div>
-                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Pages</p>
-                    <div className="grid grid-cols-2 gap-2">
+              {pages.length > 0 &&
+                (() => {
+                  const coverPage = pages[0];
+                  const active = coverPage.id === currentPageId;
+                  return (
+                    <div>
+                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Cover
+                      </p>
                       <PageThumb
-                        page={page}
-                        index={1}
+                        page={coverPage}
+                        index={0}
                         total={pages.length}
                         active={active}
                         setCurrentPage={setCurrentPage}
@@ -233,37 +174,110 @@ export function LibrarySidebar() {
                         pages={pages}
                         pageDragState={pageDragState}
                         setPageDragState={setPageDragState}
+                        fullWidth
                         sidebarWidth={width}
                       />
                     </div>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
+
+              {/* ── Inner pages (pairs) ── */}
+              {pages.length > 2 &&
+                (() => {
+                  const innerPages = pages.slice(1, pages.length - 1);
+                  // Group into pairs
+                  const pairs: (typeof pages)[] = [];
+                  for (let i = 0; i < innerPages.length; i += 2) {
+                    pairs.push(innerPages.slice(i, i + 2));
+                  }
+                  return (
+                    <div>
+                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Pages
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {pairs.map((pair, pairIdx) =>
+                          pair.map((page) => {
+                            const realIdx = pages.findIndex((p) => p.id === page.id);
+                            return (
+                              <PageThumb
+                                key={page.id}
+                                page={page}
+                                index={realIdx}
+                                total={pages.length}
+                                active={page.id === currentPageId}
+                                setCurrentPage={setCurrentPage}
+                                duplicatePage={duplicatePage}
+                                deletePage={deletePage}
+                                pages={pages}
+                                pageDragState={pageDragState}
+                                setPageDragState={setPageDragState}
+                                sidebarWidth={width}
+                              />
+                            );
+                          }),
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              {/* Single inner page when exactly 3 pages total */}
+              {pages.length === 3 &&
+                (() => {
+                  const page = pages[1];
+                  const active = page.id === currentPageId;
+                  return (
+                    <div>
+                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Pages
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <PageThumb
+                          page={page}
+                          index={1}
+                          total={pages.length}
+                          active={active}
+                          setCurrentPage={setCurrentPage}
+                          duplicatePage={duplicatePage}
+                          deletePage={deletePage}
+                          pages={pages}
+                          pageDragState={pageDragState}
+                          setPageDragState={setPageDragState}
+                          sidebarWidth={width}
+                        />
+                      </div>
+                    </div>
+                  );
+                })()}
 
               {/* ── Back cover ── */}
-              {pages.length > 1 && (() => {
-                const backPage = pages[pages.length - 1];
-                const active = backPage.id === currentPageId;
-                return (
-                  <div>
-                    <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Back cover</p>
-                    <PageThumb
-                      page={backPage}
-                      index={pages.length - 1}
-                      total={pages.length}
-                      active={active}
-                      setCurrentPage={setCurrentPage}
-                      duplicatePage={duplicatePage}
-                      deletePage={deletePage}
-                      pages={pages}
-                      pageDragState={pageDragState}
-                      setPageDragState={setPageDragState}
-                      fullWidth
-                      sidebarWidth={width}
-                    />
-                  </div>
-                );
-              })()}
+              {pages.length > 1 &&
+                (() => {
+                  const backPage = pages[pages.length - 1];
+                  const active = backPage.id === currentPageId;
+                  return (
+                    <div>
+                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        Back cover
+                      </p>
+                      <PageThumb
+                        page={backPage}
+                        index={pages.length - 1}
+                        total={pages.length}
+                        active={active}
+                        setCurrentPage={setCurrentPage}
+                        duplicatePage={duplicatePage}
+                        deletePage={deletePage}
+                        pages={pages}
+                        pageDragState={pageDragState}
+                        setPageDragState={setPageDragState}
+                        fullWidth
+                        sidebarWidth={width}
+                      />
+                    </div>
+                  );
+                })()}
             </div>
           </div>
         ) : (
@@ -398,10 +412,7 @@ export function MobilePagesStrip() {
       {open && (
         <div className="px-3 pb-3">
           {/* Scrollable thumbnail row */}
-          <div
-            ref={stripRef}
-            className="flex gap-2 overflow-x-auto pb-1 snap-x touch-pan-x"
-          >
+          <div ref={stripRef} className="flex gap-2 overflow-x-auto pb-1 snap-x touch-pan-x">
             {pages.map((page, index) => {
               const active = page.id === currentPageId;
               return (
@@ -553,9 +564,7 @@ function PageThumb({
   sidebarWidth: number;
 }) {
   // Container width inside the sidebar layout
-  const containerWidth = fullWidth
-    ? (sidebarWidth - 48)
-    : (sidebarWidth - 48 - 8) / 2;
+  const containerWidth = fullWidth ? sidebarWidth - 48 : (sidebarWidth - 48 - 8) / 2;
 
   // Since FIXED_PAGE_SIZE width/height is 550, scale factor is containerWidth / 550
   const scale = Math.max(0.05, containerWidth / 550);
@@ -588,7 +597,12 @@ function PageThumb({
         setPageDragState({ id: draggedId, dropped: true });
       }}
       onDragEnd={() => {
-        if (pageDragState.id && !pageDragState.dropped && typeof window !== "undefined" && window.innerWidth < 768) {
+        if (
+          pageDragState.id &&
+          !pageDragState.dropped &&
+          typeof window !== "undefined" &&
+          window.innerWidth < 768
+        ) {
           deletePage(pageDragState.id);
         }
         setPageDragState({ id: null, dropped: false });
@@ -623,8 +637,17 @@ function PageThumb({
           role="button"
           tabIndex={0}
           title="Duplicate page"
-          onClick={(e) => { e.stopPropagation(); duplicatePage(page.id); }}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); duplicatePage(page.id); } }}
+          onClick={(e) => {
+            e.stopPropagation();
+            duplicatePage(page.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              duplicatePage(page.id);
+            }
+          }}
           className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm hover:bg-background"
         >
           <Copy className="h-3.5 w-3.5" />
@@ -633,8 +656,17 @@ function PageThumb({
           role="button"
           tabIndex={0}
           title="Delete page"
-          onClick={(e) => { e.stopPropagation(); deletePage(page.id); }}
-          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); deletePage(page.id); } }}
+          onClick={(e) => {
+            e.stopPropagation();
+            deletePage(page.id);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              deletePage(page.id);
+            }
+          }}
           className={`grid h-6 w-6 place-items-center rounded-md bg-background/90 shadow-sm ${
             pages.length <= 1 ? "pointer-events-none text-muted-foreground/40" : "text-sky-600"
           }`}
@@ -652,7 +684,6 @@ function Grid({
   onFav,
   onDel,
   onExclude,
-
 }: {
   items: { id: string; src: string; name: string; favorite?: boolean; excluded?: boolean }[];
   onAdd: (id: string) => void;
@@ -691,7 +722,11 @@ function Grid({
             }`}
             title={img.excluded ? "Excluded from random autofill" : "Include in random autofill"}
           >
-            {img.excluded ? <Check className="h-3 w-3 stroke-[3.5]" /> : <Check className="h-3 w-3 opacity-30" />}
+            {img.excluded ? (
+              <Check className="h-3 w-3 stroke-[3.5]" />
+            ) : (
+              <Check className="h-3 w-3 opacity-30" />
+            )}
           </button>
 
           <img

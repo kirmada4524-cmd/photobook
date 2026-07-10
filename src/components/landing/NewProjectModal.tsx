@@ -45,9 +45,7 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
             <BookOpen className="h-5 w-5 text-amber-600" />
             Create New Project
           </DialogTitle>
-          <DialogDescription>
-            Give your project a name to get started.
-          </DialogDescription>
+          <DialogDescription>Give your project a name to get started.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 pt-1">
