@@ -1,16 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { useAuthStore } from "@/lib/auth";
 import { LoginModal } from "./LoginModal";
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectSelectionModal } from "./ProjectSelectionModal";
 import { TemplateStartModal } from "./TemplateStartModal";
-import { Button } from "@/components/ui/button";
 import {
   BookOpen,
   Clock,
   FolderOpen,
-  LogIn,
   LogOut,
   Plus,
   Shield,
@@ -19,8 +17,133 @@ import {
   Layers,
   Download,
   Palette,
+  Upload,
+  Truck,
+  ArrowRight,
+  Lock,
 } from "lucide-react";
 
+// ─── Design tokens ────────────────────────────────────────────────────────────
+const C = {
+  brand: "oklch(0.55 0.14 35)",
+  brandSoft: "oklch(0.88 0.06 55)",
+  ink: "oklch(0.18 0.02 60)",
+  cream: "oklch(0.983 0.012 85)",
+};
+
+// ─── Samples data ─────────────────────────────────────────────────────────────
+const SAMPLES = [
+  {
+    title: "Travel",
+    tag: "12 spreads",
+    img: "https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=600&q=80",
+    img2: "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?w=400&q=80",
+    img3: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=400&q=80",
+  },
+  {
+    title: "Wedding",
+    tag: "24 spreads",
+    img: "https://images.unsplash.com/photo-1519741497674-611481863552?w=600&q=80",
+    img2: "https://images.unsplash.com/photo-1465495976277-4387d4b0e4a6?w=400&q=80",
+    img3: "https://images.unsplash.com/photo-1511285560929-80b456fea0bc?w=400&q=80",
+  },
+  {
+    title: "Family",
+    tag: "16 spreads",
+    img: "https://images.unsplash.com/photo-1511895426328-dc8714191300?w=600&q=80",
+    img2: "https://images.unsplash.com/photo-1543342384-1f1350e27861?w=400&q=80",
+    img3: "https://images.unsplash.com/photo-1602576666092-bf6447a729fc?w=400&q=80",
+  },
+  {
+    title: "Birthday",
+    tag: "10 spreads",
+    img: "https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=600&q=80",
+    img2: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&q=80",
+    img3: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=400&q=80",
+  },
+];
+
+const STEPS = [
+  {
+    icon: Upload,
+    num: "01",
+    title: "Upload",
+    desc: "Drop in your favorite photos from any device — JPG, PNG, or WebP.",
+  },
+  {
+    icon: Sparkles,
+    num: "02",
+    title: "Arrange",
+    desc: "Smart layouts auto-fill your spreads, or go fully custom with our drag-and-drop editor.",
+  },
+  {
+    icon: Truck,
+    num: "03",
+    title: "Delivered",
+    desc: "Premium printed book at your door in 3–5 days. Ships worldwide.",
+  },
+];
+
+const FEATURES = [
+  {
+    icon: Layers,
+    color: `linear-gradient(135deg, oklch(0.65 0.14 250), oklch(0.5 0.18 265))`,
+    title: "Occasion Templates",
+    desc: "Start with ready layouts for birthdays, weddings, travel, couples, family memories, baby books, and gifts.",
+  },
+  {
+    icon: Palette,
+    color: `linear-gradient(135deg, oklch(0.65 0.14 195), oklch(0.55 0.18 235))`,
+    title: "Drag-and-Drop Editing",
+    desc: "Place photos, frames, text, stickers, and backgrounds exactly where you want them.",
+  },
+  {
+    icon: Star,
+    color: `linear-gradient(135deg, oklch(0.60 0.16 290), oklch(0.50 0.20 310))`,
+    title: "Stickers & Frames",
+    desc: "Use admin sticker folders, custom uploads, frame styles, and text to personalize each page.",
+  },
+  {
+    icon: BookOpen,
+    color: `linear-gradient(135deg, oklch(0.65 0.14 35), oklch(0.45 0.12 25))`,
+    title: "5.5 × 5.5 Format",
+    desc: "Build every book in one consistent square size that is simple to preview, export, and print.",
+  },
+  {
+    icon: Sparkles,
+    color: `linear-gradient(135deg, oklch(0.65 0.18 60), oklch(0.55 0.16 45))`,
+    title: "Real Book Preview",
+    desc: "Flip through your photobook on mobile or desktop before exporting.",
+  },
+  {
+    icon: Download,
+    color: `linear-gradient(135deg, oklch(0.60 0.14 160), oklch(0.48 0.16 145))`,
+    title: "Print-Ready PDF",
+    desc: "Export a clean high-quality PDF for printing, sharing, or saving.",
+  },
+];
+
+// ─── Floating photo card ──────────────────────────────────────────────────────
+function FloatingPhoto({
+  src,
+  className,
+  style,
+}: {
+  src: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <div
+      className={`absolute w-28 h-32 rounded-xl bg-white p-1.5 shadow-2xl border border-white/70 hp-float ${className ?? ""}`}
+      style={style}
+    >
+      <img src={src} alt="" className="w-full h-full object-cover rounded-lg" />
+    </div>
+  );
+}
+
+// ─── Main LandingPage ─────────────────────────────────────────────────────────
 export function LandingPage() {
   const { currentUser, logout, isAdmin } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
@@ -28,214 +151,562 @@ export function LandingPage() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showProjects, setShowProjects] = useState<"recent" | "open" | null>(null);
 
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [scrollPct, setScrollPct] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      if (!heroRef.current) return;
+      const { top, height } = heroRef.current.getBoundingClientRect();
+      setScrollPct(Math.max(0, Math.min(1, -top / height)));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const handleLogout = () => {
+    logout();
+  };
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col overflow-x-hidden relative">
-      {/* Background soft gradients */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        <div className="absolute -top-40 -right-40 h-[800px] w-[800px] rounded-full bg-blue-200/50 blur-[100px]" />
-        <div className="absolute top-[20%] -left-40 h-[600px] w-[600px] rounded-full bg-cyan-200/40 blur-[120px]" />
-        <div className="absolute bottom-0 left-1/3 h-[500px] w-[700px] rounded-full bg-indigo-200/30 blur-[100px]" />
-      </div>
-
-      {/* ── Top Navigation ─────────────────────────────────────────── */}
-      <nav className="relative z-20 flex items-center justify-between px-6 py-4 lg:px-12 backdrop-blur-md bg-white/40 border-b border-white/60 shadow-sm">
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center shadow-md">
-            <BookOpen className="h-5 w-5 text-white" />
-          </div>
-          <span
-            className="text-2xl font-bold tracking-tight text-slate-800"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Yaara
-          </span>
-        </div>
-
-        {/* Nav actions */}
-        <div className="flex items-center gap-3">
-          {isAdmin && (
-            <Link
-              to="/admin"
-              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-blue-600 hover:bg-blue-600/10 transition-colors"
+    <div
+      className="min-h-screen overflow-x-hidden"
+      style={{ background: C.cream, color: C.ink, fontFamily: "'Inter', sans-serif" }}
+    >
+      {/* ═══════════════════════════════════════
+          NAV
+      ═══════════════════════════════════════ */}
+      <header
+        className="sticky top-0 z-40 border-b"
+        style={{
+          backdropFilter: "blur(12px)",
+          background: `${C.cream}b0`,
+          borderColor: `${C.ink}0d`,
+        }}
+      >
+        <div className="mx-auto max-w-6xl px-6 py-4 flex items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-5 h-5" style={{ color: C.brand }} />
+            <span
+              className="text-xl"
+              style={{
+                fontFamily: "'Instrument Serif', serif",
+                fontStyle: "italic",
+              }}
             >
-              <Shield className="h-4 w-4" />
-              Admin
-            </Link>
-          )}
-          {currentUser ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-medium text-slate-600">
-                {isAdmin ? "Admin" : "User"} - {currentUser.username}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1.5 text-slate-600 hover:text-slate-900 hover:bg-slate-900/10"
-                onClick={logout}
-              >
-                <LogOut className="h-4 w-4" />
-                Sign Out
-              </Button>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-blue-200 bg-white/60 text-blue-600 hover:bg-blue-50 hover:text-blue-700 shadow-sm"
-              onClick={() => setShowLogin(true)}
-            >
-              <LogIn className="h-4 w-4" />
-              Sign In
-            </Button>
-          )}
-        </div>
-      </nav>
-
-      {/* ── Hero Section ───────────────────────────────────────────── */}
-      <section className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-24 text-center">
-        <div className="relative max-w-4xl backdrop-blur-xl bg-white/40 border border-white/60 p-12 rounded-3xl shadow-[0_8px_32px_0_rgba(31,38,135,0.07)]">
-          {/* Badge */}
-          <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-4 py-1.5 text-sm font-medium text-blue-600 shadow-sm">
-            <Sparkles className="h-3.5 w-3.5" />
-            Custom Photobook Creator
-          </div>
-
-          {/* Heading */}
-          <h1
-            className="text-5xl font-bold tracking-tight md:text-7xl text-slate-800"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Create a Photobook for{" "}
-            <span className="bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-500 bg-clip-text text-transparent">
-              Every Memory
+              Yaara
             </span>
-          </h1>
-
-          <p className="mt-6 max-w-2xl mx-auto text-lg text-slate-600 leading-relaxed font-medium">
-            Yaara helps you design beautiful 5.5 x 5.5 photobooks for birthdays, weddings,
-            travel, family stories, couples, and gifts with easy templates, stickers,
-            backgrounds, and print-ready PDF export.
-          </p>
-
-          {/* CTA Buttons */}
-          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            {/* Create New Project */}
-            <button
-              id="btn-create-project"
-              onClick={() => setShowNewProject(true)}
-              className="group relative flex items-center gap-3 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 px-8 py-4 text-base font-semibold text-white shadow-xl transition-all hover:scale-105 hover:shadow-blue-500/25 active:scale-100 border border-white/20"
-            >
-              <Plus className="h-5 w-5 transition-transform group-hover:rotate-90" />
-              Create New Project
-              <div className="absolute inset-0 rounded-2xl bg-white/20 opacity-0 group-hover:opacity-100 transition-opacity" />
-            </button>
-
-            {/* Recently Used Projects */}
-            <button
-              id="btn-start-template"
-              onClick={() => setShowTemplates(true)}
-              className="flex items-center gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 px-8 py-4 text-base font-semibold text-blue-700 shadow-sm backdrop-blur-md transition-all hover:scale-105 hover:bg-blue-100 active:scale-100"
-            >
-              <Layers className="h-5 w-5 text-blue-500" />
-              Templates
-            </button>
-
-            <button
-              id="btn-recent-projects"
-              onClick={() => setShowProjects("recent")}
-              className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/50 px-8 py-4 text-base font-semibold text-slate-700 backdrop-blur-md shadow-sm transition-all hover:bg-white/80 hover:scale-105 active:scale-100"
-            >
-              <Clock className="h-5 w-5 text-indigo-500" />
-              Recent Projects
-            </button>
-
-            {/* Open My Projects */}
-            <button
-              id="btn-open-projects"
-              onClick={() => setShowProjects("open")}
-              className="flex items-center gap-3 rounded-2xl border border-white/60 bg-white/50 px-8 py-4 text-base font-semibold text-slate-700 backdrop-blur-md shadow-sm transition-all hover:bg-white/80 hover:scale-105 active:scale-100"
-            >
-              <FolderOpen className="h-5 w-5 text-cyan-500" />
-              Open My Projects
-            </button>
           </div>
-        </div>
-      </section>
 
-      {/* ── Features Section ────────────────────────────────────────── */}
-      <section className="relative z-10 px-6 pb-24 lg:px-12">
-        <div className="mx-auto max-w-5xl">
-          <h2
-            className="mb-12 text-center text-3xl font-bold text-slate-800"
-            style={{ fontFamily: "'Playfair Display', serif" }}
-          >
-            Everything You Need to Build Your Book
-          </h2>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              {
-                icon: <Layers className="h-6 w-6" />,
-                color: "from-blue-400 to-indigo-500",
-                title: "Occasion Templates",
-                desc: "Start with ready layouts for birthdays, weddings, travel, couples, family memories, baby books, and gifts.",
-              },
-              {
-                icon: <Palette className="h-6 w-6" />,
-                color: "from-cyan-400 to-blue-500",
-                title: "Drag-and-Drop Editing",
-                desc: "Place photos, frames, text, stickers, and backgrounds exactly where you want them.",
-              },
-              {
-                icon: <Star className="h-6 w-6" />,
-                color: "from-indigo-400 to-purple-500",
-                title: "Stickers & Frames",
-                desc: "Use admin sticker folders, custom uploads, frame styles, and text to personalize each page.",
-              },
-              {
-                icon: <BookOpen className="h-6 w-6" />,
-                color: "from-sky-400 to-blue-500",
-                title: "5.5 x 5.5 Format",
-                desc: "Build every book in one consistent square size that is simple to preview, export, and print.",
-              },
-              {
-                icon: <Sparkles className="h-6 w-6" />,
-                color: "from-blue-500 to-cyan-500",
-                title: "Real Book Preview",
-                desc: "Flip through your photobook on mobile or desktop before exporting.",
-              },
-              {
-                icon: <Download className="h-6 w-6" />,
-                color: "from-indigo-500 to-blue-600",
-                title: "Print-Ready PDF",
-                desc: "Export a clean high-quality PDF for printing, sharing, or saving.",
-              },
-            ].map((feat) => (
-              <div
-                key={feat.title}
-                className="group rounded-3xl border border-white/60 bg-white/40 p-6 backdrop-blur-xl transition-all hover:bg-white/60 shadow-sm hover:shadow-md hover:-translate-y-1"
-              >
-                <div
-                  className={`mb-4 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${feat.color} text-white shadow-md`}
+          {/* Nav links */}
+          <nav className="hidden md:flex gap-8 text-sm" style={{ color: `${C.ink}b3` }}>
+            <a href="#how" className="hover:opacity-100 opacity-70 transition">How it works</a>
+            <a href="#samples" className="hover:opacity-100 opacity-70 transition">Samples</a>
+            <a href="#features" className="hover:opacity-100 opacity-70 transition">Features</a>
+          </nav>
+
+          {/* Right-side auth */}
+          <div className="flex items-center gap-3">
+            {currentUser ? (
+              <>
+                <span className="hidden sm:block text-sm font-medium" style={{ color: C.ink }}>
+                  {currentUser.username}
+                </span>
+                {isAdmin && (
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:bg-white/80"
+                    style={{ borderColor: `${C.ink}22`, color: C.brand }}
+                  >
+                    <Shield className="h-3.5 w-3.5" />
+                    Admin
+                  </Link>
+                )}
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition hover:bg-white/80"
+                  style={{ borderColor: `${C.ink}22`, color: C.ink }}
                 >
-                  {feat.icon}
-                </div>
-                <h3 className="mb-2 text-lg font-bold text-slate-800">{feat.title}</h3>
-                <p className="text-sm text-slate-600 font-medium leading-relaxed">{feat.desc}</p>
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Logout</span>
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowLogin(true)}
+                className="flex items-center gap-1.5 rounded-full border px-4 py-1.5 text-xs font-semibold transition hover:bg-white/80"
+                style={{ borderColor: `${C.ink}22`, color: C.ink }}
+              >
+                <Lock className="h-3.5 w-3.5" />
+                Admin Login
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ═══════════════════════════════════════
+          HERO
+      ═══════════════════════════════════════ */}
+      <section ref={heroRef} className="relative overflow-hidden">
+        <div className="mx-auto max-w-6xl px-6 pt-16 pb-28 grid md:grid-cols-2 gap-12 items-center">
+
+          {/* Left copy */}
+          <div className="hp-fade-up">
+            {/* Badge */}
+            <div
+              className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs mb-6"
+              style={{
+                borderColor: `${C.ink}1a`,
+                background: "rgba(255,255,255,0.65)",
+                color: `${C.ink}b3`,
+              }}
+            >
+              <Star className="w-3 h-3 fill-current" style={{ color: C.brand }} />
+              Beautiful photobooks for every memory
+            </div>
+
+            {/* Headline */}
+            <h1
+              className="text-5xl md:text-6xl leading-[1.05] tracking-tight"
+              style={{
+                fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              Your memories,{" "}
+              <span
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                }}
+              >
+                bound beautifully.
+              </span>
+            </h1>
+
+            <p className="mt-5 text-lg max-w-md" style={{ color: `${C.ink}b3` }}>
+              Design beautiful 5.5 × 5.5 photobooks for birthdays, weddings, travel, family
+              stories, and gifts — with easy templates, stickers, and print-ready PDF export.
+            </p>
+
+            {/* CTA Buttons */}
+            <div className="mt-8 grid grid-cols-2 gap-3 max-w-md">
+              <button
+                id="btn-create-project"
+                onClick={() => setShowNewProject(true)}
+                className="group col-span-2 inline-flex items-center justify-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white transition hover:scale-105 active:scale-95"
+                style={{ background: C.brand }}
+              >
+                <Plus className="w-4 h-4 transition group-hover:rotate-90" />
+                Create New Project
+              </button>
+
+              <button
+                id="btn-start-template"
+                onClick={() => setShowTemplates(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-white hover:scale-105 active:scale-95"
+                style={{ border: `1px solid ${C.ink}22`, color: C.ink }}
+              >
+                <Layers className="w-4 h-4" />
+                Templates
+              </button>
+
+              <button
+                id="btn-recent-projects"
+                onClick={() => setShowProjects("recent")}
+                className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-white hover:scale-105 active:scale-95"
+                style={{ border: `1px solid ${C.ink}22`, color: C.ink }}
+              >
+                <Clock className="w-4 h-4" />
+                Recent Projects
+              </button>
+
+              <button
+                id="btn-open-projects"
+                onClick={() => setShowProjects("open")}
+                className="inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold transition hover:bg-white hover:scale-105 active:scale-95 col-span-2"
+                style={{ border: `1px dashed ${C.ink}33`, color: `${C.ink}99` }}
+              >
+                <FolderOpen className="w-4 h-4" />
+                Open My Projects (.wanderbook file)
+              </button>
+            </div>
+
+            {/* Social proof */}
+            <div className="mt-8 flex items-center gap-3 text-xs" style={{ color: `${C.ink}80` }}>
+              <div className="flex -space-x-2">
+                {["35", "160", "320", "60"].map((hue, i) => (
+                  <div
+                    key={i}
+                    className="w-7 h-7 rounded-full border-2 border-white"
+                    style={{ background: `oklch(0.65 0.14 ${hue})` }}
+                  />
+                ))}
               </div>
-            ))}
+              <span>5.5 × 5.5 square format · Print-ready PDF export</span>
+            </div>
+          </div>
+
+          {/* Right — 3D book + floating photos */}
+          <div
+            className="relative h-[460px] flex items-center justify-center"
+            style={{
+              perspective: "1600px",
+              transform: `translateY(${scrollPct * 60}px)`,
+              transition: "transform 0.08s linear",
+            }}
+          >
+            {/* 3D Book */}
+            <div
+              className="hp-book-enter relative w-64 h-80 rounded-r-xl shadow-2xl"
+              style={{
+                background: `linear-gradient(135deg, ${C.brand}, oklch(0.38 0.12 25))`,
+                boxShadow: "0 40px 80px -20px rgba(0,0,0,0.4), inset -8px 0 20px rgba(0,0,0,0.25)",
+                transform: "rotateY(-25deg)",
+                transformStyle: "preserve-3d",
+                transformOrigin: "left center",
+              }}
+            >
+              {/* Book spine shadow */}
+              <div className="absolute left-0 top-0 bottom-0 w-3 rounded-l bg-black/30" />
+              {/* Book pages edge */}
+              <div className="absolute right-0 top-1 bottom-1 w-2 rounded-r bg-white/20" />
+              {/* Book content */}
+              <div
+                className="absolute inset-6 flex flex-col justify-between"
+                style={{ color: "rgba(255,255,255,0.9)" }}
+              >
+                <div className="text-[10px] tracking-[0.35em] uppercase opacity-60">Yaara</div>
+                <div>
+                  <div
+                    className="text-3xl leading-tight"
+                    style={{
+                      fontFamily: "'Instrument Serif', serif",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Our Story
+                  </div>
+                  <div className="text-xs mt-2 opacity-60">2025 Edition</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Floating photo cards */}
+            <FloatingPhoto
+              src="https://images.unsplash.com/photo-1502920917128-1aa500764cbd?w=300&q=80"
+              className="hp-float-1"
+              style={{ top: "8%", left: "2%", animationDelay: "0s" }}
+            />
+            <FloatingPhoto
+              src="https://images.unsplash.com/photo-1519741497674-611481863552?w=300&q=80"
+              className="hp-float-2"
+              style={{ top: "5%", right: "1%", animationDelay: "0.4s" }}
+            />
+            <FloatingPhoto
+              src="https://images.unsplash.com/photo-1511895426328-dc8714191300?w=300&q=80"
+              className="hp-float-3"
+              style={{ bottom: "5%", right: "2%", animationDelay: "0.8s" }}
+            />
+            <FloatingPhoto
+              src="https://images.unsplash.com/photo-1464349095431-e9a21285b5f3?w=300&q=80"
+              className="hp-float-4"
+              style={{ bottom: "8%", left: "0%", animationDelay: "1.2s" }}
+            />
+
+            {/* Ambient glow behind book */}
+            <div
+              className="absolute inset-0 rounded-full blur-3xl opacity-30 pointer-events-none"
+              style={{ background: C.brandSoft }}
+            />
+          </div>
+        </div>
+
+        {/* Background blobs */}
+        <div
+          className="pointer-events-none absolute -top-40 -left-40 w-96 h-96 rounded-full blur-3xl opacity-35"
+          style={{ background: C.brandSoft }}
+        />
+        <div
+          className="pointer-events-none absolute -bottom-40 -right-40 w-96 h-96 rounded-full blur-3xl opacity-20"
+          style={{ background: C.brand }}
+        />
+      </section>
+
+      {/* ═══════════════════════════════════════
+          HOW IT WORKS
+      ═══════════════════════════════════════ */}
+      <section id="how" className="mx-auto max-w-6xl px-6 py-24">
+        <div className="text-center mb-16">
+          <div
+            className="text-xs tracking-[0.3em] uppercase mb-3 font-semibold"
+            style={{ color: `${C.ink}70` }}
+          >
+            How it works
+          </div>
+          <h2
+            className="text-4xl md:text-5xl tracking-tight"
+            style={{
+              fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif",
+              fontWeight: 700,
+            }}
+          >
+            Three steps.{" "}
+            <span
+              style={{
+                fontFamily: "'Instrument Serif', serif",
+                fontStyle: "italic",
+                fontWeight: 400,
+              }}
+            >
+              That's all.
+            </span>
+          </h2>
+        </div>
+
+        <div className="grid md:grid-cols-3 gap-6">
+          {STEPS.map((s, i) => (
+            <div
+              key={s.title}
+              className="relative rounded-2xl bg-white p-8 border transition-all hover:-translate-y-1 hover:shadow-md"
+              style={{
+                borderColor: `${C.ink}0d`,
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div
+                className="absolute top-6 right-6 text-5xl font-bold select-none"
+                style={{ color: `${C.ink}08`, fontFamily: "'Bricolage Grotesque', sans-serif" }}
+              >
+                {s.num}
+              </div>
+              <div
+                className="w-12 h-12 rounded-full flex items-center justify-center mb-5"
+                style={{ background: C.brandSoft }}
+              >
+                <s.icon className="w-5 h-5" style={{ color: C.brand }} />
+              </div>
+              <div
+                className="text-xl font-semibold mb-2"
+                style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
+              >
+                {s.title}
+              </div>
+              <p className="text-sm leading-relaxed" style={{ color: `${C.ink}99` }}>
+                {s.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          SAMPLES
+      ═══════════════════════════════════════ */}
+      <section id="samples" className="mx-auto max-w-6xl px-6 py-24">
+        <div className="flex items-end justify-between mb-12">
+          <div>
+            <div
+              className="text-xs tracking-[0.3em] uppercase mb-3 font-semibold"
+              style={{ color: `${C.ink}70` }}
+            >
+              Samples
+            </div>
+            <h2
+              className="text-4xl md:text-5xl tracking-tight"
+              style={{
+                fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif",
+                fontWeight: 700,
+              }}
+            >
+              What you can{" "}
+              <span
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                }}
+              >
+                make
+              </span>
+            </h2>
+          </div>
+          <p className="hidden md:block max-w-xs text-sm" style={{ color: `${C.ink}80` }}>
+            Every book is fully customizable — start from a template or a blank page.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {SAMPLES.map((s) => (
+            <div
+              key={s.title}
+              className="group relative rounded-2xl overflow-hidden cursor-pointer transition-all hover:-translate-y-2 hover:shadow-xl"
+              style={{
+                border: `1px solid ${C.ink}0d`,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              }}
+              onClick={() => setShowNewProject(true)}
+            >
+              <div className="relative aspect-[3/4]">
+                <img
+                  src={s.img}
+                  alt={s.title}
+                  className="absolute inset-0 w-full h-full object-cover transition duration-700 group-hover:scale-110"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent" />
+                <img
+                  src={s.img2}
+                  alt=""
+                  className="absolute bottom-14 right-3 w-16 h-16 rounded-lg object-cover border-2 border-white shadow-lg transition-transform group-hover:rotate-0"
+                  style={{ transform: "rotate(6deg)" }}
+                />
+                <img
+                  src={s.img3}
+                  alt=""
+                  className="absolute bottom-24 right-14 w-14 h-14 rounded-lg object-cover border-2 border-white shadow-lg transition-transform group-hover:rotate-0"
+                  style={{ transform: "rotate(-8deg)" }}
+                />
+                <div className="absolute bottom-4 left-4 text-white">
+                  <div
+                    className="text-lg font-semibold"
+                    style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
+                  >
+                    {s.title}
+                  </div>
+                  <div className="text-xs opacity-75">{s.tag}</div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          FEATURES
+      ═══════════════════════════════════════ */}
+      <section id="features" className="mx-auto max-w-6xl px-6 py-24">
+        <div className="text-center mb-16">
+          <div
+            className="text-xs tracking-[0.3em] uppercase mb-3 font-semibold"
+            style={{ color: `${C.ink}70` }}
+          >
+            Features
+          </div>
+          <h2
+            className="text-4xl md:text-5xl tracking-tight"
+            style={{
+              fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif",
+              fontWeight: 700,
+            }}
+          >
+            Everything you need{" "}
+            <span
+              style={{
+                fontFamily: "'Instrument Serif', serif",
+                fontStyle: "italic",
+                fontWeight: 400,
+              }}
+            >
+              to build your book
+            </span>
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {FEATURES.map((feat) => (
+            <div
+              key={feat.title}
+              className="group rounded-2xl bg-white p-6 border transition-all hover:-translate-y-1 hover:shadow-md"
+              style={{
+                borderColor: `${C.ink}0d`,
+                boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+              }}
+            >
+              <div
+                className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-xl text-white shadow-md"
+                style={{ background: feat.color }}
+              >
+                <feat.icon className="h-6 w-6" />
+              </div>
+              <h3
+                className="mb-2 text-lg font-bold"
+                style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
+              >
+                {feat.title}
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: `${C.ink}80` }}>
+                {feat.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          CTA BANNER
+      ═══════════════════════════════════════ */}
+      <section className="mx-auto max-w-6xl px-6 pb-28">
+        <div
+          className="relative overflow-hidden rounded-3xl p-12 md:p-16 text-center"
+          style={{ background: C.ink }}
+        >
+          <div
+            className="absolute inset-0 opacity-25"
+            style={{
+              background: `radial-gradient(circle at 25% 25%, ${C.brand}, transparent 55%), radial-gradient(circle at 75% 75%, ${C.brandSoft}, transparent 55%)`,
+            }}
+          />
+          <div className="relative">
+            <h2
+              className="text-4xl md:text-5xl tracking-tight"
+              style={{
+                fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif",
+                fontWeight: 700,
+                color: C.cream,
+              }}
+            >
+              Start your book{" "}
+              <span
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                }}
+              >
+                today
+              </span>
+            </h2>
+            <p className="mt-4 max-w-md mx-auto text-sm" style={{ color: `${C.cream}cc` }}>
+              5.5 × 5.5 square format · Print-ready PDF · Stickers, frames & templates included
+            </p>
+            <button
+              onClick={() => setShowNewProject(true)}
+              className="mt-8 inline-flex items-center gap-2 rounded-full px-8 py-4 text-sm font-semibold transition hover:scale-105 active:scale-95"
+              style={{ background: C.cream, color: C.ink }}
+            >
+              Create your photobook
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </section>
 
-      {/* ── Footer ─────────────────────────────────────────────────── */}
-      <footer className="relative z-10 border-t border-slate-200/60 bg-white/30 backdrop-blur-md px-6 py-6 text-center lg:px-12">
-        <p className="text-sm font-medium text-slate-500">
-          Copyright 2026 Yaara - Custom Photobook Studio. All rights reserved.
-        </p>
+      {/* ═══════════════════════════════════════
+          FOOTER
+      ═══════════════════════════════════════ */}
+      <footer
+        className="border-t py-8 text-center text-xs"
+        style={{ borderColor: `${C.ink}0d`, color: `${C.ink}70` }}
+      >
+        © 2026 Yaara — Custom Photobook Studio. All rights reserved.
       </footer>
 
-      {/* ── Modals ──────────────────────────────────────────────────── */}
+      {/* ═══════════════════════════════════════
+          MODALS
+      ═══════════════════════════════════════ */}
       <LoginModal open={showLogin} onOpenChange={setShowLogin} />
       <NewProjectModal open={showNewProject} onOpenChange={setShowNewProject} />
       <TemplateStartModal open={showTemplates} onOpenChange={setShowTemplates} />

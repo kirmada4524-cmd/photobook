@@ -2131,35 +2131,63 @@
 }
 
 /* ═══════════════════════════════════════════════════
-   Home Page Animations
+   Home Page (Landing) Animations
 ═══════════════════════════════════════════════════ */
 
-@keyframes homeFloat {
-  0%   { transform: translateY(0px) rotate(var(--rot, 0deg)); }
-  100% { transform: translateY(-10px) rotate(var(--rot, 0deg)); }
-}
-
-@keyframes homeFadeUp {
-  from { opacity: 0; transform: translateY(24px); }
+/* Fade up on load */
+@keyframes hpFadeUp {
+  from { opacity: 0; transform: translateY(28px); }
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes homeBookEnter {
+/* 3D book entrance: rotates in from -80deg to -25deg */
+@keyframes hpBookEnter {
   from { opacity: 0; transform: rotateY(-80deg); }
   to   { opacity: 1; transform: rotateY(-25deg); }
 }
 
-.home-fade-up {
+/* Floating photo cards — four variants with different amplitude + timing */
+@keyframes hpFloat1 {
+  0%, 100% { transform: translateY(0px) rotate(-5deg); }
+  50%       { transform: translateY(-12px) rotate(-5deg); }
+}
+@keyframes hpFloat2 {
+  0%, 100% { transform: translateY(0px) rotate(7deg); }
+  50%       { transform: translateY(-9px) rotate(7deg); }
+}
+@keyframes hpFloat3 {
+  0%, 100% { transform: translateY(0px) rotate(-6deg); }
+  50%       { transform: translateY(-14px) rotate(-6deg); }
+}
+@keyframes hpFloat4 {
+  0%, 100% { transform: translateY(0px) rotate(8deg); }
+  50%       { transform: translateY(-10px) rotate(8deg); }
+}
+
+/* ── Utility classes ── */
+
+.hp-fade-up {
   opacity: 0;
-  animation: homeFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: hpFadeUp 0.75s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
 }
 
-.home-fade-up-scroll {
-  animation: homeFadeUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
-  animation-play-state: paused;
+.hp-book-enter {
+  animation: hpBookEnter 1.1s cubic-bezier(0.22, 1, 0.36, 1) 0.25s both;
 }
 
-.home-book-enter {
-  animation: homeBookEnter 1.2s cubic-bezier(0.22, 1, 0.36, 1) 0.3s both;
+/* Floating cards: each card gets its own keyframe so rotations are independent */
+.hp-float-1,
+.hp-float-2,
+.hp-float-3,
+.hp-float-4 {
+  /* base styles live on the element via className in React */
 }
+
+.hp-float-1 { animation: hpFloat1 3.6s ease-in-out 0s   infinite; }
+.hp-float-2 { animation: hpFloat2 4.0s ease-in-out 0.5s infinite; }
+.hp-float-3 { animation: hpFloat3 3.8s ease-in-out 1.0s infinite; }
+.hp-float-4 { animation: hpFloat4 4.2s ease-in-out 1.5s infinite; }
+
+/* Generic float used as fallback */
+.hp-float   { animation: hpFloat1 3.8s ease-in-out infinite; }
 
