@@ -146,70 +146,33 @@ function FloatingPhoto({
   );
 }
 
-const TEMPLATE_COLLAPSE_LIMIT = 6;
 const TEMPLATE_CATEGORY_ORDER = ["Birthday", "Travel", "Wedding", "Family", "Couples", "Baby", "Common", "General"];
-
-type TemplateCategoryGroup = {
-  category: string;
-  templates: SavedPageTemplate[];
-};
-
-function groupTemplatesByCategory(templates: SavedPageTemplate[]): TemplateCategoryGroup[] {
-  const grouped = templates.reduce(
-    (acc, template) => {
-      const category = template.category?.trim() || "General";
-      if (!acc[category]) acc[category] = [];
-      acc[category].push(template);
-      return acc;
-    },
-    {} as Record<string, SavedPageTemplate[]>,
-  );
-
-  return Object.entries(grouped)
-    .map(([category, items]) => ({
-      category,
-      templates: items.slice().sort((a, b) => {
-        const orderA = a.sortOrder ?? 0;
-        const orderB = b.sortOrder ?? 0;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.label.localeCompare(b.label);
-      }),
-    }))
-    .sort((a, b) => {
-      const priorityA = TEMPLATE_CATEGORY_ORDER.indexOf(a.category);
-      const priorityB = TEMPLATE_CATEGORY_ORDER.indexOf(b.category);
-      if (priorityA !== -1 || priorityB !== -1) {
-        if (priorityA === -1) return 1;
-        if (priorityB === -1) return -1;
-        if (priorityA !== priorityB) return priorityA - priorityB;
-      }
-      return a.category.localeCompare(b.category);
-    });
-}
 
 function TemplateCard({ template, onClick }: { template: SavedPageTemplate; onClick: () => void }) {
   return (
-    <div
+    <button
+      type="button"
       onClick={onClick}
-      className="group relative overflow-hidden rounded-[1.75rem] cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
-      style={{ border: `1px solid rgba(0,0,0,0.04)`, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+      className="group min-w-0 text-left"
     >
-      <div className="relative aspect-square bg-white">
+      <div className="relative aspect-square overflow-hidden rounded-md border border-black/10 bg-white shadow-[0_8px_24px_-18px_rgba(0,0,0,0.45)] transition duration-300 group-hover:-translate-y-1 group-hover:border-black/25 group-hover:shadow-[0_18px_35px_-20px_rgba(0,0,0,0.5)]">
         <TemplatePreview
           template={template}
           className="absolute inset-0 w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-4 text-white">
-          <div
-            className="text-base font-semibold leading-tight"
-            style={{ fontFamily: "'Bricolage Grotesque', sans-serif" }}
-          >
-            {template.label}
-          </div>
+        <div className="absolute inset-0 flex items-end bg-black/0 p-3 opacity-0 transition group-hover:bg-black/10 group-hover:opacity-100">
+          <span className="rounded-md bg-white px-3 py-2 text-xs font-semibold text-black shadow-md">
+            Use template
+          </span>
         </div>
       </div>
-    </div>
+      <div className="mt-3 truncate text-sm font-semibold" style={{ color: C.ink }}>
+        {template.label}
+      </div>
+      <div className="mt-1 text-[11px] font-medium uppercase tracking-[0.12em]" style={{ color: `${C.ink}70` }}>
+        {template.category?.trim() || "General"}
+      </div>
+    </button>
   );
 }
 
@@ -220,98 +183,66 @@ function HomeTemplatesGrid({
   templates: SavedPageTemplate[];
   onShowMore: () => void;
 }) {
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const groupedTemplates = useMemo(() => groupTemplatesByCategory(templates), [templates]);
-
-  const toggleCategory = (category: string) => {
-    setExpandedCategories((current) => {
-      const next = new Set(current);
-      if (next.has(category)) next.delete(category);
-      else next.add(category);
-      return next;
+  const [activeCategory, setActiveCategory] = useState("All");
+  const categories = useMemo(() => {
+    const found = Array.from(new Set(templates.map((template) => template.category?.trim() || "General")));
+    return found.sort((a, b) => {
+      const priorityA = TEMPLATE_CATEGORY_ORDER.indexOf(a);
+      const priorityB = TEMPLATE_CATEGORY_ORDER.indexOf(b);
+      if (priorityA === -1 && priorityB === -1) return a.localeCompare(b);
+      if (priorityA === -1) return 1;
+      if (priorityB === -1) return -1;
+      return priorityA - priorityB;
     });
-  };
+  }, [templates]);
+  const visibleTemplates = useMemo(
+    () =>
+      templates
+        .filter(
+          (template) =>
+            activeCategory === "All" || (template.category?.trim() || "General") === activeCategory,
+        )
+        .slice()
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label))
+        .slice(0, 12),
+    [activeCategory, templates],
+  );
 
   if (!templates || templates.length === 0) {
     return <div className="py-12 text-center text-muted-foreground">No templates available.</div>;
   }
 
   return (
-    <div className="space-y-8">
-      {groupedTemplates.map((group) => {
-        const isExpanded = expandedCategories.has(group.category);
-        const visibleTemplates = isExpanded
-          ? group.templates
-          : group.templates.slice(0, TEMPLATE_COLLAPSE_LIMIT);
-        const hiddenCount = Math.max(0, group.templates.length - TEMPLATE_COLLAPSE_LIMIT);
-
-        return (
-          <section
-            key={group.category}
-            className="rounded-[2rem] border border-black/5 bg-white/75 p-4 shadow-[0_20px_50px_-35px_rgba(0,0,0,0.25)] backdrop-blur-sm md:p-6"
+    <div>
+      <div className="mb-7 flex flex-wrap gap-2" aria-label="Template categories">
+        {["All", ...categories].map((category) => (
+          <button
+            key={category}
+            type="button"
+            onClick={() => setActiveCategory(category)}
+            className="rounded-full border px-4 py-2 text-sm font-semibold transition"
+            style={{
+              borderColor: activeCategory === category ? C.ink : `${C.ink}18`,
+              background: activeCategory === category ? C.ink : "rgba(255,255,255,0.55)",
+              color: activeCategory === category ? C.cream : `${C.ink}b3`,
+            }}
           >
-            <div className="mb-4 flex items-end justify-between gap-4">
-              <div>
-                <div
-                  className="text-xs font-semibold uppercase tracking-[0.3em]"
-                  style={{ color: `${C.ink}66` }}
-                >
-                  {group.category}
-                </div>
-                <div
-                  className="mt-1 text-lg font-semibold"
-                  style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
-                >
-                  {group.templates.length} template{group.templates.length === 1 ? "" : "s"}
-                </div>
-              </div>
+            {category}
+          </button>
+        ))}
+      </div>
 
-              {group.templates.length > TEMPLATE_COLLAPSE_LIMIT && (
-                <button
-                  type="button"
-                  onClick={() => toggleCategory(group.category)}
-                  className="shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition hover:bg-white"
-                  style={{ border: `1px solid ${C.ink}18`, color: C.ink }}
-                >
-                  {isExpanded ? "Show less" : `Show ${hiddenCount} more`}
-                </button>
-              )}
-            </div>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+        {visibleTemplates.map((template) => (
+          <TemplateCard key={template.id} template={template} onClick={onShowMore} />
+        ))}
+      </div>
 
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-              {visibleTemplates.map((template) => (
-                <TemplateCard key={template.id} template={template} onClick={onShowMore} />
-              ))}
-
-              {!isExpanded && group.templates.length > TEMPLATE_COLLAPSE_LIMIT && (
-                <button
-                  type="button"
-                  onClick={() => toggleCategory(group.category)}
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-dashed border-black/10 bg-gradient-to-br from-amber-50 to-orange-50 transition hover:-translate-y-1 hover:shadow-lg"
-                >
-                  <div className="flex aspect-square flex-col items-start justify-end p-4 text-left">
-                    <div
-                      className="text-xs font-semibold uppercase tracking-[0.25em]"
-                      style={{ color: `${C.ink}66` }}
-                    >
-                      More inside
-                    </div>
-                    <div
-                      className="mt-1 text-lg font-semibold leading-tight"
-                      style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
-                    >
-                      {hiddenCount} additional template{hiddenCount === 1 ? "" : "s"}
-                    </div>
-                    <div className="mt-3 text-sm font-medium" style={{ color: `${C.ink}88` }}>
-                      Open the full {group.category.toLowerCase()} set
-                    </div>
-                  </div>
-                </button>
-              )}
-            </div>
-          </section>
-        );
-      })}
+      {visibleTemplates.length === 0 && (
+        <div className="border-y border-black/10 py-12 text-center text-sm" style={{ color: `${C.ink}80` }}>
+          No templates in this category yet.
+        </div>
+      )}
     </div>
   );
 }
