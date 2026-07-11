@@ -24,7 +24,7 @@ import { PAGE_SIZES } from "@/lib/photobook/types";
 const pageLabel = (index: number, total: number) => {
   if (index === 0) return "Cover";
   if (total > 2 && index === total - 1) return "Back cover";
-  return `Page ${index}`;
+  return `Page ${Math.max(1, index)}`;
 };
 
 export function LibrarySidebar() {
@@ -137,7 +137,7 @@ export function LibrarySidebar() {
         </div>
 
         {activeSection === "pages" ? (
-          <div className="hidden md:flex max-h-[calc(100vh-185px)] min-h-0 flex-col rounded-xl border bg-card p-3 shadow-sm">
+          <div className="hidden md:flex max-h-[calc(100vh-185px)] min-h-0 flex-col rounded-xl border bg-card p-4 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
               <div>
                 <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -152,7 +152,7 @@ export function LibrarySidebar() {
                 Add
               </Button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-scroll pr-2 space-y-3">
+            <div className="min-h-0 flex-1 overflow-y-scroll pr-3 space-y-5">
               {/* ── Cover ── */}
               {pages.length > 0 &&
                 (() => {
@@ -195,7 +195,7 @@ export function LibrarySidebar() {
                       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         Pages
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-5">
                         {pairs.map((pair, pairIdx) =>
                           pair.map((page) => {
                             const realIdx = pages.findIndex((p) => p.id === page.id);
@@ -232,7 +232,7 @@ export function LibrarySidebar() {
                       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                         Pages
                       </p>
-                      <div className="grid grid-cols-2 gap-2">
+                      <div className="grid grid-cols-2 gap-x-5 gap-y-5">
                         <PageThumb
                           page={page}
                           index={1}
@@ -564,7 +564,7 @@ function PageThumb({
   sidebarWidth: number;
 }) {
   // Container width inside the sidebar layout
-  const containerWidth = fullWidth ? sidebarWidth - 48 : (sidebarWidth - 48 - 8) / 2;
+  const containerWidth = fullWidth ? sidebarWidth - 64 : (sidebarWidth - 64 - 20) / 2;
 
   // Since FIXED_PAGE_SIZE width/height is 550, scale factor is containerWidth / 550
   const scale = Math.max(0.05, containerWidth / 550);
@@ -607,7 +607,7 @@ function PageThumb({
         }
         setPageDragState({ id: null, dropped: false });
       }}
-      className={`group relative overflow-hidden rounded-lg border text-left transition select-none ${
+      className={`group relative overflow-hidden rounded-lg border bg-background text-left transition select-none shadow-sm ${
         active ? "border-accent ring-2 ring-accent/20" : "border-border/80 hover:border-accent/40"
       }`}
       style={{ width: containerWidth }}
@@ -628,9 +628,8 @@ function PageThumb({
           <Page pageId={page.id} interactive={false} />
         </div>
       </div>
-      <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[10px] bg-card border-t font-semibold">
-        <span className="truncate">{pageLabel(index, total)}</span>
-        <span className="text-muted-foreground">{index + 1}</span>
+      <div className="flex min-h-8 items-center justify-center gap-2 border-t bg-card px-2 py-1.5 text-center text-[10px] font-semibold">
+        <span className="block truncate">{pageLabel(index, total)}</span>
       </div>
       <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
         <span

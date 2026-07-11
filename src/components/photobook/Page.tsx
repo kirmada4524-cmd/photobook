@@ -422,7 +422,7 @@ function ElementRenderer({
   const isTextEditing =
     interactive && editingTextId === el.id && (el.type === "text" || el.type === "quote");
   const isElementLocked = Boolean(
-    isFrameLocked || (el.type === "photo" && el.locked) || (el.type === "sticker" && el.locked),
+    (el.type === "photo" && el.locked) || (el.type === "sticker" && el.locked),
   );
   const stickerSrc =
     el.type === "sticker"
@@ -1118,7 +1118,7 @@ function PhotoBody({
   const isZoomedOut = scale < 1;
 
   return (
-    <div className="h-full w-full" style={frameStyle}>
+    <div className={`frame-${el.frame ?? "none"} h-full w-full`} style={frameStyle}>
       <div
         className={`relative h-full w-full overflow-hidden flex items-center justify-center ${
           isInteractivePan ? "cursor-grab active:cursor-grabbing touch-none" : ""

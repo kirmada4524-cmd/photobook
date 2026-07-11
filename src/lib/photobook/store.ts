@@ -626,7 +626,9 @@ export const useBookStore = create<State & Actions>()(
         setPageBackground: (id, bg) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.id === id);
-            if (page?.backgroundLocked) return s;
+            const isUserBackground =
+              bg.startsWith("bg_") || bg.startsWith("data:") || bg.startsWith("blob:");
+            if (page?.backgroundLocked && !isUserBackground) return s;
             return {
               book: {
                 ...s.book,

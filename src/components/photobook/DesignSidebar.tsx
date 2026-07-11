@@ -1,14 +1,13 @@
 import { useBookStore, type AutofillResult } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { TEMPLATES } from "@/lib/photobook/templates";
-import { FRAMES, QUOTES, THEMES, SHAPES, PAGE_BORDERS, shapeStyle } from "@/lib/photobook/catalogs";
+import { FRAMES, QUOTES, THEMES, PAGE_BORDERS } from "@/lib/photobook/catalogs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type {
   PhotoElement,
-  ShapeMask,
   QuoteElement,
   TextElement,
   PageElement,
@@ -27,6 +26,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ImageMinus,
+  ImagePlus,
   Paintbrush,
   Eraser,
   RotateCcw,
@@ -76,7 +76,11 @@ export function DesignSidebar() {
 
   const adminStickerFolders = useBookStore((s) => s.adminStickerFolders ?? []);
   const adminBackgrounds = useBookStore((s) => s.adminBackgrounds ?? []);
+  const customStickersList = useBookStore((s) => s.customStickersList ?? []);
+  const customBackgroundsList = useBookStore((s) => s.customBackgroundsList ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const stickerInputRef = useRef<HTMLInputElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
 
   const [activeTab, setActiveTab] = useState("layouts");
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
@@ -244,7 +248,7 @@ export function DesignSidebar() {
         onValueChange={setActiveTab}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <TabsList className="m-3 grid grid-cols-7">
+        <TabsList className="m-3 grid grid-cols-6">
           <TabsTrigger value="layouts" className="text-[11px]">
             Layout
           </TabsTrigger>
@@ -254,9 +258,6 @@ export function DesignSidebar() {
               : selected?.type === "text" || selected?.type === "quote"
                 ? "Text"
                 : "Frame"}
-          </TabsTrigger>
-          <TabsTrigger value="shapes" className="text-[11px]">
-            Shape
           </TabsTrigger>
           <TabsTrigger value="border" className="text-[11px]">
             Border
@@ -671,46 +672,65 @@ export function DesignSidebar() {
             )}
           </TabsContent>
 
-          <TabsContent value="shapes" className="mt-0 space-y-3">
-            {activeTab === "shapes" && (
-              <>
-                {!isPhoto && (
-                  <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    Select a photo to mask it with a shape.
-                  </div>
-                )}
-                <div className="grid grid-cols-3 gap-2">
-                  {SHAPES.map((s) => {
-                    const active = isPhoto && ((selected as PhotoElement).shape ?? "none") === s.id;
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => {
-                          if (isPhoto)
-                            updateElement(selected!.id, {
-                              shape: s.id as ShapeMask,
-                            } as Partial<PhotoElement>);
-                        }}
-                        className={`flex flex-col items-center gap-1 rounded-lg border p-2 text-[11px] transition hover:border-accent ${
-                          active ? "border-accent ring-1 ring-accent" : ""
-                        }`}
-                      >
-                        <div
-                          className="h-10 w-10 bg-gradient-to-br from-accent/70 to-charcoal/60"
-                          style={shapeStyle(s.id, 0)}
-                        />
-                        {s.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </TabsContent>
-
           <TabsContent value="stickers" className="mt-0 space-y-4">
             {activeTab === "stickers" && (
               <>
+                <div className="rounded-xl border bg-card p-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full gap-2 text-xs font-semibold"
+                    onClick={() => stickerInputRef.current?.click()}
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    Upload Sticker
+                  </Button>
+                  <input
+                    ref={stickerInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={async (e) => {
+                      const files = Array.from(e.target.files ?? []).filter((file) =>
+                        file.type.startsWith("image/"),
+                      );
+                      if (files.length === 0) return;
+                      try {
+                        for (const file of files) {
+                          await useBookStore.getState().addCustomSticker(file);
+                        }
+                        toast.success(`Added ${files.length} local sticker${files.length === 1 ? "" : "s"}`);
+                      } catch (error) {
+                        console.error("Failed to add sticker", error);
+                        toast.error("Could not add sticker");
+                      } finally {
+                        e.target.value = "";
+                      }
+                    }}
+                    multiple
+                  />
+                </div>
+
+                {customStickersList.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                      Your Stickers
+                    </div>
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {customStickersList.map((sticker) => (
+                        <button
+                          key={sticker.id}
+                          onClick={() => addSticker(sticker.id)}
+                          className="aspect-square w-full overflow-hidden rounded-lg border bg-card p-1 transition hover:scale-110 hover:border-accent"
+                          title={sticker.name}
+                        >
+                          <img src={sticker.src} alt={sticker.name} className="h-full w-full object-contain" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {editorStickerCount > 0 ? (
                   <div className="space-y-3">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
@@ -800,6 +820,61 @@ export function DesignSidebar() {
           <TabsContent value="bg" className="mt-0 space-y-4">
             {activeTab === "bg" && (
               <>
+                <div className="rounded-xl border bg-card p-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full gap-2 text-xs font-semibold"
+                    onClick={() => backgroundInputRef.current?.click()}
+                  >
+                    <ImagePlus className="h-4 w-4" />
+                    Upload Background Image
+                  </Button>
+                  <input
+                    ref={backgroundInputRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={async (e) => {
+                      const file = Array.from(e.target.files ?? []).find((item) =>
+                        item.type.startsWith("image/"),
+                      );
+                      if (!file) return;
+                      try {
+                        await useBookStore.getState().addCustomBackground(file);
+                        const uploaded = useBookStore.getState().customBackgroundsList.at(-1);
+                        if (uploaded) setPageBackground(currentPageId, uploaded.id);
+                        toast.success("Background added to this editor");
+                      } catch (error) {
+                        console.error("Failed to add background", error);
+                        toast.error("Could not add background");
+                      } finally {
+                        e.target.value = "";
+                      }
+                    }}
+                  />
+                </div>
+
+                {customBackgroundsList.length > 0 && (
+                  <div className="space-y-2 border-b pb-3 mb-2">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
+                      Your Backgrounds
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {customBackgroundsList.map((bg) => (
+                        <button
+                          key={bg.id}
+                          onClick={() => setPageBackground(currentPageId, bg.id)}
+                          className="h-20 w-full overflow-hidden rounded-xl border-2 border-transparent shadow-sm transition hover:scale-105 hover:border-accent"
+                          title={bg.name}
+                        >
+                          <img src={bg.src} alt={bg.name} className="h-full w-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {adminBackgrounds.length > 0 ? (
                   <div className="space-y-2 border-b pb-3 mb-2">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">

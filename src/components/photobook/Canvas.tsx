@@ -272,7 +272,6 @@ export function Canvas() {
           const page = state.book.pages.find((p) => p.id === state.currentPageId);
           const selected = page?.elements.find((el) => el.id === selectedId);
           const isLocked =
-            page?.frameLocked ||
             (selected?.type === "photo" && selected.locked) ||
             (selected?.type === "sticker" && selected.locked);
           if (!isLocked) {
