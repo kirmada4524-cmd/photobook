@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
 import {
-  ArrowRight,
   BookOpen,
   Check,
   ChevronRight,
@@ -36,22 +35,17 @@ const C = {
 };
 
 const TEMPLATE_CATEGORY_ORDER = [
-  "Birthday",
-  "Travel",
-  "Wedding",
-  "Family",
-  "Couples",
-  "Baby",
-  "Common",
-  "Cover Page",
-  "Back Cover",
-  "Minimal",
-  "Magazine",
-  "Scrapbook",
-  "Polaroid",
-  "Grid",
-  "Collage",
-  "General",
+  "Friendship Mag",
+  "Journal Mag",
+  "Textual Mag",
+  "Couple Mag",
+  "Anniversary Mag",
+  "General Mag",
+  "Birthday Mag",
+  "Elegant Mag",
+  "Fiction",
+  "Pinteresty",
+  "LOML Mag",
 ];
 
 const BUILT_IN_TEMPLATES: SavedPageTemplate[] = TEMPLATES.map((template, index) => ({
@@ -60,7 +54,7 @@ const BUILT_IN_TEMPLATES: SavedPageTemplate[] = TEMPLATES.map((template, index) 
   background: "#f8f4ea",
   elements: applyTemplate(template.id, [], FIXED_PAGE_SIZE.width, FIXED_PAGE_SIZE.height),
   sizeId: FIXED_PAGE_SIZE_ID,
-  category: template.style,
+  category: TEMPLATE_CATEGORY_ORDER[index % TEMPLATE_CATEGORY_ORDER.length],
   frameLocked: false,
   backgroundLocked: true,
   sortOrder: index,
@@ -194,82 +188,86 @@ function HomeTemplatesGrid({
   onStart: () => void;
   onShowMore: () => void;
 }) {
-  const [activeCategory, setActiveCategory] = useState("All");
-  const categories = useMemo(() => {
-    const found = Array.from(new Set(templates.map((template) => template.category?.trim() || "General")));
-    return found.sort((a, b) => {
-      const pa = TEMPLATE_CATEGORY_ORDER.indexOf(a);
-      const pb = TEMPLATE_CATEGORY_ORDER.indexOf(b);
-      if (pa === -1 && pb === -1) return a.localeCompare(b);
-      if (pa === -1) return 1;
-      if (pb === -1) return -1;
-      return pa - pb;
+  const templatesByCategory = useMemo(() => {
+    const grouped = new Map<string, SavedPageTemplate[]>();
+    TEMPLATE_CATEGORY_ORDER.forEach((category) => grouped.set(category, []));
+    templates.forEach((template) => {
+      const category = template.category?.trim() || "General Mag";
+      const normalized = TEMPLATE_CATEGORY_ORDER.includes(category) ? category : "General Mag";
+      grouped.set(normalized, [...(grouped.get(normalized) ?? []), template]);
     });
+    grouped.forEach((items, category) => {
+      grouped.set(
+        category,
+        items
+          .slice()
+          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label)),
+      );
+    });
+    return grouped;
   }, [templates]);
-  const visibleTemplates = useMemo(
-    () =>
-      templates
-        .filter((template) => activeCategory === "All" || (template.category?.trim() || "General") === activeCategory)
-        .slice()
-        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label))
-        .slice(0, 8),
-    [activeCategory, templates],
-  );
 
   return (
     <div>
-      <div
-        className="mb-5 flex gap-2 overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        aria-label="Template categories"
-      >
-        {["All", ...categories].map((category) => (
-          <button
-            key={category}
-            type="button"
-            onClick={() => setActiveCategory(category)}
-            className="shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition"
-            style={{
-              borderColor: activeCategory === category ? C.ink : `${C.ink}18`,
-              background: activeCategory === category ? C.ink : "white",
-              color: activeCategory === category ? C.cream : `${C.ink}b3`,
-            }}
-          >
-            {category}
-          </button>
-        ))}
-      </div>
-
       {isLoading ? (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div key={index} className="aspect-square animate-pulse rounded-md bg-black/5" />
+        <div className="space-y-5">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="rounded-lg border border-black/5 bg-white p-4">
+              <div className="mb-4 h-7 w-44 animate-pulse rounded bg-black/5" />
+              <div className="flex gap-4 overflow-hidden">
+                {Array.from({ length: 5 }).map((__, itemIndex) => (
+                  <div key={itemIndex} className="h-56 w-44 shrink-0 animate-pulse rounded-md bg-black/5" />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
-      ) : visibleTemplates.length === 0 ? (
-        <div className="py-10 text-center text-sm text-black/50">No templates in this bucket.</div>
       ) : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {visibleTemplates.map((template) => {
-            const selectedIndex = selectedIds.indexOf(template.id);
+        <div className="space-y-7">
+          {TEMPLATE_CATEGORY_ORDER.map((category) => {
+            const categoryTemplates = templatesByCategory.get(category) ?? [];
             return (
-              <TemplateCard
-                key={template.id}
-                template={template}
-                selected={selectedIndex >= 0}
-                order={selectedIndex >= 0 ? selectedIndex + 1 : undefined}
-                onToggle={() => onToggle(template.id)}
-              />
+              <section key={category} className="rounded-lg border border-black/5 bg-white p-4 shadow-[0_10px_35px_-28px_rgba(0,0,0,0.45)]">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <h3 className="text-2xl font-semibold" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
+                    {category}
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={onShowMore}
+                    className="shrink-0 text-sm font-semibold"
+                    style={{ color: C.brand }}
+                  >
+                    See More
+                  </button>
+                </div>
+
+                {categoryTemplates.length === 0 ? (
+                  <div className="flex h-52 w-40 items-center justify-center rounded-md border-2 border-dashed border-black/15 bg-black/[0.025] text-center text-xs font-semibold text-black/40">
+                    No templates yet
+                  </div>
+                ) : (
+                  <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:thin]">
+                    {categoryTemplates.slice(0, 10).map((template) => {
+                      const selectedIndex = selectedIds.indexOf(template.id);
+                      return (
+                        <div key={template.id} className="w-44 shrink-0">
+                          <TemplateCard
+                            template={template}
+                            selected={selectedIndex >= 0}
+                            order={selectedIndex >= 0 ? selectedIndex + 1 : undefined}
+                            onToggle={() => onToggle(template.id)}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </section>
             );
           })}
         </div>
       )}
-
-      <div className="mt-6 flex justify-center">
-        <button onClick={onShowMore} className="inline-flex items-center gap-2 text-sm font-semibold text-black/65 transition hover:text-black">
-          Browse every template
-          <ArrowRight className="h-4 w-4" />
-        </button>
-      </div>
 
       {selectedIds.length > 0 && (
         <div

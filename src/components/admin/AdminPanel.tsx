@@ -33,7 +33,19 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-const TEMPLATE_CATEGORIES: string[] = ["Cover Page", "Back Cover", "Birthday", "Travel", "Common"];
+const TEMPLATE_CATEGORIES: string[] = [
+  "Friendship Mag",
+  "Journal Mag",
+  "Textual Mag",
+  "Couple Mag",
+  "Anniversary Mag",
+  "General Mag",
+  "Birthday Mag",
+  "Elegant Mag",
+  "Fiction",
+  "Pinteresty",
+  "LOML Mag",
+];
 
 const filesToPayload = (files: File[]) =>
   Promise.all(
@@ -338,17 +350,12 @@ interface ConvertProjectDialogProps {
 
 function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps) {
   const [label, setLabel] = useState("");
-  const [category, setCategory] = useState<string>("Common");
+  const [category, setCategory] = useState<string>("General Mag");
   const [frameLocked, setFrameLocked] = useState(true);
   const [backgroundLocked, setBackgroundLocked] = useState(true);
   const [importProgress, setImportProgress] = useState<ImportProgress>(emptyImportProgress);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const adminTemplates = useBookStore((s) => s.adminTemplates);
   const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
-
-  const allCategories = Array.from(
-    new Set([...TEMPLATE_CATEGORIES, ...adminTemplates.map((t) => t.category).filter(Boolean)]),
-  ) as string[];
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
@@ -721,18 +728,18 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
           </div>
           <div className="space-y-1.5">
             <Label>Category</Label>
-            <Input
+            <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              list="template-categories"
-              placeholder="Type or select..."
               disabled={importProgress.running}
-            />
-            <datalist id="template-categories">
-              {allCategories.map((c) => (
-                <option key={c} value={c} />
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {TEMPLATE_CATEGORIES.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -787,7 +794,7 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
   const adminTemplates = useBookStore((s) => s.adminTemplates);
   const updateAdminTemplate = useBookStore((s) => s.updateAdminTemplate);
   const [label, setLabel] = useState(template?.label ?? "");
-  const [category, setCategory] = useState<string>(template?.category || "Common");
+  const [category, setCategory] = useState<string>(template?.category || "General Mag");
   const [frameLocked, setFrameLocked] = useState(template?.frameLocked ?? true);
   const [backgroundLocked, setBackgroundLocked] = useState(template?.backgroundLocked ?? true);
 
@@ -822,17 +829,17 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
           </div>
           <div className="space-y-1.5">
             <Label>Category</Label>
-            <Input
+            <select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              list="template-categories-edit"
-              placeholder="Type or select..."
-            />
-            <datalist id="template-categories-edit">
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
               {allCategories.map((c) => (
-                <option key={c} value={c} />
+                <option key={c} value={c}>
+                  {c}
+                </option>
               ))}
-            </datalist>
+            </select>
           </div>
           <div className="flex gap-4">
             <label className="flex items-center gap-2 text-sm cursor-pointer">
