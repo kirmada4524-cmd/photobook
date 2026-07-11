@@ -5,7 +5,15 @@ import { useBookStore } from "@/lib/photobook/store";
 interface TemplatePreviewProps {
   template: SavedPageTemplate;
   className?: string;
+  showSamplePhotos?: boolean;
 }
+
+const SAMPLE_PHOTOS = [
+  "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?w=600&q=75",
+  "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=600&q=75",
+  "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&q=75",
+  "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=600&q=75",
+];
 
 function PreviewAsset({
   src,
@@ -35,7 +43,11 @@ function PreviewAsset({
   );
 }
 
-export function TemplatePreview({ template, className = "" }: TemplatePreviewProps) {
+export function TemplatePreview({
+  template,
+  className = "",
+  showSamplePhotos = false,
+}: TemplatePreviewProps) {
   const library = useBookStore((s) => s.library);
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
@@ -114,6 +126,9 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
                 src = embeddedAssets.find((a) => a.id === el.stickerId)?.base64 || "";
               }
             }
+          }
+          if (isPhoto && !src && showSamplePhotos) {
+            src = SAMPLE_PHOTOS[i % SAMPLE_PHOTOS.length];
           }
 
           return (

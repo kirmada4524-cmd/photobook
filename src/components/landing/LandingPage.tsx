@@ -119,7 +119,8 @@ function TemplateCard({
       onClick={onToggle}
       data-testid={`home-template-${template.id}`}
       aria-pressed={selected}
-      className="group min-w-0 text-left focus-visible:outline-none"
+      aria-label={`${selected ? "Remove" : "Add"} ${template.label} template`}
+      className="group block w-full min-w-0 text-left focus-visible:outline-none"
     >
       <div
         className={`relative aspect-square overflow-hidden rounded-md border-2 bg-white transition duration-200 group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-offset-2 ${
@@ -128,13 +129,7 @@ function TemplateCard({
             : "border-black/10 shadow-[0_8px_24px_-18px_rgba(0,0,0,0.45)]"
         }`}
       >
-        <TemplatePreview template={template} className="absolute inset-0" />
-        <div className="absolute inset-x-0 bottom-0 flex items-center justify-between bg-black/65 px-2.5 py-2 text-white backdrop-blur-sm">
-          <span className="truncate text-[11px] font-semibold">{template.label}</span>
-          <span className="ml-2 shrink-0 text-[10px] opacity-75">
-            {template.category?.trim() || "General"}
-          </span>
-        </div>
+        <TemplatePreview template={template} showSamplePhotos className="absolute inset-0" />
         <span
           className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border transition ${
             selected
@@ -148,12 +143,6 @@ function TemplateCard({
           ) : (
             <Check className="h-3.5 w-3.5" />
           )}
-        </span>
-      </div>
-      <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="truncate text-sm font-semibold">{template.label}</span>
-        <span className={`text-[11px] font-semibold ${selected ? "text-emerald-700" : "text-black/45"}`}>
-          {selected ? "Added" : "Add"}
         </span>
       </div>
     </button>
@@ -183,9 +172,9 @@ function TemplateCategorySection({
   return (
     <section
       data-template-category={category}
-      className="rounded-md border border-black/[0.07] bg-white p-3 shadow-[0_10px_28px_-26px_rgba(0,0,0,0.55)] sm:p-4"
+      className="border-b border-black/[0.07] py-4 last:border-b-0 sm:py-5"
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate text-lg font-semibold sm:text-xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
             {category}
@@ -224,12 +213,12 @@ function TemplateCategorySection({
 
       <div
         ref={railRef}
-        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-color:rgba(0,0,0,.22)_transparent] [scrollbar-width:thin]"
+        className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1.5 [scrollbar-color:rgba(0,0,0,.22)_transparent] [scrollbar-width:thin] sm:gap-3"
       >
         {templates.map((template) => {
           const selectedIndex = selectedIds.indexOf(template.id);
           return (
-            <div key={template.id} className="w-[148px] shrink-0 snap-start sm:w-40">
+            <div key={template.id} className="w-[132px] shrink-0 snap-start sm:w-40">
               <TemplateCard
                 template={template}
                 selected={selectedIndex >= 0}
@@ -288,20 +277,20 @@ function HomeTemplatesGrid({
   return (
     <div>
       {isLoading ? (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="rounded-lg border border-black/5 bg-white p-4">
-              <div className="mb-4 h-7 w-44 animate-pulse rounded bg-black/5" />
-              <div className="flex gap-4 overflow-hidden">
+            <div key={index} className="border-b border-black/5 py-4">
+              <div className="mb-3 h-6 w-40 animate-pulse rounded bg-black/5" />
+              <div className="flex gap-3 overflow-hidden">
                 {Array.from({ length: 5 }).map((__, itemIndex) => (
-                  <div key={itemIndex} className="h-56 w-44 shrink-0 animate-pulse rounded-md bg-black/5" />
+                  <div key={itemIndex} className="aspect-square w-[132px] shrink-0 animate-pulse rounded-md bg-black/5 sm:w-40" />
                 ))}
               </div>
             </div>
           ))}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div>
           {populatedCategories.map((category) => {
             const categoryTemplates = templatesByCategory.get(category) ?? [];
             return (
@@ -376,7 +365,13 @@ export function LandingPage() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
   const adminTemplates = useBookStore((s) => s.adminTemplates ?? []);
-  const availableTemplates = adminTemplates.length > 0 ? adminTemplates : BUILT_IN_TEMPLATES;
+  const availableTemplates = useMemo(() => {
+    const adminIds = new Set(adminTemplates.map((template) => template.id));
+    return [
+      ...adminTemplates,
+      ...BUILT_IN_TEMPLATES.filter((template) => !adminIds.has(template.id)),
+    ];
+  }, [adminTemplates]);
   const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
   const resetBook = useBookStore((s) => s.resetBook);
   const addPage = useBookStore((s) => s.addPage);
@@ -508,9 +503,9 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="bg-white/55 py-10 md:py-12">
+      <section className="bg-white/55 py-7 md:py-9">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mb-5 flex items-end justify-between gap-3">
+          <div className="mb-2 flex items-end justify-between gap-3">
             <div>
               <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.brand }}>Template buckets</div>
               <h2 className="mt-1 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>Choose pages for your book</h2>
