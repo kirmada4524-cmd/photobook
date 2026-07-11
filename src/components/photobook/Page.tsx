@@ -89,6 +89,10 @@ export function Page({
   const [magicSelection, setMagicSelection] = useState<MagicLayoutSelection | null>(null);
   const [isMagicSelecting, setIsMagicSelecting] = useState(false);
 
+  useEffect(() => {
+    if (!isMagicLayoutMode) setMagicSelection(null);
+  }, [isMagicLayoutMode, page?.id]);
+
   if (!page) return null;
 
   const resolvedBg = page.background?.startsWith("bg_")
@@ -97,10 +101,6 @@ export function Page({
 
   const isEditingBg = editingBackgroundPageId === page.id && interactive;
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
-
-  useEffect(() => {
-    if (!isMagicLayoutMode) setMagicSelection(null);
-  }, [isMagicLayoutMode, page.id]);
 
   const handleBgMouseDown = (e: React.MouseEvent) => {
     if (!isEditingBg || (page.backgroundMode && page.backgroundMode !== "cover")) return;
@@ -236,13 +236,17 @@ export function Page({
         data-photobook-page
         onDragOver={interactive ? (e) => e.preventDefault() : undefined}
         onDrop={interactive ? onDropPhoto : undefined}
-        onClick={(e) => {
-          if (isMagicLayoutMode) {
-            void handleMagicLayoutClick(e);
-            return;
-          }
-          if (e.target === e.currentTarget) selectElement(null);
-        }}
+        onClick={
+          interactive
+            ? (e) => {
+                if (isMagicLayoutMode) {
+                  void handleMagicLayoutClick(e);
+                  return;
+                }
+                if (e.target === e.currentTarget) selectElement(null);
+              }
+            : undefined
+        }
         className={`${!isImageUrl(resolvedBg) && THEMES.some((t) => t.id === resolvedBg) ? themeClass(resolvedBg as BackgroundTheme) : ""} page-border-${page.border ?? "none"} w-full h-full relative overflow-hidden shadow-photo`}
         style={{
           borderRadius: 8,
@@ -508,8 +512,9 @@ function ElementRenderer({
         library={library}
         canvasScale={canvasScale}
         selected={selected}
-        onSelect={onSelect}
-        onUploadRequest={() => fileRef.current?.click()}
+        interactive={interactive}
+        onSelect={interactive ? onSelect : undefined}
+        onUploadRequest={interactive ? () => fileRef.current?.click() : undefined}
       />
     ) : el.type === "sticker" ? (
       stickerSrc ? (
@@ -1000,6 +1005,7 @@ function PhotoBody({
   library,
   canvasScale,
   selected,
+  interactive,
   onSelect,
   onUploadRequest,
 }: {
@@ -1007,6 +1013,7 @@ function PhotoBody({
   library: { id: string; src: string }[];
   canvasScale: number;
   selected: boolean;
+  interactive: boolean;
   onSelect?: () => void;
   onUploadRequest?: () => void;
 }) {
@@ -1015,8 +1022,10 @@ function PhotoBody({
   const inner = shapeStyle(el.shape, radius);
   const updateElement = useBookStore((s) => s.updateElement);
   const isEraserMode = useBookStore((s) => s.isEraserMode);
-  const isFrameEraserActive = Boolean(isEraserMode && selected && img);
-  const isInteractivePan = Boolean((el.locked || el.magicFrame) && img && !isFrameEraserActive);
+  const isFrameEraserActive = Boolean(interactive && isEraserMode && selected && img);
+  const isInteractivePan = Boolean(
+    interactive && (el.locked || el.magicFrame) && img && !isFrameEraserActive,
+  );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
 

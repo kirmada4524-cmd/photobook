@@ -10,6 +10,7 @@ import {
   Maximize2,
   Minimize2,
   Move,
+  Palette,
   Rotate3D,
   RotateCcw,
   User,
@@ -83,6 +84,7 @@ function PreviewPage() {
   const [isDraggingOrbit, setIsDraggingOrbit] = useState(false);
   const [isDraggingBook, setIsDraggingBook] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showSceneControls, setShowSceneControls] = useState(false);
   const orbitStartRef = useRef({ x: 0, y: 0, rotX: 0, rotY: 0 });
   const bookMoveStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const activeDragToolRef = useRef<"move" | "orbit" | null>(null);
@@ -144,8 +146,8 @@ function PreviewPage() {
 
   const totalPages = previewPages.length;
   const singlePageMode = totalPages <= 1;
-  const isPortraitBook = singlePageMode;
   const isMobileFullscreen = isPhonePreview && isFullscreen && !singlePageMode;
+  const isPortraitBook = singlePageMode || (isMobilePreview && !isFullscreen);
   const useFullscreenSpread = isFullscreen && !singlePageMode;
   const isFullscreenSinglePage =
     useFullscreenSpread && (currentPage <= 0 || currentPage >= totalPages - 1);
@@ -176,7 +178,7 @@ function PreviewPage() {
         : 160;
     const availableW = Math.max(260, fitViewportW - chromeW);
     const availableH = Math.max(240, fitViewportH - chromeH);
-    const spreadPages = singlePageMode ? 1 : 2;
+    const spreadPages = isPortraitBook ? 1 : 2;
     return clamp(
       Math.min(availableW / (pageW * spreadPages), availableH / pageH),
       0.16,
@@ -184,12 +186,11 @@ function PreviewPage() {
     );
   }, [
     isFullscreen,
-    isFullscreenSinglePage,
     isMobileFullscreen,
     isMobilePreview,
+    isPortraitBook,
     pageH,
     pageW,
-    singlePageMode,
     viewportH,
     viewportW,
   ]);
@@ -494,36 +495,15 @@ function PreviewPage() {
           </button>
         )}
 
-        <div className="book-preview-swatch-group">
-          {PREVIEW_ATMOSPHERES.map((atm) => (
-            <button
-              key={atm.id}
-              type="button"
-              onClick={() => patchSettings({ atmosphere: atm.id, customBackground: undefined })}
-              className={`book-preview-swatch ${settings.atmosphere === atm.id ? "is-active" : ""}`}
-              style={{ background: atm.swatch }}
-              title={atm.label}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={() => bgInputRef.current?.click()}
-            className="book-preview-swatch book-preview-upload-swatch"
-            title="Upload Custom Background"
-          >
-            <ImagePlus className="h-3 w-3" />
-          </button>
-          {settings.atmosphere === "custom" && settings.customBackground && (
-            <button
-              type="button"
-              onClick={() => patchSettings({ atmosphere: "cozy", customBackground: undefined })}
-              className="book-preview-swatch book-preview-remove-swatch"
-              title="Remove Custom Background"
-            >
-              <X className="h-3 w-3" />
-            </button>
-          )}
-        </div>
+        <button
+          type="button"
+          aria-expanded={showSceneControls}
+          onClick={() => setShowSceneControls((value) => !value)}
+          className={`book-preview-tool-btn ${showSceneControls ? "is-active" : ""}`}
+        >
+          <Palette className="h-3.5 w-3.5" />
+          Scene
+        </button>
 
         <button type="button" onClick={toggleFullscreen} className="book-preview-tool-btn">
           {isFullscreen ? (
@@ -531,19 +511,59 @@ function PreviewPage() {
           ) : (
             <Maximize2 className="h-3.5 w-3.5" />
           )}
-          {isFullscreen ? "Exit Full" : "Full Screen"}
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={settings.showGuide}
-          onClick={() => patchSettings({ showGuide: !settings.showGuide })}
-          className={`book-preview-tool-btn ${settings.showGuide ? "is-active" : ""}`}
-        >
-          <User className="h-3.5 w-3.5" />
-          Avatar
+          {isFullscreen ? "Exit" : "Full"}
         </button>
       </div>
+
+      {showSceneControls && !isFullscreen && (
+        <div className="book-preview-scene-panel" role="group" aria-label="Preview scene">
+          <div className="book-preview-scene-header">
+            <span>Scene</span>
+            <button
+              type="button"
+              aria-pressed={settings.showGuide}
+              onClick={() => patchSettings({ showGuide: !settings.showGuide })}
+              className={`book-preview-guide-toggle ${settings.showGuide ? "is-active" : ""}`}
+            >
+              <User className="h-3.5 w-3.5" />
+              Guide
+            </button>
+          </div>
+          <div className="book-preview-swatch-group">
+            {PREVIEW_ATMOSPHERES.map((atm) => (
+              <button
+                key={atm.id}
+                type="button"
+                onClick={() => patchSettings({ atmosphere: atm.id, customBackground: undefined })}
+                className={`book-preview-swatch ${settings.atmosphere === atm.id ? "is-active" : ""}`}
+                style={{ background: atm.swatch }}
+                title={atm.label}
+                aria-label={atm.label}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => bgInputRef.current?.click()}
+              className="book-preview-swatch book-preview-upload-swatch"
+              title="Upload custom background"
+              aria-label="Upload custom background"
+            >
+              <ImagePlus className="h-3 w-3" />
+            </button>
+            {settings.atmosphere === "custom" && settings.customBackground && (
+              <button
+                type="button"
+                onClick={() => patchSettings({ atmosphere: "cozy", customBackground: undefined })}
+                className="book-preview-swatch book-preview-remove-swatch"
+                title="Remove custom background"
+                aria-label="Remove custom background"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {isFullscreen && (
         <button
@@ -616,7 +636,7 @@ function PreviewPage() {
         </button>
 
         <div
-          className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${singlePageMode ? "is-single-page" : ""} ${
+          className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${isFirst ? "is-cover" : ""} ${isLast ? "is-back-cover" : ""} ${
             isFullscreen && !isFullscreenSinglePage && !singlePageMode
               ? "has-fullscreen-binding"
               : ""
@@ -625,11 +645,13 @@ function PreviewPage() {
             {
               "--preview-page-width": `${scaledPageW}px`,
               "--preview-page-height": `${scaledPageH}px`,
-              "--preview-spread-pages": singlePageMode ? 1 : 2,
+              "--preview-spread-pages": isPortraitBook ? 1 : 2,
               transform: bookTransform,
             } as React.CSSProperties
           }
         >
+          <div className="book-preview-page-stack" aria-hidden="true" />
+          <div className="book-preview-spine" aria-hidden="true" />
           <div className="book-preview-shadow" />
 
           {totalPages === 1 ? (
@@ -798,7 +820,7 @@ const BookPage = forwardRef<
         data-density={isCover || isBackCover ? "hard" : "soft"}
       >
         <div
-          className="book-preview-page-content"
+          className="book-preview-page-content is-readonly"
           style={{
             width: pageW,
             height: pageH,

@@ -32,7 +32,6 @@ export const Route = createFileRoute("/editor")({
 
 /** Height constants for mobile layout */
 const MOBILE_TOOLBAR_H = 56; // h-14 = 56px
-const MOBILE_PANEL_H = 300; // sidebar panel height
 
 class SidebarErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
   state = { hasError: false };
@@ -137,8 +136,8 @@ function EditorPage() {
       {/* ── MOBILE: sidebar panel (BELOW canvas, ABOVE toolbar) ── */}
       {panelOpen && (
         <div
-          className="md:hidden shrink-0 border-t bg-background overflow-hidden"
-          style={{ height: MOBILE_PANEL_H }}
+          className="animate-float-in shrink-0 overflow-hidden border-t bg-background md:hidden"
+          style={{ height: "min(42dvh, 360px)" }}
         >
           {showLibrarySidebar && (
             <div className="w-full h-full overflow-y-auto">
@@ -157,7 +156,7 @@ function EditorPage() {
 
       {/* ── MOBILE: bottom toolbar ── */}
       <div
-        className="md:hidden shrink-0 flex border-t bg-card items-center justify-around z-40"
+        className="z-40 flex shrink-0 items-center justify-around border-t bg-card/95 shadow-[0_-8px_24px_-20px_rgba(0,0,0,.45)] backdrop-blur md:hidden"
         style={{ height: MOBILE_TOOLBAR_H }}
       >
         <Button

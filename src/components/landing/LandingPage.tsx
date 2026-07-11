@@ -3,6 +3,7 @@ import { Link, useRouter } from "@tanstack/react-router";
 import {
   BookOpen,
   Check,
+  ChevronLeft,
   ChevronRight,
   Clock3,
   FolderOpen,
@@ -19,6 +20,10 @@ import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
 import { useBookStore } from "@/lib/photobook/store";
 import { applyTemplate, TEMPLATES } from "@/lib/photobook/templates";
+import {
+  normalizeTemplateCategory,
+  TEMPLATE_CATEGORIES,
+} from "@/lib/photobook/template-categories";
 import { FIXED_PAGE_SIZE, FIXED_PAGE_SIZE_ID, type SavedPageTemplate } from "@/lib/photobook/types";
 import { TemplatePreview } from "@/components/photobook/TemplatePreview";
 import { LoginModal } from "./LoginModal";
@@ -34,27 +39,13 @@ const C = {
   mint: "oklch(0.9 0.05 160)",
 };
 
-const TEMPLATE_CATEGORY_ORDER = [
-  "Friendship Mag",
-  "Journal Mag",
-  "Textual Mag",
-  "Couple Mag",
-  "Anniversary Mag",
-  "General Mag",
-  "Birthday Mag",
-  "Elegant Mag",
-  "Fiction",
-  "Pinteresty",
-  "LOML Mag",
-];
-
 const BUILT_IN_TEMPLATES: SavedPageTemplate[] = TEMPLATES.map((template, index) => ({
   id: `built-in-${template.id}`,
   label: template.label,
   background: "#f8f4ea",
   elements: applyTemplate(template.id, [], FIXED_PAGE_SIZE.width, FIXED_PAGE_SIZE.height),
   sizeId: FIXED_PAGE_SIZE_ID,
-  category: TEMPLATE_CATEGORY_ORDER[index % TEMPLATE_CATEGORY_ORDER.length],
+  category: TEMPLATE_CATEGORIES[index % TEMPLATE_CATEGORIES.length],
   frameLocked: false,
   backgroundLocked: true,
   sortOrder: index,
@@ -169,6 +160,90 @@ function TemplateCard({
   );
 }
 
+function TemplateCategorySection({
+  category,
+  templates,
+  selectedIds,
+  onToggle,
+  onShowMore,
+}: {
+  category: string;
+  templates: SavedPageTemplate[];
+  selectedIds: string[];
+  onToggle: (id: string) => void;
+  onShowMore: (category: string) => void;
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const scrollRail = (direction: -1 | 1) => {
+    const rail = railRef.current;
+    if (!rail) return;
+    rail.scrollBy({ left: direction * Math.max(320, rail.clientWidth * 0.82), behavior: "smooth" });
+  };
+
+  return (
+    <section
+      data-template-category={category}
+      className="rounded-md border border-black/[0.07] bg-white p-3 shadow-[0_10px_28px_-26px_rgba(0,0,0,0.55)] sm:p-4"
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="truncate text-lg font-semibold sm:text-xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
+            {category}
+          </h3>
+          <p className="text-xs text-black/45">{templates.length} template{templates.length === 1 ? "" : "s"}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => scrollRail(-1)}
+            className="grid h-8 w-8 place-items-center rounded-md border border-black/10 text-black/55 transition hover:bg-black/[0.04] hover:text-black"
+            title="Scroll left"
+            aria-label={`Scroll ${category} left`}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollRail(1)}
+            className="grid h-8 w-8 place-items-center rounded-md border border-black/10 text-black/55 transition hover:bg-black/[0.04] hover:text-black"
+            title="Scroll right"
+            aria-label={`Scroll ${category} right`}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onShowMore(category)}
+            className="ml-1 h-8 rounded-md px-2.5 text-xs font-bold transition hover:bg-black/[0.04]"
+            style={{ color: C.brand }}
+          >
+            See all
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={railRef}
+        className="flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 [scrollbar-color:rgba(0,0,0,.22)_transparent] [scrollbar-width:thin]"
+      >
+        {templates.map((template) => {
+          const selectedIndex = selectedIds.indexOf(template.id);
+          return (
+            <div key={template.id} className="w-[148px] shrink-0 snap-start sm:w-40">
+              <TemplateCard
+                template={template}
+                selected={selectedIndex >= 0}
+                order={selectedIndex >= 0 ? selectedIndex + 1 : undefined}
+                onToggle={() => onToggle(template.id)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function HomeTemplatesGrid({
   templates,
   selectedIds,
@@ -186,14 +261,13 @@ function HomeTemplatesGrid({
   onToggle: (id: string) => void;
   onClear: () => void;
   onStart: () => void;
-  onShowMore: () => void;
+  onShowMore: (category: string) => void;
 }) {
   const templatesByCategory = useMemo(() => {
     const grouped = new Map<string, SavedPageTemplate[]>();
-    TEMPLATE_CATEGORY_ORDER.forEach((category) => grouped.set(category, []));
+    TEMPLATE_CATEGORIES.forEach((category) => grouped.set(category, []));
     templates.forEach((template) => {
-      const category = template.category?.trim() || "General Mag";
-      const normalized = TEMPLATE_CATEGORY_ORDER.includes(category) ? category : "General Mag";
+      const normalized = normalizeTemplateCategory(template.category);
       grouped.set(normalized, [...(grouped.get(normalized) ?? []), template]);
     });
     grouped.forEach((items, category) => {
@@ -206,6 +280,10 @@ function HomeTemplatesGrid({
     });
     return grouped;
   }, [templates]);
+
+  const populatedCategories = TEMPLATE_CATEGORIES.filter(
+    (category) => (templatesByCategory.get(category)?.length ?? 0) > 0,
+  );
 
   return (
     <div>
@@ -223,49 +301,25 @@ function HomeTemplatesGrid({
           ))}
         </div>
       ) : (
-        <div className="space-y-7">
-          {TEMPLATE_CATEGORY_ORDER.map((category) => {
+        <div className="space-y-4">
+          {populatedCategories.map((category) => {
             const categoryTemplates = templatesByCategory.get(category) ?? [];
             return (
-              <section key={category} className="rounded-lg border border-black/5 bg-white p-4 shadow-[0_10px_35px_-28px_rgba(0,0,0,0.45)]">
-                <div className="mb-4 flex items-center justify-between gap-4">
-                  <h3 className="text-2xl font-semibold" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
-                    {category}
-                  </h3>
-                  <button
-                    type="button"
-                    onClick={onShowMore}
-                    className="shrink-0 text-sm font-semibold"
-                    style={{ color: C.brand }}
-                  >
-                    See More
-                  </button>
-                </div>
-
-                {categoryTemplates.length === 0 ? (
-                  <div className="flex h-52 w-40 items-center justify-center rounded-md border-2 border-dashed border-black/15 bg-black/[0.025] text-center text-xs font-semibold text-black/40">
-                    No templates yet
-                  </div>
-                ) : (
-                  <div className="flex gap-4 overflow-x-auto pb-2 [scrollbar-width:thin]">
-                    {categoryTemplates.slice(0, 10).map((template) => {
-                      const selectedIndex = selectedIds.indexOf(template.id);
-                      return (
-                        <div key={template.id} className="w-44 shrink-0">
-                          <TemplateCard
-                            template={template}
-                            selected={selectedIndex >= 0}
-                            order={selectedIndex >= 0 ? selectedIndex + 1 : undefined}
-                            onToggle={() => onToggle(template.id)}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
+              <TemplateCategorySection
+                key={category}
+                category={category}
+                templates={categoryTemplates}
+                selectedIds={selectedIds}
+                onToggle={onToggle}
+                onShowMore={onShowMore}
+              />
             );
           })}
+          {populatedCategories.length === 0 && (
+            <div className="rounded-md border border-dashed border-black/15 bg-white px-4 py-12 text-center text-sm font-semibold text-black/45">
+              No templates are available yet.
+            </div>
+          )}
         </div>
       )}
 
@@ -316,6 +370,7 @@ export function LandingPage() {
   const [showLogin, setShowLogin] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [templateModalCategory, setTemplateModalCategory] = useState<string | null>(null);
   const [showProjects, setShowProjects] = useState<"recent" | "open" | null>(null);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
@@ -437,7 +492,7 @@ export function LandingPage() {
                 <span className="inline-flex items-center gap-2"><Plus className="h-4 w-4 transition group-hover:rotate-90" />Create New Project</span>
                 <ChevronRight className="h-4 w-4" />
               </button>
-              <button onClick={() => setShowTemplates(true)} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
+              <button onClick={() => { setTemplateModalCategory(null); setShowTemplates(true); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
                 <Layers className="h-4 w-4" /> Templates
               </button>
               <button onClick={() => setShowProjects("recent")} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
@@ -470,7 +525,10 @@ export function LandingPage() {
             onToggle={toggleTemplate}
             onClear={() => setSelectedTemplateIds([])}
             onStart={startSelectedTemplates}
-            onShowMore={() => setShowTemplates(true)}
+            onShowMore={(category) => {
+              setTemplateModalCategory(category);
+              setShowTemplates(true);
+            }}
           />
         </div>
       </section>
@@ -481,7 +539,12 @@ export function LandingPage() {
 
       <LoginModal open={showLogin} onOpenChange={setShowLogin} />
       <NewProjectModal open={showNewProject} onOpenChange={setShowNewProject} />
-      <TemplateStartModal open={showTemplates} onOpenChange={setShowTemplates} />
+      <TemplateStartModal
+        open={showTemplates}
+        onOpenChange={setShowTemplates}
+        templates={availableTemplates}
+        initialCategory={templateModalCategory}
+      />
       {showProjects && (
         <ProjectSelectionModal
           open={true}

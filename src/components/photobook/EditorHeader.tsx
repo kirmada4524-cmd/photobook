@@ -19,8 +19,8 @@ import {
   RefreshCw,
   Sparkles,
   Shield,
+  UserRound,
 } from "lucide-react";
-import { Slider } from "@/components/ui/slider";
 import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { undo, redo } from "@/lib/photobook/store";
@@ -45,9 +45,7 @@ import { LogOut, LogIn } from "lucide-react";
 
 export function EditorHeader() {
   const title = useBookStore((s) => s.book.title);
-  const theme = useBookStore((s) => s.book.theme);
   const setTitle = useBookStore((s) => s.setTitle);
-  const setTheme = useBookStore((s) => s.setTheme);
   const { isAdmin, currentUser, logout } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
 
@@ -432,13 +430,13 @@ export function EditorHeader() {
   };
 
   return (
-    <header className="editor-header flex min-h-[60px] h-[60px] shrink-0 items-center gap-2 border-b px-2 sm:gap-3 sm:px-5 flex-nowrap overflow-x-auto no-scrollbar w-full">
-      <div className="flex items-center gap-2.5">
+    <header className="editor-header flex h-14 min-h-14 w-full shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-2 sm:gap-2 sm:px-3">
+      <div className="flex shrink-0 items-center gap-2">
         <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="editor-brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-transform group-hover:scale-105">
+          <div className="editor-brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-md transition-transform group-hover:scale-105">
             <BookOpen className="h-4 w-4" />
           </div>
-          <div className="hidden sm:block">
+          <div className="hidden xl:block">
             <span className="font-display block text-base font-semibold leading-none tracking-tight group-hover:text-primary transition-colors">
               Yaara
             </span>
@@ -450,7 +448,7 @@ export function EditorHeader() {
         {isAdmin && (
           <Link
             to="/admin"
-            className="ml-2 flex items-center gap-1.5 rounded-lg border bg-amber-500/10 border-amber-500/30 px-2 py-1 text-xs font-semibold text-amber-600 hover:bg-amber-500/20 transition-colors"
+            className="hidden items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs font-semibold text-amber-600 transition-colors hover:bg-amber-500/20 2xl:flex"
           >
             <Shield className="h-3 w-3" />
             Admin
@@ -458,12 +456,11 @@ export function EditorHeader() {
         )}
       </div>
 
-      <div className="mx-2 hidden h-6 w-px bg-border sm:block" />
-
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-semibold">
-            <FolderOpen className="h-4 w-4" /> Project
+          <Button variant="ghost" size="sm" className="h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold">
+            <FolderOpen className="h-4 w-4" />
+            <span className="hidden xl:inline">Project</span>
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-56">
@@ -504,21 +501,19 @@ export function EditorHeader() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <div className="mx-2 hidden h-6 w-px bg-border sm:block" />
-
-      <label className="group min-w-[120px] flex-1 rounded-lg border border-transparent bg-muted/40 px-3 py-1.5 transition focus-within:border-accent/40 focus-within:bg-card focus-within:shadow-sm hover:bg-muted/60 sm:min-w-[160px]">
-        <span className="block text-[9px] font-bold uppercase tracking-wider text-muted-foreground">
+      <label className="group min-w-[82px] max-w-[300px] flex-1 rounded-md border border-transparent bg-muted/50 px-2.5 py-1 transition focus-within:border-accent/40 focus-within:bg-card focus-within:shadow-sm hover:bg-muted/70 sm:min-w-[140px]">
+        <span className="hidden text-[9px] font-bold uppercase text-muted-foreground sm:block">
           Project title
         </span>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="font-display w-full min-w-0 bg-transparent text-sm outline-none placeholder:text-muted-foreground/60 sm:text-base"
+          className="font-display h-6 w-full min-w-0 bg-transparent text-[13px] outline-none placeholder:text-muted-foreground/60 sm:h-auto sm:text-sm"
           placeholder="Untitled photobook"
         />
       </label>
 
-      <div className="hidden items-center gap-1 md:flex">
+      <div className="editor-toolbar-cluster hidden shrink-0 items-center md:flex">
         <Button
           variant={showLibrarySidebar ? "secondary" : "ghost"}
           size="icon"
@@ -537,11 +532,7 @@ export function EditorHeader() {
         >
           <Palette className="h-4 w-4" />
         </Button>
-      </div>
-
-      <div className="mx-1 hidden h-6 w-px bg-border md:block" />
-
-      <div className="hidden items-center gap-1 md:flex">
+        <div className="mx-1 h-5 w-px bg-border" />
         <Button variant="ghost" size="icon" onClick={() => undo()} title="Undo (Ctrl+Z)">
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -550,20 +541,20 @@ export function EditorHeader() {
         </Button>
       </div>
 
-      <Button variant="ghost" size="sm" asChild className="hidden gap-1.5 sm:inline-flex">
+      <Button variant="ghost" size="sm" asChild className="hidden h-9 shrink-0 gap-1.5 px-2 sm:inline-flex">
         <Link to="/preview">
           <Eye className="h-4 w-4" />
-          Preview
+          <span className="hidden lg:inline">Preview</span>
         </Link>
       </Button>
       <Button
         size="sm"
         onClick={onMagicFill}
-        className="hidden gap-1.5 bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 lg:inline-flex"
+        className="hidden h-9 shrink-0 gap-1.5 bg-accent px-2.5 text-accent-foreground shadow-sm hover:bg-accent/90 md:inline-flex"
         title={emptyFrameCount ? `${emptyFrameCount} empty frames available` : "Fill empty frames"}
       >
         <Sparkles className="h-4 w-4" />
-        Magic Fill
+        <span className="hidden xl:inline">Magic Fill</span>
         {emptyFrameCount > 0 && (
           <span className="rounded-full bg-white/20 px-1.5 text-[10px] font-bold">
             {emptyFrameCount}
@@ -571,12 +562,12 @@ export function EditorHeader() {
         )}
       </Button>
       {isAdmin ? (
-        <div className="flex gap-2">
+        <div className="flex shrink-0 gap-1.5">
           <Button
             size="sm"
             onClick={() => exportProject(title)}
             variant="outline"
-            className="hidden sm:inline-flex gap-1.5 shadow-sm bg-background"
+            className="hidden gap-1.5 bg-background shadow-sm 2xl:inline-flex"
           >
             <Download className="h-4 w-4" />
             <span>Project File</span>
@@ -584,10 +575,10 @@ export function EditorHeader() {
           <Button
             size="sm"
             onClick={onExport}
-            className="gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+            className="h-9 gap-1.5 bg-primary px-2.5 text-primary-foreground shadow-sm hover:bg-primary/90"
           >
             <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export PDF</span>
+            <span className="hidden xl:inline">Export PDF</span>
             <span className="sm:hidden">PDF</span>
           </Button>
         </div>
@@ -595,21 +586,21 @@ export function EditorHeader() {
         <Button
           size="sm"
           onClick={() => exportProject(title)}
-          className="gap-1.5 bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+          className="h-9 shrink-0 gap-1.5 bg-primary px-2.5 text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           <Download className="h-4 w-4" />
-          <span className="hidden sm:inline">Download</span>
+          <span className="hidden xl:inline">Download</span>
         </Button>
       )}
 
       {currentUser ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="gap-1.5 text-xs font-semibold ml-2">
-              <span className="hidden sm:inline">
+            <Button variant="ghost" size="sm" className="ml-0 h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold">
+              <UserRound className="h-4 w-4" />
+              <span className="hidden xl:inline">
                 {isAdmin ? "Admin" : "User"} {currentUser.username}
               </span>
-              <span className="sm:hidden">{isAdmin ? "Admin" : "User"}</span>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -622,11 +613,11 @@ export function EditorHeader() {
         <Button
           variant="outline"
           size="sm"
-          className="gap-1.5 ml-2"
+          className="ml-0 h-9 shrink-0 gap-1.5 px-2"
           onClick={() => setShowLogin(true)}
         >
           <LogIn className="h-4 w-4" />
-          <span className="hidden sm:inline">Sign In</span>
+          <span className="hidden xl:inline">Sign In</span>
         </Button>
       )}
 

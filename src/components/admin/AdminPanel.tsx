@@ -1,7 +1,12 @@
 import { useState, useRef } from "react";
+import { Link } from "@tanstack/react-router";
 import { useBookStore } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { FIXED_PAGE_SIZE_ID, PAGE_SIZES, type SavedPageTemplate } from "@/lib/photobook/types";
+import {
+  normalizeTemplateCategory,
+  TEMPLATE_CATEGORIES,
+} from "@/lib/photobook/template-categories";
 import { appendAdminTemplateChecked, uploadTemplateAsset } from "@/lib/api/templates.functions";
 import { TemplatePreview } from "../photobook/TemplatePreview";
 import { Button } from "@/components/ui/button";
@@ -30,22 +35,9 @@ import {
   FileCheck,
   RefreshCw,
   Loader2,
+  ArrowLeft,
 } from "lucide-react";
 import { toast } from "sonner";
-
-const TEMPLATE_CATEGORIES: string[] = [
-  "Friendship Mag",
-  "Journal Mag",
-  "Textual Mag",
-  "Couple Mag",
-  "Anniversary Mag",
-  "General Mag",
-  "Birthday Mag",
-  "Elegant Mag",
-  "Fiction",
-  "Pinteresty",
-  "LOML Mag",
-];
 
 const filesToPayload = (files: File[]) =>
   Promise.all(
@@ -566,7 +558,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
               backgroundX: typeof page.backgroundX === "number" ? page.backgroundX : 0,
               backgroundY: typeof page.backgroundY === "number" ? page.backgroundY : 0,
               sizeId: FIXED_PAGE_SIZE_ID,
-              category: category.trim() || "Common",
+              category: normalizeTemplateCategory(category),
               frameLocked,
               backgroundLocked,
               isAdminTemplate: true,
@@ -791,16 +783,11 @@ interface EditTemplateDialogProps {
 }
 
 function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
-  const adminTemplates = useBookStore((s) => s.adminTemplates);
   const updateAdminTemplate = useBookStore((s) => s.updateAdminTemplate);
   const [label, setLabel] = useState(template?.label ?? "");
-  const [category, setCategory] = useState<string>(template?.category || "General Mag");
+  const [category, setCategory] = useState<string>(normalizeTemplateCategory(template?.category));
   const [frameLocked, setFrameLocked] = useState(template?.frameLocked ?? true);
   const [backgroundLocked, setBackgroundLocked] = useState(template?.backgroundLocked ?? true);
-
-  const allCategories = Array.from(
-    new Set([...TEMPLATE_CATEGORIES, ...adminTemplates.map((t) => t.category).filter(Boolean)]),
-  ) as string[];
 
   if (!template) return null;
 
@@ -834,7 +821,7 @@ function EditTemplateDialog({ template, onClose }: EditTemplateDialogProps) {
               onChange={(e) => setCategory(e.target.value)}
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
             >
-              {allCategories.map((c) => (
+              {TEMPLATE_CATEGORIES.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -1213,7 +1200,7 @@ export function AdminPanel() {
   const filteredTemplates =
     activeCategory === "All"
       ? adminTemplates
-      : adminTemplates.filter((t) => t.category === activeCategory);
+      : adminTemplates.filter((t) => normalizeTemplateCategory(t.category) === activeCategory);
 
   const sortedTemplates = [...filteredTemplates].sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
@@ -1302,26 +1289,35 @@ export function AdminPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex min-h-screen flex-col bg-background sm:h-screen sm:min-h-0">
       {/* Header */}
-      <div className="flex items-center justify-between border-b px-6 py-4">
-        <div className="flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center">
-            <Shield className="h-4 w-4 text-white" />
+      <div className="flex items-center justify-between gap-3 border-b px-3 py-3 sm:px-4">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <Link
+            to="/editor"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md border bg-background text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            aria-label="Back to editor"
+            title="Back to editor"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Link>
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-amber-500 text-white shadow-sm">
+            <Shield className="h-4 w-4" />
           </div>
-          <div>
-            <h1 className="text-lg font-bold">Admin Panel</h1>
-            <p className="text-xs text-muted-foreground">Manage templates and platform settings</p>
+          <div className="min-w-0">
+            <h1 className="truncate text-base font-bold sm:text-lg">Admin workspace</h1>
+            <p className="hidden text-xs text-muted-foreground sm:block">Templates, stickers, and backgrounds</p>
           </div>
         </div>
-        <Button size="sm" className="gap-1.5" onClick={() => setShowConvert(true)}>
+        <Button size="sm" className="shrink-0 gap-1.5" onClick={() => setShowConvert(true)}>
           <Plus className="h-4 w-4" />
-          Upload Photobook as Templates
+          <span className="hidden sm:inline">Import photobook</span>
+          <span className="sm:hidden">Import</span>
         </Button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4 px-6 py-4 border-b lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 border-b px-3 py-2 sm:px-4 md:grid-cols-4">
         {[
           {
             label: "Admin Templates",
@@ -1348,19 +1344,21 @@ export function AdminPanel() {
             color: "text-green-600",
           },
         ].map((stat) => (
-          <div key={stat.label} className="rounded-xl border bg-muted/30 p-4">
-            <div className={`flex items-center gap-2 ${stat.color} mb-1`}>
+          <div key={stat.label} className="flex min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-2">
+            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-md bg-background ${stat.color}`}>
               {stat.icon}
-              <span className="text-xs font-medium">{stat.label}</span>
             </div>
-            <p className="text-2xl font-bold">{stat.value}</p>
+            <div className="min-w-0">
+              <p className="text-lg font-bold leading-none">{stat.value}</p>
+              <span className="block truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">{stat.label}</span>
+            </div>
           </div>
         ))}
       </div>
 
       {/* Tabs */}
       <Tabs defaultValue="admin-templates" className="flex flex-col flex-1 min-h-0">
-        <TabsList className="mx-6 mt-4 w-fit">
+        <TabsList className="mx-3 mt-3 h-auto w-[calc(100%-1.5rem)] justify-start overflow-x-auto p-1 sm:mx-4 sm:w-[calc(100%-2rem)]">
           <TabsTrigger value="admin-templates">Admin Templates</TabsTrigger>
           <TabsTrigger value="user-templates">User Templates</TabsTrigger>
           <TabsTrigger value="global-stickers">Global Stickers</TabsTrigger>
@@ -1370,7 +1368,7 @@ export function AdminPanel() {
         {/* ─── Admin Templates tab ─── */}
         <TabsContent value="admin-templates" className="flex flex-col flex-1 min-h-0 mt-4">
           {/* Category filter */}
-          <div className="flex gap-2 px-6 overflow-x-auto pb-2">
+          <div className="flex gap-1.5 overflow-x-auto px-3 pb-2 sm:px-4">
             {allCategories.map((cat) => (
               <button
                 key={cat}
@@ -1384,7 +1382,7 @@ export function AdminPanel() {
                 {cat}
                 {cat !== "All" && (
                   <span className="ml-1.5 opacity-60">
-                    ({adminTemplates.filter((t) => t.category === cat).length})
+                    ({adminTemplates.filter((t) => normalizeTemplateCategory(t.category) === cat).length})
                   </span>
                 )}
               </button>
@@ -1392,7 +1390,7 @@ export function AdminPanel() {
           </div>
 
           {sortedTemplates.length > 0 && (
-            <div className="mx-6 mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 px-3 py-2">
+            <div className="mx-3 mt-1 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/20 px-2.5 py-2 sm:mx-4">
               <div className="flex items-center gap-2">
                 <Button
                   size="sm"
@@ -1425,7 +1423,7 @@ export function AdminPanel() {
           )}
 
           {/* Template list */}
-          <div className="flex-1 overflow-y-auto px-6 py-3 space-y-2">
+          <div className="flex-1 space-y-2 overflow-y-auto px-3 py-2 sm:px-4">
             {sortedTemplates.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <LayoutGrid className="h-12 w-12 text-muted-foreground/30 mb-3" />
@@ -1444,17 +1442,17 @@ export function AdminPanel() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
                 {sortedTemplates.map((tmpl, idx) => (
                   <div
                     key={tmpl.id}
-                    className={`group relative flex flex-col gap-3 rounded-xl border bg-card p-3 transition-colors shadow-sm hover:shadow-md ${
+                    className={`group relative flex min-w-0 flex-col gap-2 rounded-md border bg-card p-2 transition-all hover:-translate-y-0.5 hover:shadow-md ${
                       selectedTemplateIds.has(tmpl.id)
                         ? "border-primary ring-2 ring-primary/20"
                         : "hover:border-primary/50"
                     }`}
                   >
-                    <label className="absolute left-4 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
+                    <label className="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
                       <input
                         type="checkbox"
                         className="h-4 w-4"
@@ -1464,7 +1462,7 @@ export function AdminPanel() {
                       />
                     </label>
                     {/* Thumbnail or placeholder */}
-                    <div className="relative w-full aspect-square shrink-0 rounded-lg bg-muted border overflow-hidden">
+                    <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-md border bg-muted">
                       <TemplatePreview template={tmpl} />
                     </div>
 
@@ -1474,7 +1472,7 @@ export function AdminPanel() {
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                         {tmpl.category && (
                           <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            {tmpl.category}
+                            {normalizeTemplateCategory(tmpl.category)}
                           </Badge>
                         )}
                         {tmpl.sizeId && (
@@ -1493,7 +1491,7 @@ export function AdminPanel() {
                       </div>
                     </div>
                     {/* Actions (Absolute in grid) */}
-                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90 backdrop-blur-sm rounded-lg shadow-sm border p-1">
+                    <div className="absolute right-3 top-3 flex items-center gap-1 rounded-md border bg-background/95 p-1 opacity-100 shadow-sm backdrop-blur-sm transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
                       <Button
                         variant="ghost"
                         size="icon"
