@@ -1,23 +1,56 @@
+import { useEffect, useState } from "react";
 import { PAGE_SIZES, type SavedPageTemplate } from "@/lib/photobook/types";
+import { useBookStore } from "@/lib/photobook/store";
 
 interface TemplatePreviewProps {
   template: SavedPageTemplate;
   className?: string;
 }
 
-import { useBookStore } from "@/lib/photobook/store";
+function PreviewAsset({
+  src,
+  className,
+  onFailure,
+}: {
+  src: string;
+  className: string;
+  onFailure?: () => void;
+}) {
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [src]);
+  if (failed) return null;
+
+  return (
+    <img
+      src={src}
+      alt=""
+      className={className}
+      loading="lazy"
+      onError={() => {
+        setFailed(true);
+        onFailure?.();
+      }}
+    />
+  );
+}
 
 export function TemplatePreview({ template, className = "" }: TemplatePreviewProps) {
   const library = useBookStore((s) => s.library);
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
+  const [thumbnailFailed, setThumbnailFailed] = useState(false);
+
+  useEffect(() => setThumbnailFailed(false), [template.id, template.thumbnail]);
 
   // If we have a captured thumbnail, always prefer it because it's exactly what the page looks like
-  if (template.thumbnail) {
+  if (template.thumbnail && !thumbnailFailed) {
     return (
       <img
         src={template.thumbnail}
         alt={template.label}
-        className={`w-full h-full object-cover ${className}`}
+        className={`h-full w-full object-cover ${className}`}
+        loading="lazy"
+        onError={() => setThumbnailFailed(true)}
       />
     );
   }
@@ -41,11 +74,9 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
     }
   }
 
+  const hasImageBackground = !bgSrc.startsWith("#");
   const bgStyle: React.CSSProperties = {
     backgroundColor: bgSrc.startsWith("#") ? bgSrc : undefined,
-    backgroundImage: !bgSrc.startsWith("#") ? `url(${bgSrc})` : undefined,
-    backgroundSize: template.backgroundMode || "cover",
-    backgroundPosition: "center",
   };
 
   return (
@@ -53,6 +84,12 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
       className={`relative w-full h-full overflow-hidden @container bg-background ${className}`}
       style={bgStyle}
     >
+      {hasImageBackground && (
+        <PreviewAsset
+          src={bgSrc}
+          className={`absolute inset-0 h-full w-full ${template.backgroundMode === "contain" ? "object-contain" : "object-cover"}`}
+        />
+      )}
       <div className="absolute inset-0 opacity-90">
         {elements.map((el, i) => {
           const isPhoto = el.type === "photo";
@@ -94,10 +131,9 @@ export function TemplatePreview({ template, className = "" }: TemplatePreviewPro
               }}
             >
               {(isPhoto || isSticker) && src ? (
-                <img
+                <PreviewAsset
                   src={src}
-                  alt=""
-                  className={`w-full h-full pointer-events-none select-none ${
+                  className={`pointer-events-none h-full w-full select-none ${
                     isPhoto ? "object-cover" : "object-contain"
                   }`}
                 />
