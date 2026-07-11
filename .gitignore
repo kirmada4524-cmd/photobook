@@ -18,7 +18,7 @@ test-results/
 *.local
 software/
 
-# Local admin uploads/storage. Production uses Vercel Blob when connected.
+# Local admin uploads/storage. Production uses Supabase + ImageKit.
 admin-assets.json
 admin-templates.json
 public/admin-assets/

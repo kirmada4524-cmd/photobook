@@ -35,7 +35,8 @@
 - Keep saved template IDs and project file compatibility stable.
 - Use structured data and existing photobook APIs instead of string parsing.
 - Keep changes scoped to the requested behavior.
-- Do not change Vercel Blob or server API contracts without checking all usages.
+- Production persistence uses Supabase tables for metadata and ImageKit for media; private keys stay server-only.
+- Preserve the existing server API contracts when changing storage providers.
 - Do not rewrite published git history; this project is connected to Lovable.
 
 ## Git

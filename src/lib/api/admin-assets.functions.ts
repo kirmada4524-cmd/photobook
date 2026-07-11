@@ -6,9 +6,18 @@ import type {
   GlobalStickerAsset,
   GlobalStickerFolder,
 } from "@/lib/photobook/types";
-import { deleteBlob, getBlobText, hasBlobReadWriteToken, putBlob } from "./blob-storage.server";
-
-const ADMIN_ASSETS_BLOB_PATH = "admin-assets/library.json";
+import {
+  deleteImageKitFile,
+  hasImageKitStorage,
+  missingImageKitStorageError,
+  uploadImageKitFile,
+} from "./imagekit.server";
+import {
+  encodeFilterValue,
+  hasSupabaseStorage,
+  missingSupabaseStorageError,
+  supabaseTableRequest,
+} from "./supabase.server";
 
 const emptyLibrary = (): AdminAssetLibrary => ({
   stickerFolders: [],
@@ -30,76 +39,11 @@ const normalizeLibrary = (raw: unknown): AdminAssetLibrary => {
   };
 };
 
-const hasBlobStorage = () => hasBlobReadWriteToken();
-
 const isVercelRuntime = () => Boolean(process.env.VERCEL);
+const hasCloudStorage = () => hasSupabaseStorage();
 
-const missingBlobStorageError = () =>
-  new Error(
-    "Missing Vercel Blob write credentials. Add BLOB_READ_WRITE_TOKEN to the Vercel project environment variables.",
-  );
-
-async function readBlobText(pathname: string) {
-  return getBlobText(pathname);
-}
-
-async function writeBlobJson(pathname: string, value: unknown) {
-  await putBlob(pathname, JSON.stringify(value, null, 2), {
-    contentType: "application/json",
-    cacheControlMaxAge: 60,
-  });
-}
-
-async function localAssetPaths() {
-  const fs = await import("fs");
-  const path = await import("path");
-  const adminAssetsDir = path.resolve(process.cwd(), "public", "admin-assets");
-
-  return {
-    fs,
-    path,
-    adminAssetsFile: path.resolve(process.cwd(), "admin-assets.json"),
-    adminAssetsDir,
-    stickersDir: path.join(adminAssetsDir, "stickers"),
-    backgroundsDir: path.join(adminAssetsDir, "backgrounds"),
-  };
-}
-
-async function readLibrary(): Promise<AdminAssetLibrary> {
-  if (hasBlobStorage()) {
-    try {
-      const content = await readBlobText(ADMIN_ASSETS_BLOB_PATH);
-      return content ? normalizeLibrary(JSON.parse(content)) : emptyLibrary();
-    } catch (error) {
-      console.error("Error reading admin assets from Blob:", error);
-      return emptyLibrary();
-    }
-  }
-
-  try {
-    const { fs, adminAssetsFile } = await localAssetPaths();
-    if (!fs.existsSync(adminAssetsFile)) return emptyLibrary();
-    const content = await fs.promises.readFile(adminAssetsFile, "utf-8");
-    return normalizeLibrary(JSON.parse(content));
-  } catch (error) {
-    console.error("Error reading admin-assets.json:", error);
-    return emptyLibrary();
-  }
-}
-
-async function writeLibrary(library: AdminAssetLibrary) {
-  if (hasBlobStorage()) {
-    await writeBlobJson(ADMIN_ASSETS_BLOB_PATH, library);
-    return;
-  }
-
-  if (isVercelRuntime()) {
-    throw missingBlobStorageError();
-  }
-
-  const { fs, adminAssetsFile } = await localAssetPaths();
-  await fs.promises.writeFile(adminAssetsFile, JSON.stringify(library, null, 2));
-}
+const missingCloudStorageError = () =>
+  hasSupabaseStorage() ? missingImageKitStorageError() : missingSupabaseStorageError();
 
 const extFromMime = (mime: string) => {
   if (mime === "image/png") return ".png";
@@ -118,6 +62,108 @@ const parseDataUrl = (dataUrl: string) => {
   };
 };
 
+type StickerFolderRow = {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at_ms: number;
+};
+
+type StickerRow = {
+  id: string;
+  folder_id: string;
+  name: string;
+  src: string;
+  imagekit_file_id?: string | null;
+  created_at_ms: number;
+};
+
+type BackgroundRow = {
+  id: string;
+  name: string;
+  src: string;
+  imagekit_file_id?: string | null;
+  created_at_ms: number;
+};
+
+async function readCloudLibrary(): Promise<AdminAssetLibrary> {
+  const [folderRows, stickerRows, backgroundRows] = await Promise.all([
+    supabaseTableRequest<StickerFolderRow[]>("admin_sticker_folders", {
+      query: "select=*&order=sort_order.asc,created_at_ms.asc",
+    }),
+    supabaseTableRequest<StickerRow[]>("admin_stickers", {
+      query: "select=*&order=created_at_ms.asc",
+    }),
+    supabaseTableRequest<BackgroundRow[]>("admin_backgrounds", {
+      query: "select=*&order=created_at_ms.asc",
+    }),
+  ]);
+
+  const stickersByFolder = new Map<string, GlobalStickerAsset[]>();
+  stickerRows.forEach((row) => {
+    const sticker: GlobalStickerAsset = {
+      id: row.id,
+      folderId: row.folder_id,
+      name: row.name,
+      src: row.src,
+      fileId: row.imagekit_file_id || undefined,
+      createdAt: row.created_at_ms,
+    };
+    stickersByFolder.set(row.folder_id, [
+      ...(stickersByFolder.get(row.folder_id) ?? []),
+      sticker,
+    ]);
+  });
+
+  return {
+    stickerFolders: folderRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      sortOrder: row.sort_order,
+      createdAt: row.created_at_ms,
+      stickers: stickersByFolder.get(row.id) ?? [],
+    })),
+    backgrounds: backgroundRows.map((row) => ({
+      id: row.id,
+      name: row.name,
+      src: row.src,
+      fileId: row.imagekit_file_id || undefined,
+      createdAt: row.created_at_ms,
+    })),
+  };
+}
+
+async function localAssetPaths() {
+  const fs = await import("fs");
+  const path = await import("path");
+  return {
+    fs,
+    path,
+    adminAssetsFile: path.resolve(process.cwd(), "admin-assets.json"),
+  };
+}
+
+async function readLocalLibrary(): Promise<AdminAssetLibrary> {
+  try {
+    const { fs, adminAssetsFile } = await localAssetPaths();
+    if (!fs.existsSync(adminAssetsFile)) return emptyLibrary();
+    return normalizeLibrary(JSON.parse(await fs.promises.readFile(adminAssetsFile, "utf-8")));
+  } catch (error) {
+    console.error("Error reading local admin assets:", error);
+    return emptyLibrary();
+  }
+}
+
+async function writeLocalLibrary(library: AdminAssetLibrary) {
+  if (isVercelRuntime()) throw missingCloudStorageError();
+  const { fs, adminAssetsFile } = await localAssetPaths();
+  await fs.promises.writeFile(adminAssetsFile, JSON.stringify(library, null, 2));
+}
+
+async function readLibrary() {
+  return hasCloudStorage() ? readCloudLibrary() : readLocalLibrary();
+}
+
 async function writeLocalAdminAsset(
   kind: "stickers" | "backgrounds",
   filename: string,
@@ -126,83 +172,65 @@ async function writeLocalAdminAsset(
   const fs = await import("fs");
   const path = await import("path");
   const cwd = process.cwd();
-
-  const candidates = [
+  const directories = [
     path.resolve(cwd, "public", "admin-assets", kind),
     path.resolve(cwd, ".output", "public", "admin-assets", kind),
     path.resolve(cwd, "dist", "public", "admin-assets", kind),
   ];
 
-  const dirs = candidates.filter((dir, idx, self) => self.indexOf(dir) === idx);
-
-  let lastError = null;
-  let success = false;
-
-  for (const dir of dirs) {
+  let wroteFile = false;
+  let lastError: unknown;
+  for (const directory of [...new Set(directories)]) {
     try {
-      await fs.promises.mkdir(dir, { recursive: true });
-      const filePath = path.join(dir, filename);
-      await fs.promises.writeFile(filePath, buffer);
-      success = true;
-    } catch (err) {
-      lastError = err;
-      console.warn(`Could not write local admin asset to ${dir}:`, err);
+      await fs.promises.mkdir(directory, { recursive: true });
+      await fs.promises.writeFile(path.join(directory, filename), buffer);
+      wroteFile = true;
+    } catch (error) {
+      lastError = error;
     }
   }
-
-  if (!success && lastError) {
-    throw lastError;
-  }
-
+  if (!wroteFile && lastError) throw lastError;
   return `/admin-assets/${kind}/${filename}`;
 }
 
-async function saveImageDataUrl(kind: "stickers" | "backgrounds", id: string, dataUrl: string) {
+async function uploadCloudAsset(
+  kind: "stickers" | "backgrounds",
+  id: string,
+  dataUrl: string,
+) {
+  if (!hasImageKitStorage()) throw missingImageKitStorageError();
   const { mime, buffer } = parseDataUrl(dataUrl);
   const filename = `${id}${extFromMime(mime)}`;
-
-  if (hasBlobStorage()) {
-    const blob = await putBlob(`admin-assets/${kind}/${filename}`, buffer, {
-      contentType: mime,
-      cacheControlMaxAge: 31536000,
-    });
-    return blob.url;
-  }
-
-  if (isVercelRuntime()) {
-    throw missingBlobStorageError();
-  }
-
-  return writeLocalAdminAsset(kind, filename, buffer);
+  return uploadImageKitFile({
+    buffer,
+    filename,
+    folder: `/travelogue/admin-assets/${kind}`,
+    mime,
+  });
 }
 
-async function deletePublicAsset(src: string) {
-  if (hasBlobStorage()) {
-    const isBlobUrl = /^https?:\/\/.+\.blob\.vercel-storage\.com\//.test(src);
-    const isBlobPath = src.startsWith("admin-assets/");
-    if (isBlobUrl || isBlobPath) {
-      await deleteBlob(src).catch(() => undefined);
-      return;
-    }
-  }
+async function uploadLocalAsset(
+  kind: "stickers" | "backgrounds",
+  id: string,
+  dataUrl: string,
+) {
+  const { mime, buffer } = parseDataUrl(dataUrl);
+  return writeLocalAdminAsset(kind, `${id}${extFromMime(mime)}`, buffer);
+}
 
+async function deleteLocalAsset(src: string) {
   if (!src.startsWith("/admin-assets/")) return;
-
   const fs = await import("fs");
   const path = await import("path");
-  const cwd = process.cwd();
-
   const relative = src.replace(/^\/+/, "").split(/[?#]/)[0];
-
-  const candidates = [
-    path.resolve(cwd, "public", relative),
-    path.resolve(cwd, ".output", "public", relative),
-    path.resolve(cwd, "dist", "public", relative),
-  ];
-
-  for (const filePath of candidates) {
-    await fs.promises.unlink(filePath).catch(() => undefined);
-  }
+  const cwd = process.cwd();
+  await Promise.all(
+    [
+      path.resolve(cwd, "public", relative),
+      path.resolve(cwd, ".output", "public", relative),
+      path.resolve(cwd, "dist", "public", relative),
+    ].map((filePath) => fs.promises.unlink(filePath).catch(() => undefined)),
+  );
 }
 
 const fileInputSchema = z.object({
@@ -211,13 +239,17 @@ const fileInputSchema = z.object({
 });
 
 export const getAdminAssets = createServerFn({ method: "GET" }).handler(async () => {
-  return readLibrary();
+  try {
+    return await readLibrary();
+  } catch (error) {
+    console.error("Error reading admin assets:", error);
+    return emptyLibrary();
+  }
 });
 
 export const createAdminStickerFolder = createServerFn({ method: "POST" })
   .validator(z.object({ name: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const library = await readLibrary();
     const folder: GlobalStickerFolder = {
       id: nid("sticker_folder"),
       name: data.name.trim(),
@@ -225,25 +257,48 @@ export const createAdminStickerFolder = createServerFn({ method: "POST" })
       createdAt: Date.now(),
       sortOrder: Date.now(),
     };
-    const next = {
-      ...library,
-      stickerFolders: [...library.stickerFolders, folder],
-    };
-    await writeLibrary(next);
+
+    if (hasCloudStorage()) {
+      await supabaseTableRequest("admin_sticker_folders", {
+        method: "POST",
+        body: {
+          id: folder.id,
+          name: folder.name,
+          sort_order: folder.sortOrder,
+          created_at_ms: folder.createdAt,
+        },
+        prefer: "return=minimal",
+      });
+      return readCloudLibrary();
+    }
+
+    const library = await readLocalLibrary();
+    const next = { ...library, stickerFolders: [...library.stickerFolders, folder] };
+    await writeLocalLibrary(next);
     return next;
   });
 
 export const updateAdminStickerFolder = createServerFn({ method: "POST" })
   .validator(z.object({ folderId: z.string(), name: z.string().min(1) }))
   .handler(async ({ data }) => {
-    const library = await readLibrary();
+    if (hasCloudStorage()) {
+      await supabaseTableRequest("admin_sticker_folders", {
+        method: "PATCH",
+        query: `id=eq.${encodeFilterValue(data.folderId)}`,
+        body: { name: data.name.trim() },
+        prefer: "return=minimal",
+      });
+      return readCloudLibrary();
+    }
+
+    const library = await readLocalLibrary();
     const next = {
       ...library,
       stickerFolders: library.stickerFolders.map((folder) =>
         folder.id === data.folderId ? { ...folder, name: data.name.trim() } : folder,
       ),
     };
-    await writeLibrary(next);
+    await writeLocalLibrary(next);
     return next;
   });
 
@@ -252,38 +307,81 @@ export const deleteAdminStickerFolder = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const library = await readLibrary();
     const folder = library.stickerFolders.find((item) => item.id === data.folderId);
-    if (folder) {
-      await Promise.all(folder.stickers.map((sticker) => deletePublicAsset(sticker.src)));
+
+    if (hasCloudStorage()) {
+      await Promise.all(
+        (folder?.stickers ?? []).map((sticker) =>
+          deleteImageKitFile(sticker.fileId).catch((error) =>
+            console.warn(`Could not delete sticker ${sticker.id}:`, error),
+          ),
+        ),
+      );
+      await supabaseTableRequest("admin_sticker_folders", {
+        method: "DELETE",
+        query: `id=eq.${encodeFilterValue(data.folderId)}`,
+        prefer: "return=minimal",
+      });
+      return readCloudLibrary();
     }
+
+    await Promise.all((folder?.stickers ?? []).map((sticker) => deleteLocalAsset(sticker.src)));
     const next = {
       ...library,
       stickerFolders: library.stickerFolders.filter((item) => item.id !== data.folderId),
     };
-    await writeLibrary(next);
+    await writeLocalLibrary(next);
     return next;
   });
 
 export const addAdminStickers = createServerFn({ method: "POST" })
-  .validator(
-    z.object({
-      folderId: z.string(),
-      files: z.array(fileInputSchema).min(1),
-    }),
-  )
+  .validator(z.object({ folderId: z.string(), files: z.array(fileInputSchema).min(1) }))
   .handler(async ({ data }) => {
-    const library = await readLibrary();
+    if (hasCloudStorage()) {
+      const uploaded: Array<GlobalStickerAsset & { fileId: string }> = [];
+      try {
+        for (const file of data.files) {
+          const id = nid("global_sticker");
+          const media = await uploadCloudAsset("stickers", id, file.dataUrl);
+          uploaded.push({
+            id,
+            folderId: data.folderId,
+            name: file.name,
+            src: media.url,
+            fileId: media.fileId,
+            createdAt: Date.now(),
+          });
+        }
+        await supabaseTableRequest("admin_stickers", {
+          method: "POST",
+          body: uploaded.map((sticker) => ({
+            id: sticker.id,
+            folder_id: sticker.folderId,
+            name: sticker.name,
+            src: sticker.src,
+            imagekit_file_id: sticker.fileId,
+            created_at_ms: sticker.createdAt,
+          })),
+          prefer: "return=minimal",
+        });
+      } catch (error) {
+        await Promise.all(uploaded.map((sticker) => deleteImageKitFile(sticker.fileId)));
+        throw error;
+      }
+      return readCloudLibrary();
+    }
+
+    const library = await readLocalLibrary();
     const nextFolders = await Promise.all(
       library.stickerFolders.map(async (folder) => {
         if (folder.id !== data.folderId) return folder;
         const stickers: GlobalStickerAsset[] = [];
         for (const file of data.files) {
           const id = nid("global_sticker");
-          const src = await saveImageDataUrl("stickers", id, file.dataUrl);
           stickers.push({
             id,
-            name: file.name,
-            src,
             folderId: folder.id,
+            name: file.name,
+            src: await uploadLocalAsset("stickers", id, file.dataUrl),
             createdAt: Date.now(),
           });
         }
@@ -291,7 +389,7 @@ export const addAdminStickers = createServerFn({ method: "POST" })
       }),
     );
     const next = { ...library, stickerFolders: nextFolders };
-    await writeLibrary(next);
+    await writeLocalLibrary(next);
     return next;
   });
 
@@ -299,39 +397,86 @@ export const deleteAdminSticker = createServerFn({ method: "POST" })
   .validator(z.object({ folderId: z.string(), stickerId: z.string() }))
   .handler(async ({ data }) => {
     const library = await readLibrary();
-    const nextFolders = await Promise.all(
-      library.stickerFolders.map(async (folder) => {
-        if (folder.id !== data.folderId) return folder;
-        const sticker = folder.stickers.find((item) => item.id === data.stickerId);
-        if (sticker) await deletePublicAsset(sticker.src);
-        return {
-          ...folder,
-          stickers: folder.stickers.filter((item) => item.id !== data.stickerId),
-        };
-      }),
-    );
-    const next = { ...library, stickerFolders: nextFolders };
-    await writeLibrary(next);
+    const sticker = library.stickerFolders
+      .find((folder) => folder.id === data.folderId)
+      ?.stickers.find((item) => item.id === data.stickerId);
+
+    if (hasCloudStorage()) {
+      await deleteImageKitFile(sticker?.fileId).catch((error) =>
+        console.warn(`Could not delete sticker ${data.stickerId}:`, error),
+      );
+      await supabaseTableRequest("admin_stickers", {
+        method: "DELETE",
+        query: `id=eq.${encodeFilterValue(data.stickerId)}`,
+        prefer: "return=minimal",
+      });
+      return readCloudLibrary();
+    }
+
+    if (sticker) await deleteLocalAsset(sticker.src);
+    const next = {
+      ...library,
+      stickerFolders: library.stickerFolders.map((folder) =>
+        folder.id === data.folderId
+          ? {
+              ...folder,
+              stickers: folder.stickers.filter((item) => item.id !== data.stickerId),
+            }
+          : folder,
+      ),
+    };
+    await writeLocalLibrary(next);
     return next;
   });
 
 export const addAdminBackgrounds = createServerFn({ method: "POST" })
   .validator(z.object({ files: z.array(fileInputSchema).min(1) }))
   .handler(async ({ data }) => {
-    const library = await readLibrary();
+    if (hasCloudStorage()) {
+      const uploaded: Array<GlobalBackgroundAsset & { fileId: string }> = [];
+      try {
+        for (const file of data.files) {
+          const id = nid("global_bg");
+          const media = await uploadCloudAsset("backgrounds", id, file.dataUrl);
+          uploaded.push({
+            id,
+            name: file.name,
+            src: media.url,
+            fileId: media.fileId,
+            createdAt: Date.now(),
+          });
+        }
+        await supabaseTableRequest("admin_backgrounds", {
+          method: "POST",
+          body: uploaded.map((background) => ({
+            id: background.id,
+            name: background.name,
+            src: background.src,
+            imagekit_file_id: background.fileId,
+            created_at_ms: background.createdAt,
+          })),
+          prefer: "return=minimal",
+        });
+      } catch (error) {
+        await Promise.all(uploaded.map((background) => deleteImageKitFile(background.fileId)));
+        throw error;
+      }
+      return readCloudLibrary();
+    }
+
+    const library = await readLocalLibrary();
     const backgrounds: GlobalBackgroundAsset[] = [];
     for (const file of data.files) {
       const id = nid("global_bg");
-      const src = await saveImageDataUrl("backgrounds", id, file.dataUrl);
       backgrounds.push({
         id,
         name: file.name,
-        src,
+        src: await uploadLocalAsset("backgrounds", id, file.dataUrl),
         createdAt: Date.now(),
       });
     }
     const next = { ...library, backgrounds: [...library.backgrounds, ...backgrounds] };
-    await writeLibrary(next);
+    await writeLocalLibrary(next);
     return next;
   });
 
@@ -340,11 +485,24 @@ export const deleteAdminBackground = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const library = await readLibrary();
     const background = library.backgrounds.find((item) => item.id === data.backgroundId);
-    if (background) await deletePublicAsset(background.src);
+
+    if (hasCloudStorage()) {
+      await deleteImageKitFile(background?.fileId).catch((error) =>
+        console.warn(`Could not delete background ${data.backgroundId}:`, error),
+      );
+      await supabaseTableRequest("admin_backgrounds", {
+        method: "DELETE",
+        query: `id=eq.${encodeFilterValue(data.backgroundId)}`,
+        prefer: "return=minimal",
+      });
+      return readCloudLibrary();
+    }
+
+    if (background) await deleteLocalAsset(background.src);
     const next = {
       ...library,
       backgrounds: library.backgrounds.filter((item) => item.id !== data.backgroundId),
     };
-    await writeLibrary(next);
+    await writeLocalLibrary(next);
     return next;
   });

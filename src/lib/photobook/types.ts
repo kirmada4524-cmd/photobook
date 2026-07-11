@@ -209,6 +209,7 @@ export type GlobalStickerAsset = {
   id: string;
   name: string;
   src: string;
+  fileId?: string;
   folderId: string;
   createdAt: number;
 };
@@ -225,6 +226,7 @@ export type GlobalBackgroundAsset = {
   id: string;
   name: string;
   src: string;
+  fileId?: string;
   createdAt: number;
 };
 
