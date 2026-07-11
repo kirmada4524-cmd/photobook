@@ -19,7 +19,7 @@ Travelogue Studio uses Supabase for structured data and ImageKit for media files
 1. Create a Supabase project.
 2. Open the Supabase SQL editor.
 3. Run `supabase/migrations/202607110001_photobook_storage.sql`.
-4. Copy the project URL and service-role key from the Supabase project settings.
+4. Copy the project URL, publishable key, and secret key from the Supabase project settings.
 
 ### ImageKit
 
@@ -33,14 +33,14 @@ Add these values for Production, Preview, and Development:
 
 ```text
 SUPABASE_URL
-SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
+SUPABASE_PUBLISHABLE_KEY
+SUPABASE_SECRET_KEY
 IMAGEKIT_URL_ENDPOINT
 IMAGEKIT_PUBLIC_KEY
 IMAGEKIT_PRIVATE_KEY
 ```
 
-Do not prefix `SUPABASE_SERVICE_ROLE_KEY` or `IMAGEKIT_PRIVATE_KEY` with `VITE_`. The app accesses both through TanStack server functions and never sends them to the browser.
+Do not prefix `SUPABASE_SECRET_KEY` or `IMAGEKIT_PRIVATE_KEY` with `VITE_` or `NEXT_PUBLIC_`. The app accesses both through TanStack server functions and never sends them to the browser. The legacy `SUPABASE_SERVICE_ROLE_KEY` is also supported if the project does not offer a new secret key.
 
 After adding or changing environment variables, redeploy the Vercel project.
 

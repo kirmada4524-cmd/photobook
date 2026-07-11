@@ -1,11 +1,14 @@
 const supabaseUrl = () => process.env.SUPABASE_URL?.trim().replace(/\/$/, "") || "";
-const supabaseServiceKey = () => process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
+const supabaseServiceKey = () =>
+  process.env.SUPABASE_SECRET_KEY?.trim() ||
+  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
+  "";
 
 export const hasSupabaseStorage = () => Boolean(supabaseUrl() && supabaseServiceKey());
 
 export const missingSupabaseStorageError = () =>
   new Error(
-    "Missing Supabase credentials. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to the Vercel environment variables.",
+    "Missing Supabase credentials. Add SUPABASE_URL and SUPABASE_SECRET_KEY to the Vercel environment variables.",
   );
 
 type RequestOptions = {
