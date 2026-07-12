@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { useAuthStore } from "@/lib/auth";
 import {
   appendAdminTemplates,
   deleteAdminTemplateById,
@@ -170,6 +171,12 @@ const blankPage = (theme: BackgroundTheme = "cream"): Page => ({
   elements: [],
 });
 
+const pageMutationAllowed = (page?: Page) =>
+  !page?.adminTemplateProtected || useAuthStore.getState().isAdmin;
+
+const isPhotoCropPatch = (patch: Partial<PageElement>) =>
+  Object.keys(patch).every((key) => ["imageX", "imageY", "imageScale"].includes(key));
+
 const withFixedPageSize = (book: Book): Book => ({
   ...book,
   pageSizeId: FIXED_PAGE_SIZE_ID,
@@ -282,6 +289,7 @@ type Actions = {
       frameLocked?: boolean;
       backgroundLocked?: boolean;
       isAdminTemplate?: boolean;
+      replaceTemplateId?: string;
     },
   ) => Promise<void>;
   deleteCustomTemplate: (templateId: string) => void;
@@ -418,8 +426,9 @@ function fillEmptyFrames(
       touchedPageIds.add(page.id);
       changed = true;
 
-      if (el.locked) framesUnlocked++;
-      return { ...el, imageId: picked.id, locked: false } as PhotoElement;
+      const keepLocked = Boolean(page.adminTemplateProtected && !useAuthStore.getState().isAdmin);
+      if (el.locked && !keepLocked) framesUnlocked++;
+      return { ...el, imageId: picked.id, locked: keepLocked ? true : false } as PhotoElement;
     });
 
     return changed ? { ...page, elements } : page;
@@ -491,8 +500,13 @@ function fillPageFrames(state: State, pageId: string): { stats: AutofillResult; 
       framesFilled++;
       changed = true;
 
-      if (el.locked && !hasImage) framesUnlocked++;
-      return { ...el, imageId: picked.id, locked: hasImage ? el.locked : false } as PhotoElement;
+      const keepLocked = Boolean(p.adminTemplateProtected && !useAuthStore.getState().isAdmin);
+      if (el.locked && !hasImage && !keepLocked) framesUnlocked++;
+      return {
+        ...el,
+        imageId: picked.id,
+        locked: keepLocked ? true : hasImage ? el.locked : false,
+      } as PhotoElement;
     });
 
     return changed ? { ...p, elements } : p;
@@ -626,9 +640,12 @@ export const useBookStore = create<State & Actions>()(
         setPageBackground: (id, bg) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.id === id);
+            if (page?.adminTemplateProtected && !useAuthStore.getState().isAdmin) return s;
             const isUserBackground =
               bg.startsWith("bg_") || bg.startsWith("data:") || bg.startsWith("blob:");
-            if (page?.backgroundLocked && !isUserBackground) return s;
+            if (page?.backgroundLocked && !isUserBackground && !useAuthStore.getState().isAdmin) {
+              return s;
+            }
             return {
               book: {
                 ...s.book,
@@ -647,37 +664,55 @@ export const useBookStore = create<State & Actions>()(
             };
           }),
         setPageBorder: (id, border) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) => (p.id === id ? { ...p, border } : p)),
-            },
-          })),
+          set((s) =>
+            pageMutationAllowed(s.book.pages.find((p) => p.id === id))
+              ? {
+                  book: {
+                    ...s.book,
+                    pages: s.book.pages.map((p) => (p.id === id ? { ...p, border } : p)),
+                  },
+                }
+              : s,
+          ),
         updatePageBackgroundMode: (id, mode) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) => (p.id === id ? { ...p, backgroundMode: mode } : p)),
-            },
-          })),
+          set((s) =>
+            pageMutationAllowed(s.book.pages.find((p) => p.id === id))
+              ? {
+                  book: {
+                    ...s.book,
+                    pages: s.book.pages.map((p) =>
+                      p.id === id ? { ...p, backgroundMode: mode } : p,
+                    ),
+                  },
+                }
+              : s,
+          ),
         updatePageBackgroundPosition: (pageId, x, y) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) =>
-                p.id === pageId ? { ...p, backgroundX: x, backgroundY: y } : p,
-              ),
-            },
-          })),
+          set((s) =>
+            pageMutationAllowed(s.book.pages.find((p) => p.id === pageId))
+              ? {
+                  book: {
+                    ...s.book,
+                    pages: s.book.pages.map((p) =>
+                      p.id === pageId ? { ...p, backgroundX: x, backgroundY: y } : p,
+                    ),
+                  },
+                }
+              : s,
+          ),
         updatePageBackgroundScale: (pageId, scale) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) =>
-                p.id === pageId ? { ...p, backgroundScale: Math.max(1, scale) } : p,
-              ),
-            },
-          })),
+          set((s) =>
+            pageMutationAllowed(s.book.pages.find((p) => p.id === pageId))
+              ? {
+                  book: {
+                    ...s.book,
+                    pages: s.book.pages.map((p) =>
+                      p.id === pageId ? { ...p, backgroundScale: Math.max(1, scale) } : p,
+                    ),
+                  },
+                }
+              : s,
+          ),
         setEditingBackgroundPageId: (pageId) => set({ editingBackgroundPageId: pageId }),
         reorderPages: (ids) =>
           set((s) => ({
@@ -688,43 +723,61 @@ export const useBookStore = create<State & Actions>()(
           })),
 
         addElement: (el) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) =>
-                p.id === s.currentPageId ? { ...p, elements: [...p.elements, el] } : p,
-              ),
-            },
-            selectedElementId: el.id,
-          })),
+          set((s) =>
+            pageMutationAllowed(s.book.pages.find((p) => p.id === s.currentPageId))
+              ? {
+                  book: {
+                    ...s.book,
+                    pages: s.book.pages.map((p) =>
+                      p.id === s.currentPageId ? { ...p, elements: [...p.elements, el] } : p,
+                    ),
+                  },
+                  selectedElementId: el.id,
+                }
+              : s,
+          ),
         updateElement: (id, patch) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) =>
-                p.elements.some((e) => e.id === id)
-                  ? {
-                      ...p,
-                      elements: p.elements.map((e) =>
-                        e.id === id ? ({ ...e, ...patch } as PageElement) : e,
-                      ),
-                    }
-                  : p,
-              ),
-            },
-          })),
+          set((s) => {
+            const page = s.book.pages.find((p) => p.elements.some((e) => e.id === id));
+            const element = page?.elements.find((e) => e.id === id);
+            if (
+              !pageMutationAllowed(page) &&
+              !(element?.type === "photo" && isPhotoCropPatch(patch))
+            ) {
+              return s;
+            }
+            return {
+              book: {
+                ...s.book,
+                pages: s.book.pages.map((p) =>
+                  p.elements.some((e) => e.id === id)
+                    ? {
+                        ...p,
+                        elements: p.elements.map((e) =>
+                          e.id === id ? ({ ...e, ...patch } as PageElement) : e,
+                        ),
+                      }
+                    : p,
+                ),
+              },
+            };
+          }),
         removeElement: (id) =>
-          set((s) => ({
-            book: {
-              ...s.book,
-              pages: s.book.pages.map((p) =>
-                p.elements.some((e) => e.id === id)
-                  ? { ...p, elements: p.elements.filter((e) => e.id !== id) }
-                  : p,
-              ),
-            },
-            selectedElementId: null,
-          })),
+          set((s) =>
+            pageMutationAllowed(s.book.pages.find((p) => p.elements.some((e) => e.id === id)))
+              ? {
+                  book: {
+                    ...s.book,
+                    pages: s.book.pages.map((p) =>
+                      p.elements.some((e) => e.id === id)
+                        ? { ...p, elements: p.elements.filter((e) => e.id !== id) }
+                        : p,
+                    ),
+                  },
+                  selectedElementId: null,
+                }
+              : s,
+          ),
         replacePhotoImage: (elementId, imageId) =>
           set((s) => ({
             book: {
@@ -766,7 +819,7 @@ export const useBookStore = create<State & Actions>()(
         bringToFront: (id) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.elements.some((e) => e.id === id));
-            if (!page) return s;
+            if (!page || !pageMutationAllowed(page)) return s;
             const maxZ = Math.max(0, ...page.elements.map((e) => e.z));
             return {
               book: {
@@ -785,7 +838,7 @@ export const useBookStore = create<State & Actions>()(
         moveElementLayer: (id, direction) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.elements.some((e) => e.id === id));
-            if (!page) return s;
+            if (!page || !pageMutationAllowed(page)) return s;
             const sorted = [...page.elements].sort((a, b) => a.z - b.z);
             const index = sorted.findIndex((e) => e.id === id);
             if (index < 0) return s;
@@ -823,16 +876,18 @@ export const useBookStore = create<State & Actions>()(
 
             const preset = PAGE_SIZES[0];
             const templatePhotos = applyTemplate(templateId, ids, preset.width, preset.height);
-            const newPhotos = (Array.isArray(templatePhotos) ? templatePhotos : []).filter(
-              (el): el is PhotoElement =>
-                el?.type === "photo" &&
-                Number.isFinite(el.x) &&
-                Number.isFinite(el.y) &&
-                Number.isFinite(el.w) &&
-                Number.isFinite(el.h) &&
-                el.w > 0 &&
-                el.h > 0,
-            );
+            const newPhotos = (Array.isArray(templatePhotos) ? templatePhotos : [])
+              .filter(
+                (el): el is PhotoElement =>
+                  el?.type === "photo" &&
+                  Number.isFinite(el.x) &&
+                  Number.isFinite(el.y) &&
+                  Number.isFinite(el.w) &&
+                  Number.isFinite(el.h) &&
+                  el.w > 0 &&
+                  el.h > 0,
+              )
+              .map((photo) => ({ ...photo, locked: true }));
             if (newPhotos.length === 0) return s;
 
             const nonPhotos = page.elements.filter((e) => e.type !== "photo");
@@ -840,7 +895,16 @@ export const useBookStore = create<State & Actions>()(
               book: {
                 ...s.book,
                 pages: s.book.pages.map((p) =>
-                  p.id === s.currentPageId ? { ...p, elements: [...newPhotos, ...nonPhotos] } : p,
+                  p.id === s.currentPageId
+                    ? {
+                        ...p,
+                        elements: [...newPhotos, ...nonPhotos],
+                        frameLocked: false,
+                        backgroundLocked: false,
+                        sourceTemplateId: undefined,
+                        adminTemplateProtected: false,
+                      }
+                    : p,
                 ),
               },
               selectedElementId: null,
@@ -1180,7 +1244,7 @@ export const useBookStore = create<State & Actions>()(
           }
 
           const newTemplate: SavedPageTemplate = {
-            id: nid("tmpl"),
+            id: opts?.replaceTemplateId || nid("tmpl"),
             label: label.trim() || `Custom Template ${s.customTemplates.length + 1}`,
             background: page.background,
             backgroundMode: page.backgroundMode,
@@ -1256,6 +1320,23 @@ export const useBookStore = create<State & Actions>()(
 
             adminTemplate.embeddedAssets = undefined;
 
+            if (opts.replaceTemplateId) {
+              const existing = get().adminTemplates.find(
+                (template) => template.id === opts.replaceTemplateId,
+              );
+              adminTemplate.sortOrder = existing?.sortOrder ?? adminTemplate.sortOrder;
+              set((prev) => ({
+                adminTemplates: prev.adminTemplates.map((template) =>
+                  template.id === opts.replaceTemplateId ? adminTemplate : template,
+                ),
+              }));
+              const result = await updateAdminTemplateById({
+                data: { id: opts.replaceTemplateId, patch: adminTemplate },
+              });
+              if (!result.success) throw new Error(result.error || "Failed to replace template");
+              return;
+            }
+
             const adminTemplates = [...get().adminTemplates, adminTemplate];
             set({ adminTemplates });
             const result = await appendAdminTemplates({ data: [adminTemplate] });
@@ -1290,7 +1371,6 @@ export const useBookStore = create<State & Actions>()(
           // First, restore any embedded assets so they render correctly
           const state = get();
           const updatedStickersList = [...state.customStickersList];
-          const updatedBgsList = [...state.customBackgroundsList];
 
           if (template.embeddedAssets) {
             for (const asset of template.embeddedAssets) {
@@ -1308,29 +1388,12 @@ export const useBookStore = create<State & Actions>()(
                   /* ignore */
                 }
               }
-              if (asset.type === "background" && !updatedBgsList.some((b) => b.id === asset.id)) {
-                try {
-                  const resp = await fetch(asset.base64);
-                  const blob = await resp.blob();
-                  await saveCustomBg(asset.id, blob, asset.name);
-                  updatedBgsList.push({
-                    id: asset.id,
-                    src: URL.createObjectURL(blob),
-                    name: asset.name,
-                  });
-                } catch {
-                  /* ignore */
-                }
-              }
             }
           }
 
           // Update custom lists before applying layout (so images resolve)
-          if (
-            updatedStickersList.length !== state.customStickersList.length ||
-            updatedBgsList.length !== state.customBackgroundsList.length
-          ) {
-            set({ customStickersList: updatedStickersList, customBackgroundsList: updatedBgsList });
+          if (updatedStickersList.length !== state.customStickersList.length) {
+            set({ customStickersList: updatedStickersList });
           }
 
           set((s) => {
@@ -1346,6 +1409,7 @@ export const useBookStore = create<State & Actions>()(
             const newElements = template.elements.map((el) => {
               const newEl = { ...el, id: nid("el") } as PageElement;
               if (newEl.type === "photo") {
+                newEl.locked = true;
                 if (imgIdx < existingImages.length) {
                   newEl.imageId = existingImages[imgIdx];
                   imgIdx++;
@@ -1375,6 +1439,8 @@ export const useBookStore = create<State & Actions>()(
                         backgroundY: template.backgroundY ?? 0,
                         frameLocked: template.frameLocked ?? true,
                         backgroundLocked: template.backgroundLocked ?? true,
+                        sourceTemplateId: template.isAdminTemplate ? template.id : undefined,
+                        adminTemplateProtected: Boolean(template.isAdminTemplate),
                       }
                     : p,
                 ),
@@ -1451,6 +1517,9 @@ export const useBookStore = create<State & Actions>()(
         setMagicLayoutExpand: (value) =>
           set({ magicLayoutExpand: Math.max(-3, Math.min(3, Math.round(value))) }),
         addMagicPhotoFrame: (pageId, selection) => {
+          if (!pageMutationAllowed(get().book.pages.find((page) => page.id === pageId))) {
+            return null;
+          }
           const id = nid("el");
           set((s) => {
             const page = s.book.pages.find((p) => p.id === pageId);

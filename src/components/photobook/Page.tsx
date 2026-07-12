@@ -36,6 +36,7 @@ import {
   ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import { useAuthStore } from "@/lib/auth";
 
 const MAGIC_CURSOR = `url("data:image/svg+xml,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path d="M4 20 17 7" stroke="black" stroke-width="2" stroke-linecap="round"/><path d="m14 4 6 6" stroke="black" stroke-width="2" stroke-linecap="round"/><path d="m12 7 5 5" stroke="white" stroke-width="1.2" stroke-linecap="round"/><path d="M5 5h3M6.5 3.5v3M18 17h3M19.5 15.5v3" stroke="black" stroke-width="1.5" stroke-linecap="round"/></svg>',
@@ -65,6 +66,7 @@ export function Page({
   canvasScale?: number;
 }) {
   const page = useBookStore((s) => s.book.pages.find((p) => p.id === pageId));
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const library = useBookStore((s) => s.library);
   const updateElement = useBookStore((s) => s.updateElement);
   const removeElement = useBookStore((s) => s.removeElement);
@@ -100,6 +102,7 @@ export function Page({
     : page.background;
 
   const isEditingBg = editingBackgroundPageId === page.id && interactive;
+  const isStructureProtected = Boolean(page.adminTemplateProtected && !isAdmin);
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
 
   const handleBgMouseDown = (e: React.MouseEvent) => {
@@ -310,6 +313,7 @@ export function Page({
               onLayer={(direction) => moveElementLayer(el.id, direction)}
               label={el.type === "photo" ? "Photo" : "Element"}
               isFrameLocked={page.frameLocked && el.type === "photo"}
+              isStructureProtected={isStructureProtected}
               canvasScale={coordinateScale}
             />
           ))}
@@ -398,6 +402,7 @@ function ElementRenderer({
   onLayer,
   label,
   isFrameLocked,
+  isStructureProtected,
   canvasScale,
 }: {
   el: PageElement;
@@ -414,6 +419,7 @@ function ElementRenderer({
   onLayer: (direction: "front" | "back" | "forward" | "backward") => void;
   label: string;
   isFrameLocked?: boolean;
+  isStructureProtected?: boolean;
   canvasScale: number;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
@@ -424,9 +430,14 @@ function ElementRenderer({
   const isEraserMode = useBookStore((s) => s.isEraserMode);
   const isMagicLayoutMode = useBookStore((s) => s.isMagicLayoutMode);
   const isTextEditing =
-    interactive && editingTextId === el.id && (el.type === "text" || el.type === "quote");
+    interactive &&
+    !isStructureProtected &&
+    editingTextId === el.id &&
+    (el.type === "text" || el.type === "quote");
   const isElementLocked = Boolean(
-    (el.type === "photo" && el.locked) || (el.type === "sticker" && el.locked),
+    isStructureProtected ||
+    (el.type === "photo" && el.locked) ||
+    (el.type === "sticker" && el.locked),
   );
   const stickerSrc =
     el.type === "sticker"
@@ -605,6 +616,7 @@ function ElementRenderer({
       }
       disableDragging={isEraserMode || isMagicLayoutMode || isElementLocked}
       enableResizing={isEraserMode || isMagicLayoutMode || isElementLocked ? false : undefined}
+      cancel={el.type === "photo" ? ".photo-pan-surface" : undefined}
       className={`group ${selected && !isElementLocked ? "outline outline-2 outline-accent outline-offset-2" : ""}`}
       style={{ zIndex: el.z, overflow: "visible" }}
       onClick={(e: React.MouseEvent) => {
@@ -612,7 +624,7 @@ function ElementRenderer({
         onSelect();
       }}
       onDoubleClick={(e: React.MouseEvent) => {
-        if (el.type === "text" || el.type === "quote") {
+        if (!isStructureProtected && (el.type === "text" || el.type === "quote")) {
           e.stopPropagation();
           setEditingTextId(el.id);
         }
@@ -626,7 +638,7 @@ function ElementRenderer({
             style={{ transform: `rotate(${el.rotation}deg)`, transformOrigin: "center" }}
             {...(el.type === "photo" ? { "data-photo-el": el.id } : {})}
             onDoubleClick={(e) => {
-              if (el.type === "text" || el.type === "quote") {
+              if (!isStructureProtected && (el.type === "text" || el.type === "quote")) {
                 e.stopPropagation();
                 setEditingTextId(el.id);
               }
@@ -660,7 +672,7 @@ function ElementRenderer({
             }
           >
             {content}
-            {interactive && el.type === "photo" && (
+            {interactive && el.type === "photo" && !isStructureProtected && (
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1129,9 +1141,15 @@ function PhotoBody({
   return (
     <div className={`frame-${el.frame ?? "none"} h-full w-full`} style={frameStyle}>
       <div
-        className={`relative h-full w-full overflow-hidden flex items-center justify-center ${
+        className={`photo-pan-surface relative h-full w-full overflow-hidden flex items-center justify-center ${
           isInteractivePan ? "cursor-grab active:cursor-grabbing touch-none" : ""
         }`}
+        onMouseDown={(e) => {
+          if (isInteractivePan) e.stopPropagation();
+        }}
+        onTouchStart={(e) => {
+          if (isInteractivePan) e.stopPropagation();
+        }}
         style={inner}
         onPointerDown={(e) => {
           if (!isInteractivePan) return;

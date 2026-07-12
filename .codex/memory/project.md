@@ -6,3 +6,4 @@
 - 2026-07-11: Template start modal also supports bucket-style multi-select and direct editor start.
 - 2026-07-11: Local build passed after the latest landing/template bucket changes. Node 20.18.0 showed a Vite engine warning because the project expects Node 22.12.0 or newer.
 - 2026-07-11: Production admin templates and asset metadata now use Supabase, while template images, stickers, and backgrounds use ImageKit. Vercel Blob is no longer an app dependency; local JSON/files remain development-only fallbacks.
+- 2026-07-12: Applied admin templates now carry page-level protection. Normal users can replace and crop photos but cannot alter template structure/backgrounds; admins can fully edit and replace the original template ID. Built-in layouts remain unlockable and editable.

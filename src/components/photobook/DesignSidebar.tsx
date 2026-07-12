@@ -6,12 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import type {
-  PhotoElement,
-  QuoteElement,
-  TextElement,
-  PageElement,
-} from "@/lib/photobook/types";
+import type { PhotoElement, QuoteElement, TextElement, PageElement } from "@/lib/photobook/types";
 import {
   BringToFront,
   SendToBack,
@@ -30,7 +25,6 @@ import {
   Paintbrush,
   Eraser,
   RotateCcw,
-  Search,
   Sparkles,
   Loader2,
 } from "lucide-react";
@@ -66,6 +60,7 @@ export function DesignSidebar() {
   const library = useBookStore((s) => s.library);
   const page = useBookStore((s) => s.book.pages.find((p) => p.id === s.currentPageId));
   const selected = page?.elements.find((e) => e.id === selectedId);
+  const pageStructureLocked = Boolean(page?.adminTemplateProtected && !isAdmin);
   const isPhoto = selected?.type === "photo";
   const adminTemplates = useBookStore((s) => s.adminTemplates ?? []);
 
@@ -77,7 +72,6 @@ export function DesignSidebar() {
   const adminStickerFolders = useBookStore((s) => s.adminStickerFolders ?? []);
   const adminBackgrounds = useBookStore((s) => s.adminBackgrounds ?? []);
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
-  const customBackgroundsList = useBookStore((s) => s.customBackgroundsList ?? []);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -85,10 +79,9 @@ export function DesignSidebar() {
   const [activeTab, setActiveTab] = useState("layouts");
   const [isSavingTemplate, setIsSavingTemplate] = useState(false);
   const [isGlobalTemplateSaving, setIsGlobalTemplateSaving] = useState(false);
+  const [replaceTemplateId, setReplaceTemplateId] = useState<string | null>(null);
   const [templateNameInput, setTemplateNameInput] = useState("");
   const [templateCategoryInput, setTemplateCategoryInput] = useState("");
-  const [templateQuery, setTemplateQuery] = useState("");
-  const [templateStyle, setTemplateStyle] = useState<string>("All");
   const editorStickerFolders = adminStickerFolders
     .map((folder) => ({
       ...folder,
@@ -129,48 +122,7 @@ export function DesignSidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
-  const availablePhotoCount = library.filter((img) => !img.excluded).length;
-  const emptyFrameCount =
-    page?.elements.filter(
-      (el) =>
-        el.type === "photo" &&
-        (!(el as PhotoElement).imageId ||
-          !library.some((img) => img.id === (el as PhotoElement).imageId)),
-    ).length ?? 0;
-  const allEmptyFrameCount = useBookStore((s) =>
-    s.book.pages.reduce(
-      (sum, p) =>
-        sum +
-        p.elements.filter(
-          (el) =>
-            el.type === "photo" &&
-            (!(el as PhotoElement).imageId ||
-              !s.library.some((img) => img.id === (el as PhotoElement).imageId)),
-        ).length,
-      0,
-    ),
-  );
-  const currentOrientation = "square";
-  const templateStyles = [
-    "All",
-    "Recommended",
-    ...Array.from(new Set(TEMPLATES.map((t) => t.style))),
-  ];
-  const normalizedQuery = templateQuery.trim().toLowerCase();
-  const filteredTemplates = TEMPLATES.filter((t) => {
-    const matchesQuery =
-      !normalizedQuery ||
-      `${t.label} ${t.category} ${t.style}`.toLowerCase().includes(normalizedQuery);
-    const recommended =
-      availablePhotoCount === 0
-        ? t.minPhotos <= 4
-        : t.minPhotos <= availablePhotoCount &&
-          (!t.orientation || t.orientation === "any" || t.orientation === currentOrientation);
-    const matchesStyle =
-      templateStyle === "All" ||
-      (templateStyle === "Recommended" ? recommended : t.style === templateStyle);
-    return matchesQuery && matchesStyle;
-  });
+  const filteredTemplates = TEMPLATES;
 
   const reportFill = (result: AutofillResult) => {
     if (result.framesFilled > 0) {
@@ -210,18 +162,6 @@ export function DesignSidebar() {
     }
   };
 
-  const fillCurrentPage = () =>
-    reportFill(useBookStore.getState().autofillLeastUsedImages(currentPageId));
-  const fillWholeBook = () => reportFill(useBookStore.getState().autofillAllEmptyFrames());
-  const clearCurrentEmptyFrames = () => {
-    const removed = useBookStore.getState().clearEmptyPhotoFrames(currentPageId);
-    toast.message(
-      removed
-        ? `Removed ${removed} empty frame${removed === 1 ? "" : "s"} from this page.`
-        : "This page has no empty frames.",
-    );
-  };
-
   return (
     <aside
       style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
@@ -259,16 +199,16 @@ export function DesignSidebar() {
                 ? "Text"
                 : "Frame"}
           </TabsTrigger>
-          <TabsTrigger value="border" className="text-[11px]">
+          <TabsTrigger value="border" disabled={pageStructureLocked} className="text-[11px]">
             Border
           </TabsTrigger>
-          <TabsTrigger value="stickers" className="text-[11px]">
+          <TabsTrigger value="stickers" disabled={pageStructureLocked} className="text-[11px]">
             Stick
           </TabsTrigger>
-          <TabsTrigger value="quotes" className="text-[11px]">
+          <TabsTrigger value="quotes" disabled={pageStructureLocked} className="text-[11px]">
             Text
           </TabsTrigger>
-          <TabsTrigger value="bg" className="text-[11px]">
+          <TabsTrigger value="bg" disabled={pageStructureLocked} className="text-[11px]">
             BG
           </TabsTrigger>
         </TabsList>
@@ -277,73 +217,6 @@ export function DesignSidebar() {
           <TabsContent value="layouts" className="mt-0 space-y-4">
             {activeTab === "layouts" && (
               <>
-                <div className="space-y-3 rounded-xl border bg-card p-3 shadow-sm">
-                  <div className="relative hidden md:block">
-                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      value={templateQuery}
-                      onChange={(e) => setTemplateQuery(e.target.value)}
-                      placeholder="Search templates, styles, frames..."
-                      className="h-9 pl-8 text-xs"
-                    />
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {templateStyles.map((style) => (
-                      <button
-                        key={style}
-                        onClick={() => setTemplateStyle(style)}
-                        className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold transition ${
-                          templateStyle === style
-                            ? "border-accent bg-accent text-accent-foreground"
-                            : "bg-background hover:border-accent"
-                        }`}
-                      >
-                        {style}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] text-muted-foreground">
-                    <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                      <div className="font-bold text-foreground">{availablePhotoCount}</div>
-                      usable photos
-                    </div>
-                    <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                      <div className="font-bold text-foreground">{emptyFrameCount}</div>
-                      page empty
-                    </div>
-                    <div className="rounded-lg bg-muted/60 px-2 py-1.5">
-                      <div className="font-bold text-foreground">{allEmptyFrameCount}</div>
-                      book empty
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    <Button
-                      size="sm"
-                      className="h-8 gap-1 px-2 text-[10px] font-semibold"
-                      onClick={fillCurrentPage}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Page
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="h-8 gap-1 bg-charcoal px-2 text-[10px] font-semibold text-cream hover:bg-charcoal/90"
-                      onClick={fillWholeBook}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Book
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-8 px-2 text-[10px] font-semibold"
-                      onClick={clearCurrentEmptyFrames}
-                    >
-                      Clear Empty
-                    </Button>
-                  </div>
-                </div>
-
                 <div className="space-y-3 border-b pb-4 mb-2">
                   {isAdmin && (
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1 flex items-center justify-between">
@@ -417,9 +290,16 @@ export function DesignSidebar() {
                                   category: templateCategoryInput.trim() || "General",
                                   frameLocked: isFrameLocked,
                                   backgroundLocked: isBgLocked,
+                                  replaceTemplateId: replaceTemplateId || undefined,
                                 });
-                              toast.success("Saved in global templates", { id: savingToast });
+                              toast.success(
+                                replaceTemplateId
+                                  ? "Template replaced"
+                                  : "Saved in global templates",
+                                { id: savingToast },
+                              );
                               setIsSavingTemplate(false);
+                              setReplaceTemplateId(null);
                               setTemplateNameInput("");
                               setTemplateCategoryInput("");
                             } catch (error) {
@@ -451,6 +331,7 @@ export function DesignSidebar() {
                           disabled={isGlobalTemplateSaving}
                           onClick={() => {
                             setIsSavingTemplate(false);
+                            setReplaceTemplateId(null);
                             setTemplateNameInput("");
                             setTemplateCategoryInput("");
                           }}
@@ -482,7 +363,7 @@ export function DesignSidebar() {
                       </div>
                     </div>
                   ) : isAdmin ? (
-                    <div className="flex gap-2 px-1">
+                    <div className="grid grid-cols-2 gap-2 px-1">
                       <Button
                         size="sm"
                         variant="outline"
@@ -494,6 +375,24 @@ export function DesignSidebar() {
                       >
                         Save in Global Templates
                       </Button>
+                      {page?.sourceTemplateId && (
+                        <Button
+                          size="sm"
+                          className="col-span-2 h-8 text-[11px] font-semibold"
+                          onClick={() => {
+                            const template = adminTemplates.find(
+                              (item) => item.id === page.sourceTemplateId,
+                            );
+                            if (!template) return;
+                            setReplaceTemplateId(template.id);
+                            setTemplateNameInput(template.label);
+                            setTemplateCategoryInput(template.category || "General Mag");
+                            setIsSavingTemplate(true);
+                          }}
+                        >
+                          Replace This Admin Template
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -699,7 +598,9 @@ export function DesignSidebar() {
                         for (const file of files) {
                           await useBookStore.getState().addCustomSticker(file);
                         }
-                        toast.success(`Added ${files.length} local sticker${files.length === 1 ? "" : "s"}`);
+                        toast.success(
+                          `Added ${files.length} local sticker${files.length === 1 ? "" : "s"}`,
+                        );
                       } catch (error) {
                         console.error("Failed to add sticker", error);
                         toast.error("Could not add sticker");
@@ -724,7 +625,11 @@ export function DesignSidebar() {
                           className="aspect-square w-full overflow-hidden rounded-lg border bg-card p-1 transition hover:scale-110 hover:border-accent"
                           title={sticker.name}
                         >
-                          <img src={sticker.src} alt={sticker.name} className="h-full w-full object-contain" />
+                          <img
+                            src={sticker.src}
+                            alt={sticker.name}
+                            className="h-full w-full object-contain"
+                          />
                         </button>
                       ))}
                     </div>
@@ -854,26 +759,6 @@ export function DesignSidebar() {
                     }}
                   />
                 </div>
-
-                {customBackgroundsList.length > 0 && (
-                  <div className="space-y-2 border-b pb-3 mb-2">
-                    <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                      Your Backgrounds
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      {customBackgroundsList.map((bg) => (
-                        <button
-                          key={bg.id}
-                          onClick={() => setPageBackground(currentPageId, bg.id)}
-                          className="h-20 w-full overflow-hidden rounded-xl border-2 border-transparent shadow-sm transition hover:scale-105 hover:border-accent"
-                          title={bg.name}
-                        >
-                          <img src={bg.src} alt={bg.name} className="h-full w-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
                 {adminBackgrounds.length > 0 ? (
                   <div className="space-y-2 border-b pb-3 mb-2">

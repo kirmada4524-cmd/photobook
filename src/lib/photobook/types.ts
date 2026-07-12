@@ -175,6 +175,8 @@ export type Page = {
   backgroundY?: number;
   frameLocked?: boolean;
   backgroundLocked?: boolean;
+  sourceTemplateId?: string;
+  adminTemplateProtected?: boolean;
 };
 
 export type EmbeddedAsset = {
