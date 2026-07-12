@@ -9,11 +9,14 @@ import {
   ChevronRight,
   Copy,
   LayoutGrid,
+  Maximize,
   Plus,
   Shuffle,
   Sparkles,
   Trash2,
   WandSparkles,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import { AddTemplatesModal } from "./AddTemplatesModal";
 import { toast } from "sonner";
@@ -53,6 +56,7 @@ interface WorkspaceProps {
   currentPageId: string;
   currentIdx: number;
   totalPages: number;
+  onFitChange?: (fit: number) => void;
 }
 
 function CanvasWorkspace({
@@ -62,6 +66,7 @@ function CanvasWorkspace({
   currentPageId,
   currentIdx,
   totalPages,
+  onFitChange,
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -92,9 +97,19 @@ function CanvasWorkspace({
   // Mobile → auto-fit to available space (8px padding each side)
   // Desktop → use user-controlled zoom from store
   const PAD = 16;
+  const DESKTOP_PAD = 80;
+  const fitZoom = Math.max(
+    0.05,
+    Math.min(1.5, Math.min((size.w - DESKTOP_PAD) / pageW, (size.h - DESKTOP_PAD) / pageH)),
+  );
   const effectiveZoom = size.mobile
     ? Math.max(0.05, Math.min(1.0, Math.min((size.w - PAD) / pageW, (size.h - PAD) / pageH)))
     : zoom;
+
+  // Report the fit-to-screen zoom up to the toolbar's "Fit" button.
+  useEffect(() => {
+    if (!size.mobile) onFitChange?.(fitZoom);
+  }, [fitZoom, size.mobile, onFitChange]);
 
   const scaledW = pageW * effectiveZoom;
   const scaledH = pageH * effectiveZoom;
@@ -102,6 +117,13 @@ function CanvasWorkspace({
   return (
     <div
       ref={containerRef}
+      onWheel={(e) => {
+        // Ctrl/⌘ + wheel = zoom (desktop only); plain wheel keeps native scroll/pan.
+        if (!(e.ctrlKey || e.metaKey) || size.mobile) return;
+        e.preventDefault();
+        const store = useBookStore.getState();
+        store.setZoom(store.zoom - Math.sign(e.deltaY) * 0.08);
+      }}
       className={
         "editor-canvas-workspace min-h-0 flex-1 " +
         "flex items-center justify-center overflow-hidden p-2 " +
@@ -183,6 +205,7 @@ function PageNav({ currentIdx, total, onPrev, onNext, label, mobile }: PageNavPr
         variant="ghost"
         className="h-8 w-8 disabled:opacity-30"
         title="Previous page"
+        aria-label="Previous page"
         onClick={onPrev}
         disabled={currentIdx === 0}
       >
@@ -193,6 +216,7 @@ function PageNav({ currentIdx, total, onPrev, onNext, label, mobile }: PageNavPr
         variant="ghost"
         className="h-8 w-8 disabled:opacity-30"
         title="Next page"
+        aria-label="Next page"
         onClick={onNext}
         disabled={currentIdx >= total - 1}
       >
@@ -207,6 +231,8 @@ export function Canvas() {
   const pages = useBookStore((s) => s.book.pages);
   const currentPageId = useBookStore((s) => s.currentPageId);
   const zoom = useBookStore((s) => s.zoom);
+  const setZoom = useBookStore((s) => s.setZoom);
+  const [fitZoom, setFitZoom] = useState(1);
   const selectedId = useBookStore((s) => s.selectedElementId);
   const removeElement = useBookStore((s) => s.removeElement);
   const addPage = useBookStore((s) => s.addPage);
@@ -266,6 +292,23 @@ export function Canvas() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         redo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "c") {
+        if (selectedId) {
+          e.preventDefault();
+          useBookStore.getState().copyElement(selectedId);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "v") {
+        if (useBookStore.getState().copiedElement) {
+          e.preventDefault();
+          useBookStore.getState().pasteElement();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+        if (selectedId) {
+          e.preventDefault();
+          const state = useBookStore.getState();
+          state.copyElement(selectedId);
+          state.pasteElement();
+        }
       } else if (e.key === "Delete" || e.key === "Backspace") {
         if (selectedId) {
           const state = useBookStore.getState();
@@ -380,6 +423,7 @@ export function Canvas() {
             variant="ghost"
             className="hidden md:grid h-8 w-8"
             title="Duplicate current page"
+            aria-label="Duplicate current page"
             disabled={!activePage}
             onClick={() => activePage && duplicatePage(activePage.id)}
           >
@@ -388,13 +432,57 @@ export function Canvas() {
           <Button
             size="icon"
             variant="ghost"
-            className="hidden md:grid h-8 w-8 text-sky-600 hover:bg-sky-50 hover:text-sky-700"
+            className="hidden md:grid h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
             title="Delete current page"
+            aria-label="Delete current page"
             disabled={!activePage || pages.length <= 1}
             onClick={() => activePage && deletePage(activePage.id)}
           >
             <Trash2 className="h-4 w-4" />
           </Button>
+
+          {/* Zoom controls (desktop) */}
+          <div className="ml-1 hidden md:flex items-center gap-0.5 rounded-md border bg-background/60 pl-1 pr-0.5">
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Zoom out"
+              aria-label="Zoom out"
+              onClick={() => setZoom(zoom - 0.1)}
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              title="Reset to 100%"
+              aria-label="Reset zoom to 100%"
+              className="min-w-[3rem] rounded px-1 text-center text-xs font-semibold tabular-nums text-muted-foreground transition hover:text-foreground"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Zoom in"
+              aria-label="Zoom in"
+              onClick={() => setZoom(zoom + 0.1)}
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-7 w-7"
+              title="Fit to screen"
+              aria-label="Fit page to screen"
+              onClick={() => setZoom(fitZoom)}
+            >
+              <Maximize className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-1.5 md:gap-2">
@@ -404,6 +492,7 @@ export function Canvas() {
             className="gap-1.5 shadow-sm px-2 md:px-3"
             disabled={!activePage}
             onClick={shuffleCurrentPage}
+            aria-label="Shuffle photos on this page"
           >
             <Shuffle className="h-4 w-4" />
             <span className="hidden sm:inline">Shuffle</span>
@@ -413,6 +502,7 @@ export function Canvas() {
             className="gap-1.5 bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 px-2 md:px-3"
             disabled={!activePage}
             onClick={autofillCurrentPage}
+            aria-label="Autofill this page"
           >
             <Sparkles className="h-4 w-4" />
             <span className="hidden sm:inline">Autofill</span>
@@ -425,6 +515,8 @@ export function Canvas() {
             }`}
             disabled={!activePage}
             onClick={() => setIsMagicLayoutMode(!isMagicLayoutMode)}
+            aria-label="Toggle magic layout"
+            aria-pressed={isMagicLayoutMode}
           >
             <WandSparkles className="h-4 w-4" />
             <span className="hidden sm:inline">Magic Layout</span>
@@ -434,6 +526,7 @@ export function Canvas() {
             variant="outline"
             className="gap-1.5 shadow-sm hidden md:flex px-2 md:px-3"
             onClick={() => setShowAddTemplates(true)}
+            aria-label="Add multiple templates"
           >
             <LayoutGrid className="h-4 w-4" />
             <span className="hidden lg:inline">Multiple Templates</span>
@@ -518,6 +611,7 @@ export function Canvas() {
         currentPageId={activePage?.id ?? currentPageId}
         currentIdx={currentIdx}
         totalPages={pages.length}
+        onFitChange={setFitZoom}
       />
 
       <AddTemplatesModal open={showAddTemplates} onOpenChange={setShowAddTemplates} />

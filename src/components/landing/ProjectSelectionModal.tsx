@@ -157,7 +157,7 @@ export function ProjectSelectionModal({ open, onOpenChange, mode }: ProjectSelec
           <DialogDescription>
             {mode === "recent"
               ? "Pick up where you left off."
-              : "Open a saved .wanderbook project file from your device."}
+              : "Open a saved Yaara project file from your device."}
           </DialogDescription>
         </DialogHeader>
 
@@ -169,7 +169,7 @@ export function ProjectSelectionModal({ open, onOpenChange, mode }: ProjectSelec
             onClick={handleOpenFile}
           >
             <Upload className="h-4 w-4" />
-            Open .wanderbook File from Device
+            Open Project File from Device
           </Button>
 
           {/* Recent projects list */}
@@ -218,7 +218,7 @@ export function ProjectSelectionModal({ open, onOpenChange, mode }: ProjectSelec
         <input
           ref={fileInputRef}
           type="file"
-          accept=".wanderbook,application/json"
+          accept=".yaara,.wanderbook,application/json"
           onChange={handleFileChange}
           hidden
         />

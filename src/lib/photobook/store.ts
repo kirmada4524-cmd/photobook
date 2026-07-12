@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
 import {
   appendAdminTemplates,
@@ -61,7 +62,8 @@ const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 800_000;
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
 
-const shouldUploadTemplateAsset = (value: string) => isDataUrl(value) || value.startsWith("blob:");
+const shouldUploadTemplateAsset = (value: string) =>
+  value.startsWith("data:") || value.startsWith("blob:");
 
 const readBlobAsDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {
@@ -136,6 +138,20 @@ const uploadGlobalTemplateAsset = async (
   return result.url;
 };
 
+let quotaWarned = false;
+const notifyQuotaExceeded = () => {
+  if (quotaWarned) return;
+  quotaWarned = true;
+  if (typeof window === "undefined") return;
+  // Defer so the toaster is mounted and we never toast during a render tick.
+  window.setTimeout(() => {
+    toast.warning("Autosave paused — browser storage is full.", {
+      description: "Download your project (.yaara file) to keep your work safe.",
+      duration: 10000,
+    });
+  }, 0);
+};
+
 const safeLocalStorage = {
   getItem: (name: string) => {
     try {
@@ -147,9 +163,11 @@ const safeLocalStorage = {
   setItem: (name: string, value: string) => {
     try {
       if (typeof window !== "undefined") window.localStorage.setItem(name, value);
+      quotaWarned = false;
     } catch (error) {
       if (error instanceof DOMException && error.name === "QuotaExceededError") {
         console.warn("Photobook autosave skipped because browser storage is full.");
+        notifyQuotaExceeded();
         return;
       }
       console.warn("Photobook autosave skipped.", error);
@@ -373,9 +391,24 @@ const adminAssetState = (library: AdminAssetLibrary) => ({
   adminBackgrounds: [...library.backgrounds].sort((a, b) => a.createdAt - b.createdAt),
 });
 
-function fillEmptyFrames(
+const emptyFillStats = (skippedReason: AutofillResult["skippedReason"]): AutofillResult => ({
+  framesFilled: 0,
+  pagesTouched: 0,
+  framesUnlocked: 0,
+  skippedReason,
+});
+
+/**
+ * Fill empty (and optionally unlocked) photo frames with the least-used library images.
+ *
+ * @param pageId          When provided, only this page is considered; otherwise all pages.
+ * @param refillUnlocked  When true, unlocked frames are refilled even if they already have an
+ *                        image (per-page "autofill" behaviour). When false, only frames without a
+ *                        valid image are filled ("Magic Fill" behaviour).
+ */
+function fillFrames(
   state: State,
-  pageId?: string,
+  { pageId, refillUnlocked }: { pageId?: string; refillUnlocked: boolean },
 ): { stats: AutofillResult; nextBook?: Book } {
   const candidatePages = pageId
     ? state.book.pages.filter((page) => page.id === pageId)
@@ -383,28 +416,10 @@ function fillEmptyFrames(
   const hasPhotoFrames = candidatePages.some((page) =>
     page.elements.some((el) => el.type === "photo"),
   );
-  if (!hasPhotoFrames) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-photo-frames",
-      },
-    };
-  }
+  if (!hasPhotoFrames) return { stats: emptyFillStats("no-photo-frames") };
 
   const availableImages = getLeastUsedImages(state.library, state.book.pages);
-  if (availableImages.length === 0) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-available-images",
-      },
-    };
-  }
+  if (availableImages.length === 0) return { stats: emptyFillStats("no-available-images") };
 
   let pickIndex = 0;
   let framesFilled = 0;
@@ -417,8 +432,9 @@ function fillEmptyFrames(
     let changed = false;
     const elements = page.elements.map((el) => {
       if (el.type !== "photo") return el;
-      const hasImage = el.imageId && state.library.some((img) => img.id === el.imageId);
-      if (hasImage) return el;
+      const hasImage = Boolean(el.imageId && state.library.some((img) => img.id === el.imageId));
+      const shouldFill = refillUnlocked ? !el.locked || !hasImage : !hasImage;
+      if (!shouldFill) return el;
 
       const picked = availableImages[pickIndex % availableImages.length];
       pickIndex++;
@@ -427,80 +443,6 @@ function fillEmptyFrames(
       changed = true;
 
       const keepLocked = Boolean(page.adminTemplateProtected && !useAuthStore.getState().isAdmin);
-      if (el.locked && !keepLocked) framesUnlocked++;
-      return { ...el, imageId: picked.id, locked: keepLocked ? true : false } as PhotoElement;
-    });
-
-    return changed ? { ...page, elements } : page;
-  });
-
-  if (framesFilled === 0) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-empty-frames",
-      },
-    };
-  }
-
-  return {
-    stats: {
-      framesFilled,
-      pagesTouched: touchedPageIds.size,
-      framesUnlocked,
-    },
-    nextBook: { ...state.book, pages },
-  };
-}
-
-function fillPageFrames(state: State, pageId: string): { stats: AutofillResult; nextBook?: Book } {
-  const page = state.book.pages.find((p) => p.id === pageId);
-  if (!page || !page.elements.some((el) => el.type === "photo")) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-photo-frames",
-      },
-    };
-  }
-
-  const availableImages = getLeastUsedImages(state.library, state.book.pages);
-  if (availableImages.length === 0) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-available-images",
-      },
-    };
-  }
-
-  let pickIndex = 0;
-  let framesFilled = 0;
-  let framesUnlocked = 0;
-
-  const pages = state.book.pages.map((p) => {
-    if (p.id !== pageId) return p;
-
-    let changed = false;
-    const elements = p.elements.map((el) => {
-      if (el.type !== "photo") return el;
-
-      const hasImage = el.imageId && state.library.some((img) => img.id === el.imageId);
-      const shouldFill = !el.locked || !hasImage;
-      if (!shouldFill) return el;
-
-      const picked = availableImages[pickIndex % availableImages.length];
-      pickIndex++;
-      framesFilled++;
-      changed = true;
-
-      const keepLocked = Boolean(p.adminTemplateProtected && !useAuthStore.getState().isAdmin);
       if (el.locked && !hasImage && !keepLocked) framesUnlocked++;
       return {
         ...el,
@@ -509,26 +451,13 @@ function fillPageFrames(state: State, pageId: string): { stats: AutofillResult; 
       } as PhotoElement;
     });
 
-    return changed ? { ...p, elements } : p;
+    return changed ? { ...page, elements } : page;
   });
 
-  if (framesFilled === 0) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-empty-frames",
-      },
-    };
-  }
+  if (framesFilled === 0) return { stats: emptyFillStats("no-empty-frames") };
 
   return {
-    stats: {
-      framesFilled,
-      pagesTouched: 1,
-      framesUnlocked,
-    },
+    stats: { framesFilled, pagesTouched: touchedPageIds.size, framesUnlocked },
     nextBook: { ...state.book, pages },
   };
 }
@@ -1082,12 +1011,12 @@ export const useBookStore = create<State & Actions>()(
             };
           }),
         autofillLeastUsedImages: (pageId) => {
-          const result = fillPageFrames(get(), pageId);
+          const result = fillFrames(get(), { pageId, refillUnlocked: true });
           if (result.nextBook) set({ book: result.nextBook });
           return result.stats;
         },
         autofillAllEmptyFrames: () => {
-          const result = fillEmptyFrames(get());
+          const result = fillFrames(get(), { refillUnlocked: false });
           if (result.nextBook) set({ book: result.nextBook });
           return result.stats;
         },
@@ -1138,6 +1067,11 @@ export const useBookStore = create<State & Actions>()(
         },
         initLibrary: async () => {
           try {
+            // Revoke previously created object URLs before rebuilding to avoid leaking them
+            // (initLibrary runs on module load and again whenever a route mounts).
+            get().library.forEach((img) => {
+              if (img.src.startsWith("blob:")) URL.revokeObjectURL(img.src);
+            });
             const dbImages = await loadImagesFromDB();
             const library = dbImages.map((img) => ({
               id: img.id,
@@ -1487,6 +1421,14 @@ export const useBookStore = create<State & Actions>()(
         },
         initCustomAssets: async () => {
           try {
+            // Revoke previously created object URLs before rebuilding to avoid leaking them.
+            const prev = get();
+            prev.customStickersList.forEach((s) => {
+              if (s.src.startsWith("blob:")) URL.revokeObjectURL(s.src);
+            });
+            prev.customBackgroundsList.forEach((b) => {
+              if (b.src.startsWith("blob:")) URL.revokeObjectURL(b.src);
+            });
             const stickers = await loadCustomStickers();
             const backgrounds = await loadCustomBgs();
             set({

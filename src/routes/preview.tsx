@@ -694,6 +694,11 @@ function PreviewPage() {
               className="book-preview-flipbook"
               style={{}}
               onFlip={(event: { data: number }) => setCurrentPage(event.data)}
+              onChangeState={(event: { data: string }) =>
+                // Drive the flipping indicator from the library's own state machine instead of a
+                // fixed timeout, so rapid clicks/keys can't desync it.
+                setIsFlipping(event.data === "flipping" || event.data === "user_fold")
+              }
             >
               {previewPages.map((page, index) => (
                 <BookPage

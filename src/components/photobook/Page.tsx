@@ -434,6 +434,23 @@ function ElementRenderer({
     !isStructureProtected &&
     editingTextId === el.id &&
     (el.type === "text" || el.type === "quote");
+
+  // Keep the in-progress text in local state while editing so we only push ONE undo-history
+  // entry per edit session (committed on blur) instead of one per keystroke.
+  const [textDraft, setTextDraft] = useState("");
+  useEffect(() => {
+    if (isTextEditing && (el.type === "text" || el.type === "quote")) {
+      setTextDraft(el.text);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTextEditing]);
+
+  const commitTextDraft = () => {
+    if (el.type === "text" || el.type === "quote") {
+      if (textDraft !== el.text) onChange({ text: textDraft });
+    }
+    setEditingTextId(null);
+  };
   const isElementLocked = Boolean(
     isStructureProtected ||
     (el.type === "photo" && el.locked) ||
@@ -551,9 +568,16 @@ function ElementRenderer({
       isTextEditing ? (
         <textarea
           autoFocus
-          value={el.text}
-          onChange={(e) => onChange({ text: e.target.value })}
-          onBlur={() => setEditingTextId(null)}
+          value={textDraft}
+          onChange={(e) => setTextDraft(e.target.value)}
+          onBlur={commitTextDraft}
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.preventDefault();
+              setTextDraft(el.text);
+              setEditingTextId(null);
+            }
+          }}
           onMouseDown={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
           className="h-full w-full resize-none rounded-md border border-accent/30 bg-white/90 px-3 py-2 text-center outline-none"
@@ -684,6 +708,7 @@ function ElementRenderer({
                     : "bg-white/80 text-charcoal/60 hover:bg-white/95 opacity-0 group-hover:opacity-100"
                 }`}
                 title={el.locked ? "Unlock image frame" : "Lock image frame"}
+                aria-label={el.locked ? "Unlock image frame" : "Lock image frame"}
               >
                 {el.locked ? <Lock className="h-3.5 w-3.5" /> : <Unlock className="h-3.5 w-3.5" />}
               </button>
@@ -694,8 +719,9 @@ function ElementRenderer({
                   e.stopPropagation();
                   onRemove();
                 }}
-                className="absolute -right-3 -top-3 z-10 grid h-7 w-7 place-items-center rounded-full bg-sky-500 text-white shadow-md transition hover:scale-110 hover:bg-sky-600"
+                className="absolute -right-3 -top-3 z-10 grid h-7 w-7 place-items-center rounded-full bg-destructive text-destructive-foreground shadow-md transition hover:scale-110 hover:bg-destructive/90"
                 title="Delete"
+                aria-label="Delete element"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
@@ -780,7 +806,10 @@ function ElementRenderer({
                 <SendToBack className="mr-2 h-4 w-4" /> Send to back
               </ContextMenuItem>
               <ContextMenuSeparator />
-              <ContextMenuItem onSelect={onRemove} className="text-sky-700 focus:text-sky-700">
+              <ContextMenuItem
+                onSelect={onRemove}
+                className="text-destructive focus:text-destructive"
+              >
                 <Trash2 className="mr-2 h-4 w-4" /> Delete
               </ContextMenuItem>
             </>
@@ -1040,6 +1069,11 @@ function PhotoBody({
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
+  // Track the pan offset locally during a drag so we don't push a history entry on every
+  // pointer-move (which would make Ctrl+Z undo one pixel at a time). We commit once on release.
+  const [panDraft, setPanDraft] = useState<{ imageX: number; imageY: number } | null>(null);
+  const effectiveImageX = panDraft ? panDraft.imageX : el.imageX ?? 0;
+  const effectiveImageY = panDraft ? panDraft.imageY : el.imageY ?? 0;
 
   const beginPan = (clientX: number, clientY: number) => {
     if (!isInteractivePan) return;
@@ -1049,19 +1083,28 @@ function PhotoBody({
       imageX: el.imageX ?? 0,
       imageY: el.imageY ?? 0,
     };
+    setPanDraft({ imageX: el.imageX ?? 0, imageY: el.imageY ?? 0 });
   };
 
   const updatePan = (clientX: number, clientY: number) => {
     const start = panStartRef.current;
     if (!start) return;
-    updateElement(el.id, {
+    setPanDraft({
       imageX: start.imageX + (clientX - start.x) / coordinateScale,
       imageY: start.imageY + (clientY - start.y) / coordinateScale,
     });
   };
 
   const endPan = () => {
+    const start = panStartRef.current;
     panStartRef.current = null;
+    if (start && panDraft) {
+      // Commit a single history entry only if the image actually moved.
+      if (panDraft.imageX !== start.imageX || panDraft.imageY !== start.imageY) {
+        updateElement(el.id, { imageX: panDraft.imageX, imageY: panDraft.imageY });
+      }
+    }
+    setPanDraft(null);
   };
 
   const effectiveMask = useCombinedPhotoMask(el.magicMask, el.eraseMask, el.w, el.h);
@@ -1141,7 +1184,7 @@ function PhotoBody({
   return (
     <div className={`frame-${el.frame ?? "none"} h-full w-full`} style={frameStyle}>
       <div
-        className={`photo-pan-surface relative h-full w-full overflow-hidden flex items-center justify-center ${
+        className={`photo-pan-surface relative h-full w-full overflow-hidden flex items-center justify-center bg-black/[0.03] ${
           isInteractivePan ? "cursor-grab active:cursor-grabbing touch-none" : ""
         }`}
         onMouseDown={(e) => {
@@ -1191,7 +1234,7 @@ function PhotoBody({
                 height: `${scale * 100}%`,
                 objectFit: "contain",
                 objectPosition: "center",
-                transform: `translate(${el.imageX ?? 0}px, ${el.imageY ?? 0}px)`,
+                transform: `translate(${effectiveImageX}px, ${effectiveImageY}px)`,
                 flexShrink: 0,
               }}
             />
@@ -1203,7 +1246,7 @@ function PhotoBody({
               className="h-full w-full object-cover"
               draggable={false}
               style={{
-                objectPosition: `calc(50% + ${el.imageX ?? 0}px) calc(50% + ${el.imageY ?? 0}px)`,
+                objectPosition: `calc(50% + ${effectiveImageX}px) calc(50% + ${effectiveImageY}px)`,
                 transform: `scale(${scale})`,
                 transformOrigin: "center",
               }}

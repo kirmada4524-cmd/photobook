@@ -178,6 +178,7 @@ export function DesignSidebar() {
           className="h-8 w-8 text-muted-foreground hover:text-foreground"
           onClick={useBookStore((s) => s.toggleDesignSidebar)}
           title="Hide sidebar"
+          aria-label="Hide design sidebar"
         >
           <X className="h-4 w-4" />
         </Button>

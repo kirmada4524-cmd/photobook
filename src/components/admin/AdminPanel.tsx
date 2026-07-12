@@ -671,7 +671,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
             Convert Project(s) to Templates
           </DialogTitle>
           <DialogDescription>
-            Upload one or more .wanderbook project files. Each page will become a separate admin
+            Upload one or more Yaara project files. Each page will become a separate admin
             template.
           </DialogDescription>
         </DialogHeader>
@@ -766,7 +766,7 @@ function ConvertProjectDialog({ open, onOpenChange }: ConvertProjectDialogProps)
           <input
             ref={fileInputRef}
             type="file"
-            accept=".wanderbook,application/json"
+            accept=".yaara,.wanderbook,application/json"
             multiple
             onChange={handleFileChange}
             hidden

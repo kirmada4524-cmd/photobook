@@ -19,10 +19,11 @@ import {
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
 import { useBookStore } from "@/lib/photobook/store";
-import { applyTemplate, TEMPLATES } from "@/lib/photobook/templates";
+import { applyTemplate, TEMPLATES, type Template } from "@/lib/photobook/templates";
 import {
   normalizeTemplateCategory,
   TEMPLATE_CATEGORIES,
+  type TemplateCategory,
 } from "@/lib/photobook/template-categories";
 import { FIXED_PAGE_SIZE, FIXED_PAGE_SIZE_ID, type SavedPageTemplate } from "@/lib/photobook/types";
 import { TemplatePreview } from "@/components/photobook/TemplatePreview";
@@ -39,13 +40,36 @@ const C = {
   mint: "oklch(0.9 0.05 160)",
 };
 
+// Built-in templates carry a frame-count "style"; map it to a meaningful landing-page category
+// (the "Mag" taxonomy) so category rails are semantic instead of arbitrary/round-robin.
+const STYLE_TO_CATEGORY: Record<Template["style"], TemplateCategory> = {
+  Minimal: "Elegant Mag",
+  Magazine: "General Mag",
+  Scrapbook: "Journal Mag",
+  Travel: "Journal Mag",
+  Polaroid: "Pinteresty",
+  Grid: "General Mag",
+  Collage: "Pinteresty",
+};
+
+// A small palette of tasteful warm backgrounds so built-in previews don't all look flat/identical.
+const STYLE_TO_BACKGROUND: Record<Template["style"], string> = {
+  Minimal: "#ffffff",
+  Magazine: "#f8f4ea",
+  Scrapbook: "#efe3cf",
+  Travel: "#f4ead4",
+  Polaroid: "#f3ede0",
+  Grid: "#eef1ec",
+  Collage: "#f6e8e2",
+};
+
 const BUILT_IN_TEMPLATES: SavedPageTemplate[] = TEMPLATES.map((template, index) => ({
   id: `built-in-${template.id}`,
   label: template.label,
-  background: "#f8f4ea",
+  background: STYLE_TO_BACKGROUND[template.style] ?? "#f8f4ea",
   elements: applyTemplate(template.id, [], FIXED_PAGE_SIZE.width, FIXED_PAGE_SIZE.height),
   sizeId: FIXED_PAGE_SIZE_ID,
-  category: TEMPLATE_CATEGORIES[index % TEMPLATE_CATEGORIES.length],
+  category: STYLE_TO_CATEGORY[template.style] ?? "General Mag",
   frameLocked: false,
   backgroundLocked: true,
   sortOrder: index,
@@ -456,7 +480,7 @@ export function LandingPage() {
                     <Shield className="h-3.5 w-3.5" /> Admin
                   </Link>
                 )}
-                <button onClick={logout} title="Logout" className="grid h-8 w-8 place-items-center rounded-md border" style={{ borderColor: `${C.ink}22` }}>
+                <button onClick={logout} title="Logout" aria-label="Log out" className="grid h-8 w-8 place-items-center rounded-md border" style={{ borderColor: `${C.ink}22` }}>
                   <LogOut className="h-3.5 w-3.5" />
                 </button>
               </>
@@ -494,7 +518,7 @@ export function LandingPage() {
                 <Clock3 className="h-4 w-4" /> Recent
               </button>
               <button onClick={() => setShowProjects("open")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60" style={{ borderColor: `${C.ink}2a` }}>
-                <FolderOpen className="h-4 w-4" /> Open .wanderbook project
+                <FolderOpen className="h-4 w-4" /> Open saved project
               </button>
             </div>
           </div>

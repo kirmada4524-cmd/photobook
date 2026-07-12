@@ -70,7 +70,7 @@ export function EditorHeader() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const displayTitle = (title || "").trim() || "Untitled photobook";
-  const safeProjectName = displayTitle.replace(/\s+/g, "_") || "wanderbook";
+  const safeProjectName = displayTitle.replace(/\s+/g, "_") || "yaara-photobook";
 
   // Convert a blob to a compressed base64 JPEG data URL.
   // Images are resized to at most maxDim in either dimension and encoded at the given quality.
@@ -181,7 +181,7 @@ export function EditorHeader() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${titleStr.trim().replace(/\s+/g, "_") || "wanderbook"}.wanderbook`;
+      a.download = `${titleStr.trim().replace(/\s+/g, "_") || "yaara-photobook"}.yaara`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (error) {
@@ -335,7 +335,7 @@ export function EditorHeader() {
     const electronAPI = (window as any).electronAPI;
     if (electronAPI?.isElectron) {
       try {
-        const defaultName = `${safeProjectName}.wanderbook`;
+        const defaultName = `${safeProjectName}.yaara`;
         const filePath = await electronAPI.selectSavePath(defaultName);
         if (!filePath) return;
 
@@ -519,6 +519,8 @@ export function EditorHeader() {
           size="icon"
           onClick={toggleLibrarySidebar}
           title="Toggle Photos Sidebar"
+          aria-label="Toggle photos sidebar"
+          aria-pressed={showLibrarySidebar}
           className={showLibrarySidebar ? "bg-accent/15 text-accent" : ""}
         >
           <Image className="h-4 w-4" />
@@ -528,15 +530,29 @@ export function EditorHeader() {
           size="icon"
           onClick={toggleDesignSidebar}
           title="Toggle Design Sidebar"
+          aria-label="Toggle design sidebar"
+          aria-pressed={showDesignSidebar}
           className={showDesignSidebar ? "bg-accent/15 text-accent" : ""}
         >
           <Palette className="h-4 w-4" />
         </Button>
         <div className="mx-1 h-5 w-px bg-border" />
-        <Button variant="ghost" size="icon" onClick={() => undo()} title="Undo (Ctrl+Z)">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => undo()}
+          title="Undo (Ctrl+Z)"
+          aria-label="Undo"
+        >
           <Undo2 className="h-4 w-4" />
         </Button>
-        <Button variant="ghost" size="icon" onClick={() => redo()} title="Redo (Ctrl+Y)">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => redo()}
+          title="Redo (Ctrl+Y)"
+          aria-label="Redo"
+        >
           <Redo2 className="h-4 w-4" />
         </Button>
       </div>
@@ -627,7 +643,7 @@ export function EditorHeader() {
         type="file"
         ref={fileInputRef}
         onChange={handleFileChange}
-        accept=".wanderbook,application/json"
+        accept=".yaara,.wanderbook,application/json"
         hidden
       />
     </header>
