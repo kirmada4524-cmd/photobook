@@ -7,7 +7,8 @@ import { Canvas } from "@/components/photobook/Canvas";
 import { Toaster } from "@/components/ui/sonner";
 import { useBookStore } from "@/lib/photobook/store";
 import { Button } from "@/components/ui/button";
-import { Eye, Image as ImageIcon, Palette, Sparkles } from "lucide-react";
+import { Eye, Image as ImageIcon, LayoutGrid, Palette, Redo2, Sparkles, Undo2 } from "lucide-react";
+import { undo, redo } from "@/lib/photobook/store";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/editor")({
@@ -156,13 +157,13 @@ function EditorPage() {
 
       {/* ── MOBILE: bottom toolbar ── */}
       <div
-        className="z-40 flex shrink-0 items-center justify-around border-t bg-card/95 shadow-[0_-8px_24px_-20px_rgba(0,0,0,.45)] backdrop-blur md:hidden"
+        className="z-40 flex shrink-0 items-center justify-around overflow-x-auto border-t bg-card/95 shadow-[0_-8px_24px_-20px_rgba(0,0,0,.45)] backdrop-blur md:hidden"
         style={{ height: MOBILE_TOOLBAR_H }}
       >
         <Button
           variant="ghost"
           asChild
-          className="flex flex-col gap-1 h-full flex-1 rounded-none text-primary"
+          className="flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1 text-primary"
         >
           <Link to="/preview">
             <Eye className="h-5 w-5" />
@@ -172,7 +173,36 @@ function EditorPage() {
 
         <Button
           variant="ghost"
-          className={`flex flex-col gap-1 h-full flex-1 rounded-none ${showLibrarySidebar ? "bg-accent/10 text-accent" : ""}`}
+          className="flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1"
+          onClick={() => undo()}
+          title="Undo"
+        >
+          <Undo2 className="h-5 w-5" />
+          <span className="text-[10px]">Undo</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1"
+          onClick={() => redo()}
+          title="Redo"
+        >
+          <Redo2 className="h-5 w-5" />
+          <span className="text-[10px]">Redo</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className="flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1"
+          onClick={() => window.dispatchEvent(new Event("photobook:open-templates"))}
+        >
+          <LayoutGrid className="h-5 w-5" />
+          <span className="text-[10px]">Templates</span>
+        </Button>
+
+        <Button
+          variant="ghost"
+          className={`flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1 ${showLibrarySidebar ? "bg-accent/10 text-accent" : ""}`}
           onClick={() => {
             if (showDesignSidebar) toggleDesignSidebar();
             toggleLibrarySidebar();
@@ -184,7 +214,7 @@ function EditorPage() {
 
         <Button
           variant="ghost"
-          className="flex flex-col gap-1 h-full flex-1 rounded-none text-accent"
+          className="flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1 text-accent"
           onClick={() => {
             const result = useBookStore.getState().autofillAllEmptyFrames();
             if (result.framesFilled > 0) {
@@ -204,7 +234,7 @@ function EditorPage() {
 
         <Button
           variant="ghost"
-          className={`flex flex-col gap-1 h-full flex-1 rounded-none ${showDesignSidebar ? "bg-accent/10 text-accent" : ""}`}
+          className={`flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1 ${showDesignSidebar ? "bg-accent/10 text-accent" : ""}`}
           onClick={() => {
             if (showLibrarySidebar) toggleLibrarySidebar();
             toggleDesignSidebar();

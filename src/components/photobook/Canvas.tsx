@@ -18,6 +18,7 @@ import {
 import { AddTemplatesModal } from "./AddTemplatesModal";
 import { toast } from "sonner";
 import { MobilePagesStrip } from "./LibrarySidebar";
+import { useAuthStore } from "@/lib/auth";
 
 export const pageLabel = (index: number, total: number) => {
   if (index === 0) return "Cover";
@@ -204,6 +205,7 @@ function PageNav({ currentIdx, total, onPrev, onNext, label, mobile }: PageNavPr
 
 // ─── Main Canvas component ───────────────────────────────────────────────────
 export function Canvas() {
+  const isAdmin = useAuthStore((s) => s.isAdmin);
   const pages = useBookStore((s) => s.book.pages);
   const currentPageId = useBookStore((s) => s.currentPageId);
   const zoom = useBookStore((s) => s.zoom);
@@ -222,6 +224,16 @@ export function Canvas() {
   const setMagicLayoutFeather = useBookStore((s) => s.setMagicLayoutFeather);
   const setMagicLayoutExpand = useBookStore((s) => s.setMagicLayoutExpand);
   const [showAddTemplates, setShowAddTemplates] = useState(false);
+
+  useEffect(() => {
+    const openTemplates = () => setShowAddTemplates(true);
+    window.addEventListener("photobook:open-templates", openTemplates);
+    return () => window.removeEventListener("photobook:open-templates", openTemplates);
+  }, []);
+
+  useEffect(() => {
+    if (!isAdmin && isMagicLayoutMode) setIsMagicLayoutMode(false);
+  }, [isAdmin, isMagicLayoutMode, setIsMagicLayoutMode]);
 
   useEffect(() => {
     if (pages.length === 0) {
@@ -417,18 +429,20 @@ export function Canvas() {
             <Sparkles className="h-4 w-4" />
             <span className="hidden sm:inline">Autofill</span>
           </Button>
-          <Button
-            size="sm"
-            variant={isMagicLayoutMode ? "default" : "outline"}
-            className={`gap-1.5 shadow-sm px-2 md:px-3 ${
-              isMagicLayoutMode ? "bg-sky-500 text-white hover:bg-sky-600" : ""
-            }`}
-            disabled={!activePage}
-            onClick={() => setIsMagicLayoutMode(!isMagicLayoutMode)}
-          >
-            <WandSparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Magic Layout</span>
-          </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              variant={isMagicLayoutMode ? "default" : "outline"}
+              className={`gap-1.5 shadow-sm px-2 md:px-3 ${
+                isMagicLayoutMode ? "bg-sky-500 text-white hover:bg-sky-600" : ""
+              }`}
+              disabled={!activePage}
+              onClick={() => setIsMagicLayoutMode(!isMagicLayoutMode)}
+            >
+              <WandSparkles className="h-4 w-4" />
+              <span className="hidden sm:inline">Magic Layout</span>
+            </Button>
+          )}
           <Button
             size="sm"
             variant="outline"
@@ -440,7 +454,7 @@ export function Canvas() {
           </Button>
         </div>
 
-        {isMagicLayoutMode && (
+        {isAdmin && isMagicLayoutMode && (
           <div className="flex basis-full flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-2 text-xs text-sky-900 shadow-sm">
             <div className="flex min-w-[220px] items-center gap-2 font-semibold">
               <WandSparkles className="h-4 w-4 text-sky-600" />

@@ -175,7 +175,9 @@ const pageMutationAllowed = (page?: Page) =>
   !page?.adminTemplateProtected || useAuthStore.getState().isAdmin;
 
 const isPhotoCropPatch = (patch: Partial<PageElement>) =>
-  Object.keys(patch).every((key) => ["imageX", "imageY", "imageScale"].includes(key));
+  Object.keys(patch).every((key) =>
+    ["imageX", "imageY", "imageScale", "imageRotation"].includes(key),
+  );
 
 const withFixedPageSize = (book: Book): Book => ({
   ...book,

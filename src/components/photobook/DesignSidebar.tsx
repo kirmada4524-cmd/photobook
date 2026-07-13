@@ -1256,6 +1256,21 @@ function PhotoControls({
           />
         </div>
         <div>
+          <div className="mb-1 flex justify-between text-xs">
+            <span className="text-[11px] font-medium text-muted-foreground">Image Rotation</span>
+            <span className="text-[10px] tabular-nums font-semibold">
+              {Math.round(selected.imageRotation ?? 0)} deg
+            </span>
+          </div>
+          <Slider
+            value={[selected.imageRotation ?? 0]}
+            max={180}
+            min={-180}
+            step={1}
+            onValueChange={([v]) => updateElement(selected.id, { imageRotation: v })}
+          />
+        </div>
+        <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-[11px] font-medium text-muted-foreground">Horizontal Offset</span>
             <span className="text-[10px] tabular-nums font-semibold">{selected.imageX ?? 0}px</span>

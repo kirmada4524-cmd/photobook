@@ -394,6 +394,7 @@ function ElementRenderer({
   setEditingTextId,
   selected,
   interactive,
+  canMoveFrame,
   onSelect,
   onChange,
   onRemove,
@@ -411,6 +412,7 @@ function ElementRenderer({
   setEditingTextId: (id: string | null) => void;
   selected: boolean;
   interactive: boolean;
+  canMoveFrame: boolean;
   onSelect: () => void;
   onChange: (p: Partial<PageElement>) => void;
   onRemove: () => void;
@@ -524,6 +526,7 @@ function ElementRenderer({
         canvasScale={canvasScale}
         selected={selected}
         interactive={interactive}
+        canMoveFrame={!isElementLocked}
         onSelect={interactive ? onSelect : undefined}
         onUploadRequest={interactive ? () => fileRef.current?.click() : undefined}
       />
@@ -616,7 +619,7 @@ function ElementRenderer({
       }
       disableDragging={isEraserMode || isMagicLayoutMode || isElementLocked}
       enableResizing={isEraserMode || isMagicLayoutMode || isElementLocked ? false : undefined}
-      cancel={el.type === "photo" ? ".photo-pan-surface" : undefined}
+      cancel={el.type === "photo" && isElementLocked ? ".photo-pan-surface" : undefined}
       className={`group ${selected && !isElementLocked ? "outline outline-2 outline-accent outline-offset-2" : ""}`}
       style={{ zIndex: el.z, overflow: "visible" }}
       onClick={(e: React.MouseEvent) => {
@@ -1040,9 +1043,20 @@ function PhotoBody({
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const gestureStartRef = useRef<{
+    centerX: number;
+    centerY: number;
+    distance: number;
+    angle: number;
+    imageScale: number;
+    imageRotation: number;
+    frameX: number;
+    frameY: number;
+  } | null>(null);
 
   const beginPan = (clientX: number, clientY: number) => {
-    if (!isInteractivePan) return;
+    if (!interactive || !img || isFrameEraserActive) return;
     panStartRef.current = {
       x: clientX,
       y: clientY,
@@ -1062,6 +1076,41 @@ function PhotoBody({
 
   const endPan = () => {
     panStartRef.current = null;
+  };
+
+  const startTwoFingerGesture = () => {
+    const [a, b] = [...pointersRef.current.values()];
+    if (!a || !b) return;
+    gestureStartRef.current = {
+      centerX: (a.x + b.x) / 2,
+      centerY: (a.y + b.y) / 2,
+      distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
+      angle: Math.atan2(b.y - a.y, b.x - a.x),
+      imageScale: el.imageScale ?? 1,
+      imageRotation: el.imageRotation ?? 0,
+      frameX: el.x,
+      frameY: el.y,
+    };
+    endPan();
+  };
+
+  const updateTwoFingerGesture = () => {
+    const start = gestureStartRef.current;
+    const [a, b] = [...pointersRef.current.values()];
+    if (!start || !a || !b) return;
+    const centerX = (a.x + b.x) / 2;
+    const centerY = (a.y + b.y) / 2;
+    const distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
+    const angle = Math.atan2(b.y - a.y, b.x - a.x);
+    const patch: Partial<PhotoElement> = {
+      imageScale: Math.max(0.1, Math.min(4, start.imageScale * (distance / start.distance))),
+      imageRotation: start.imageRotation + ((angle - start.angle) * 180) / Math.PI,
+    };
+    if (canMoveFrame) {
+      patch.x = start.frameX + (centerX - start.centerX) / coordinateScale;
+      patch.y = start.frameY + (centerY - start.centerY) / coordinateScale;
+    }
+    updateElement(el.id, patch);
   };
 
   const effectiveMask = useCombinedPhotoMask(el.magicMask, el.eraseMask, el.w, el.h);
@@ -1136,43 +1185,50 @@ function PhotoBody({
   }
 
   const scale = el.imageScale ?? 1;
-  const isZoomedOut = scale < 1;
 
   return (
     <div className={`frame-${el.frame ?? "none"} h-full w-full`} style={frameStyle}>
       <div
-        className={`photo-pan-surface relative h-full w-full overflow-hidden flex items-center justify-center ${
-          isInteractivePan ? "cursor-grab active:cursor-grabbing touch-none" : ""
-        }`}
+        className={`photo-pan-surface relative flex h-full w-full items-center justify-center overflow-hidden ${
+          interactive && img ? "touch-none" : ""
+        } ${isInteractivePan ? "cursor-grab active:cursor-grabbing" : ""}`}
         onMouseDown={(e) => {
-          if (isInteractivePan) e.stopPropagation();
+          if (interactive && img) e.stopPropagation();
         }}
         onTouchStart={(e) => {
-          if (isInteractivePan) e.stopPropagation();
+          if (interactive && img) e.stopPropagation();
         }}
         style={inner}
         onPointerDown={(e) => {
-          if (!isInteractivePan) return;
+          const isTouchGesture = e.pointerType === "touch";
+          if (!isTouchGesture && !isInteractivePan) return;
           e.preventDefault();
           e.stopPropagation();
           onSelect?.();
-          beginPan(e.clientX, e.clientY);
+          pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pointersRef.current.size >= 2) startTwoFingerGesture();
+          else beginPan(e.clientX, e.clientY);
           (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
         }}
         onPointerMove={(e) => {
-          if (!isInteractivePan) return;
-          if (!panStartRef.current) return;
+          if (!pointersRef.current.has(e.pointerId)) return;
           e.stopPropagation();
-          updatePan(e.clientX, e.clientY);
+          pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          if (pointersRef.current.size >= 2) updateTwoFingerGesture();
+          else updatePan(e.clientX, e.clientY);
         }}
         onPointerUp={(e) => {
-          if (!isInteractivePan) return;
+          if (!pointersRef.current.has(e.pointerId)) return;
           e.stopPropagation();
-          endPan();
+          pointersRef.current.delete(e.pointerId);
+          gestureStartRef.current = null;
+          const remaining = [...pointersRef.current.values()][0];
+          if (remaining) beginPan(remaining.x, remaining.y);
+          else endPan();
         }}
-        onPointerCancel={endPan}
-        onPointerLeave={() => {
-          if (!isInteractivePan) return;
+        onPointerCancel={(e) => {
+          pointersRef.current.delete(e.pointerId);
+          gestureStartRef.current = null;
           endPan();
         }}
       >
@@ -1180,35 +1236,17 @@ function PhotoBody({
           className="pointer-events-none flex h-full w-full items-center justify-center"
           style={imageMaskStyle}
         >
-          {isZoomedOut ? (
-            // ZOOM OUT: shrink the image so the full image is visible inside the frame
-            <img
-              src={img.src}
-              alt=""
-              draggable={false}
-              style={{
-                width: `${scale * 100}%`,
-                height: `${scale * 100}%`,
-                objectFit: "contain",
-                objectPosition: "center",
-                transform: `translate(${el.imageX ?? 0}px, ${el.imageY ?? 0}px)`,
-                flexShrink: 0,
-              }}
-            />
-          ) : (
-            // ZOOM IN: fill the frame and allow cropping / panning
-            <img
-              src={img.src}
-              alt=""
-              className="h-full w-full object-cover"
-              draggable={false}
-              style={{
-                objectPosition: `calc(50% + ${el.imageX ?? 0}px) calc(50% + ${el.imageY ?? 0}px)`,
-                transform: `scale(${scale})`,
-                transformOrigin: "center",
-              }}
-            />
-          )}
+          <img
+            src={img.src}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+            style={{
+              objectPosition: `calc(50% + ${el.imageX ?? 0}px) calc(50% + ${el.imageY ?? 0}px)`,
+              transform: `scale(${scale}) rotate(${el.imageRotation ?? 0}deg)`,
+              transformOrigin: "center",
+            }}
+          />
         </div>
         {isFrameEraserActive && (
           <PhotoEraserCanvas

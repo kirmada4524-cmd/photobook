@@ -88,6 +88,7 @@ export type PhotoElement = ElementBase & {
   imageScale?: number;
   imageX?: number;
   imageY?: number;
+  imageRotation?: number;
   opacity?: number;
   frameColor?: string;
   eraseMask?: string;
