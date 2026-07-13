@@ -179,15 +179,18 @@ const drawImageContain = (
   destY: number,
   destW: number,
   destH: number,
+  imageX = 0,
+  imageY = 0,
+  imageScale = 1,
 ) => {
   const natW = img.naturalWidth;
   const natH = img.naturalHeight;
   if (natW === 0 || natH === 0) return;
-  const scale = Math.min(destW / natW, destH / natH);
+  const scale = Math.min(destW / natW, destH / natH) * imageScale;
   const w = natW * scale;
   const h = natH * scale;
-  const x = destX + (destW - w) / 2;
-  const y = destY + (destH - h) / 2;
+  const x = destX + (destW - w) / 2 + imageX;
+  const y = destY + (destH - h) / 2 + imageY;
   ctx.drawImage(img, x, y, w, h);
 };
 
@@ -199,7 +202,8 @@ const drawImageCoverWithMasks = async (
 ) => {
   const masks = [photo.magicMask, photo.eraseMask].filter((src): src is string => Boolean(src));
   if (masks.length === 0) {
-    drawImageCover(
+    const drawPhoto = photo.freePhoto ? drawImageContain : drawImageCover;
+    drawPhoto(
       ctx,
       img,
       photo.x,
@@ -219,7 +223,8 @@ const drawImageCoverWithMasks = async (
   const maskedCtx = canvas.getContext("2d");
   if (!maskedCtx) return;
 
-  drawImageCover(
+  const drawPhoto = photo.freePhoto ? drawImageContain : drawImageCover;
+  drawPhoto(
     maskedCtx,
     img,
     0,
@@ -691,7 +696,9 @@ export async function exportBookPdf(title: string) {
 
           // Determine clip radius
           const clipRadius =
-            photo.frame !== "none"
+            photo.freePhoto
+              ? 0
+              : photo.frame !== "none"
               ? 4
               : photo.shape && photo.shape !== "none"
                 ? 0
@@ -705,7 +712,9 @@ export async function exportBookPdf(title: string) {
           ctx.restore();
 
           // Draw frame decoration (outside the clip)
-          drawFrame(ctx, photo.frame, photo.x, photo.y, photo.w, photo.h, photo.frameColor);
+          if (!photo.freePhoto) {
+            drawFrame(ctx, photo.frame, photo.x, photo.y, photo.w, photo.h, photo.frameColor);
+          }
 
           ctx.globalAlpha = 1;
 

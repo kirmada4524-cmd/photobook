@@ -1,5 +1,9 @@
 import { useEffect, useState } from "react";
-import { PAGE_SIZES, type SavedPageTemplate } from "@/lib/photobook/types";
+import {
+  PAGE_SIZES,
+  type PhotoElement,
+  type SavedPageTemplate,
+} from "@/lib/photobook/types";
 import { useBookStore } from "@/lib/photobook/store";
 
 interface TemplatePreviewProps {
@@ -149,7 +153,7 @@ export function TemplatePreview({
                 <PreviewAsset
                   src={src}
                   className={`pointer-events-none h-full w-full select-none ${
-                    isPhoto ? "object-cover" : "object-contain"
+                    isPhoto && !(el as PhotoElement).freePhoto ? "object-cover" : "object-contain"
                   }`}
                 />
               ) : isText && "text" in el ? (

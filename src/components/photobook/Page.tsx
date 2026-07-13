@@ -24,6 +24,9 @@ import {
   RotateCw,
   RotateCcw,
   Trash2,
+  Scissors,
+  Wand2,
+  LoaderCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -98,6 +101,36 @@ const textPathForCurve = (
   }
   return `M ${width * 0.06} ${y} C ${width * 0.22} ${height * 0.12} ${width * 0.34} ${height * 0.88} ${width * 0.5} ${y} S ${width * 0.78} ${height * 0.12} ${width * 0.94} ${y}`;
 };
+
+const removeImageBackground = async (
+  src: string,
+  onProgress?: (progress: number) => void,
+) => {
+  const { removeBackground } = await import("@imgly/background-removal");
+  const blob = await removeBackground(src, {
+    model: "isnet_fp16",
+    output: { format: "image/png", quality: 1 },
+    progress: (_key, current, total) => {
+      if (total > 0) onProgress?.(Math.min(1, current / total));
+    },
+  });
+
+  return new File([blob], `removed-background-${Date.now()}.png`, {
+    type: "image/png",
+  });
+};
+
+const getImageAspectRatio = (src: string) =>
+  new Promise<number>((resolve) => {
+    const image = new Image();
+    image.onload = () => {
+      const width = image.naturalWidth || image.width;
+      const height = image.naturalHeight || image.height;
+      resolve(width > 0 && height > 0 ? width / height : 1);
+    };
+    image.onerror = () => resolve(1);
+    image.src = src;
+  });
 
 export function Page({
   pageId,
@@ -233,10 +266,15 @@ export function Page({
     }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     const scale = rect.width / pageW;
-    const x = (e.clientX - rect.left) / scale - 180;
-    const y = (e.clientY - rect.top) / scale - 180;
+    const droppedImage = useBookStore.getState().library.find((image) => image.id === id);
+    const aspectRatio = droppedImage?.src ? await getImageAspectRatio(droppedImage.src) : 1;
+    const safeRatio = Math.max(0.2, Math.min(5, aspectRatio || 1));
+    const width = safeRatio >= 1 ? 360 : 360 * safeRatio;
+    const height = safeRatio >= 1 ? 360 / safeRatio : 360;
+    const x = (e.clientX - rect.left) / scale - width / 2;
+    const y = (e.clientY - rect.top) / scale - height / 2;
     setCurrentPage(pageId);
-    addPhotoToCurrentPage(id, Math.max(0, x), Math.max(0, y));
+    addPhotoToCurrentPage(id, Math.max(0, x), Math.max(0, y), true, aspectRatio);
   };
 
   const handleMagicLayoutClick = async (e: React.MouseEvent<HTMLDivElement>) => {
@@ -569,6 +607,9 @@ function ElementRenderer({
   const fileRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const rotateHandleRef = useRef<HTMLButtonElement>(null);
+  const [isRemovingBackground, setIsRemovingBackground] = useState(false);
+  const [backgroundRemovalProgress, setBackgroundRemovalProgress] = useState(0);
+  const [isCroppingPhoto, setIsCroppingPhoto] = useState(false);
   const addImagesFromFiles = useBookStore.getState().addImagesFromFiles;
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
   const isEraserMode = useBookStore((s) => s.isEraserMode);
@@ -583,6 +624,32 @@ function ElementRenderer({
     (el.type === "photo" && el.locked) ||
     (el.type === "sticker" && el.locked),
   );
+
+  useEffect(() => {
+    const openCropMode = (event: Event) => {
+      const detail = (event as CustomEvent<{ elementId?: string }>).detail;
+      setIsCroppingPhoto(detail?.elementId === el.id);
+    };
+    window.addEventListener("photobook:open-crop-tools", openCropMode);
+    return () => window.removeEventListener("photobook:open-crop-tools", openCropMode);
+  }, [el.id]);
+
+  useEffect(() => {
+    if (!selected || el.type !== "photo") setIsCroppingPhoto(false);
+  }, [el.type, selected]);
+
+  useEffect(() => {
+    const removeSelectedBackground = (event: Event) => {
+      const detail = (event as CustomEvent<{ elementId?: string }>).detail;
+      if (detail?.elementId === el.id && el.type === "photo") {
+        void removePhotoBackground();
+      }
+    };
+    window.addEventListener("photobook:remove-photo-background", removeSelectedBackground);
+    return () =>
+      window.removeEventListener("photobook:remove-photo-background", removeSelectedBackground);
+  });
+
   const stickerSrc =
     el.type === "sticker"
       ? el.src ||
@@ -633,6 +700,37 @@ function ElementRenderer({
       console.error("Failed to upload replacement", error);
     }
   };
+
+  async function removePhotoBackground() {
+    if (el.type !== "photo") return;
+    const img = library.find((item) => item.id === el.imageId);
+    if (!img?.src) {
+      toast.warning("Add an image to this frame first.");
+      return;
+    }
+    if (isRemovingBackground) return;
+    setIsRemovingBackground(true);
+    setBackgroundRemovalProgress(0);
+    try {
+      const file = await removeImageBackground(img.src, (progress) => {
+        setBackgroundRemovalProgress(progress);
+      });
+      const addedIds = await addImagesFromFiles([file]);
+      const addedId = addedIds[0];
+      if (addedId) {
+        onReplaceImage(addedId);
+        toast.success("Background removed", { duration: 2200 });
+      } else {
+        toast.error("Could not save processed image");
+      }
+    } catch (error) {
+      console.error("Failed to remove background", error);
+      toast.error("Could not remove background from this image.");
+    } finally {
+      setIsRemovingBackground(false);
+      setBackgroundRemovalProgress(0);
+    }
+  }
 
   const startRotationDrag = (clientX: number, clientY: number, shiftKey: boolean) => {
     if (isElementLocked) return;
@@ -704,6 +802,8 @@ function ElementRenderer({
         selected={selected}
         interactive={interactive}
         canMoveFrame={!isElementLocked}
+        isCropMode={isCroppingPhoto}
+        onCropDone={() => setIsCroppingPhoto(false)}
         onSelect={interactive ? onSelect : undefined}
         onUploadRequest={interactive ? () => fileRef.current?.click() : undefined}
       />
@@ -852,8 +952,22 @@ function ElementRenderer({
           : (_, __, ref, ___, pos) =>
               onChange({ w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })
       }
-      disableDragging={isEraserMode || isMagicLayoutMode || isElementLocked}
-      enableResizing={isEraserMode || isMagicLayoutMode || isElementLocked ? false : undefined}
+      disableDragging={
+        isRemovingBackground ||
+        isCroppingPhoto ||
+        isEraserMode ||
+        isMagicLayoutMode ||
+        isElementLocked
+      }
+      enableResizing={
+        isRemovingBackground ||
+        isCroppingPhoto ||
+        isEraserMode ||
+        isMagicLayoutMode ||
+        isElementLocked
+          ? false
+          : undefined
+      }
       cancel={el.type === "photo" && isElementLocked ? ".photo-pan-surface" : undefined}
       className={`group ${selected && !isElementLocked ? "outline outline-2 outline-accent outline-offset-2" : ""}`}
       style={{ zIndex: el.z, overflow: "visible" }}
@@ -910,6 +1024,42 @@ function ElementRenderer({
             }
           >
             {content}
+            {isRemovingBackground && el.type === "photo" && (
+              <div
+                className="absolute inset-0 z-30 grid place-items-center overflow-hidden bg-slate-950/35 px-4 backdrop-blur-[2px]"
+                role="status"
+                aria-live="polite"
+                aria-label="Removing image background"
+                onClick={(event) => event.stopPropagation()}
+                onContextMenu={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <div className="relative w-full max-w-48 overflow-hidden rounded-lg border border-white/30 bg-slate-950/75 p-3 text-white shadow-2xl">
+                  <div className="pointer-events-none absolute inset-0 animate-pulse bg-gradient-to-br from-sky-400/15 via-transparent to-violet-400/15" />
+                  <div className="relative flex items-center gap-2.5">
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/12 ring-1 ring-white/20">
+                      <LoaderCircle className="h-5 w-5 animate-spin text-sky-300" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-bold leading-tight">Removing background</p>
+                      <p className="mt-0.5 text-[10px] leading-tight text-white/70">
+                        AI is separating the subject
+                      </p>
+                    </div>
+                  </div>
+                  <div className="relative mt-3 h-1.5 overflow-hidden rounded-full bg-white/15">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-sky-400 to-violet-400 transition-[width] duration-300 ease-out"
+                      style={{
+                        width: `${Math.max(8, Math.round(backgroundRemovalProgress * 100))}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
             {interactive && el.type === "photo" && !isStructureProtected && (
               <button
                 onClick={(e) => {
@@ -951,6 +1101,25 @@ function ElementRenderer({
                   <Lock className="mr-2 h-4 w-4" />
                 )}
                 {el.locked ? "Unlock image frame" : "Lock image frame"}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+              <ContextMenuItem
+                onSelect={() => {
+                  onSelect();
+                  window.dispatchEvent(
+                    new CustomEvent("photobook:open-crop-tools", {
+                      detail: { elementId: el.id },
+                    }),
+                  );
+                }}
+              >
+                <Scissors className="mr-2 h-4 w-4" /> Crop Image
+              </ContextMenuItem>
+              <ContextMenuItem
+                onSelect={() => void removePhotoBackground()}
+                disabled={!el.imageId || isRemovingBackground}
+              >
+                <Wand2 className="mr-2 h-4 w-4" /> Remove Background
               </ContextMenuItem>
               <ContextMenuSeparator />
               <ContextMenuItem onSelect={() => fileRef.current?.click()}>
@@ -1256,6 +1425,9 @@ function PhotoBody({
   canvasScale,
   selected,
   interactive,
+  canMoveFrame,
+  isCropMode,
+  onCropDone,
   onSelect,
   onUploadRequest,
 }: {
@@ -1264,6 +1436,9 @@ function PhotoBody({
   canvasScale: number;
   selected: boolean;
   interactive: boolean;
+  canMoveFrame?: boolean;
+  isCropMode: boolean;
+  onCropDone: () => void;
   onSelect?: () => void;
   onUploadRequest?: () => void;
 }) {
@@ -1274,7 +1449,7 @@ function PhotoBody({
   const isEraserMode = useBookStore((s) => s.isEraserMode);
   const isFrameEraserActive = Boolean(interactive && isEraserMode && selected && img);
   const isInteractivePan = Boolean(
-    interactive && (el.locked || el.magicFrame) && img && !isFrameEraserActive,
+    interactive && (isCropMode || el.locked || el.magicFrame) && img && !isFrameEraserActive,
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
@@ -1361,9 +1536,9 @@ function PhotoBody({
     : undefined;
 
   const frameStyle: React.CSSProperties = {
-    borderRadius: el.shape && el.shape !== "none" ? 0 : radius,
+    borderRadius: el.freePhoto ? 0 : el.shape && el.shape !== "none" ? 0 : radius,
     opacity: el.opacity ?? 1,
-    overflow: "hidden",
+    overflow: el.freePhoto && !isCropMode ? "visible" : "hidden",
   };
 
   if (el.frameColor) {
@@ -1422,21 +1597,38 @@ function PhotoBody({
   const scale = el.imageScale ?? 1;
 
   return (
-    <div className={`frame-${el.frame ?? "none"} h-full w-full`} style={frameStyle}>
+    <div
+      className={`${el.freePhoto ? "frame-none" : `frame-${el.frame ?? "none"}`} h-full w-full`}
+      style={frameStyle}
+      data-free-photo={el.freePhoto ? "true" : undefined}
+    >
       <div
         className={`photo-pan-surface relative flex h-full w-full items-center justify-center overflow-hidden ${
           interactive && img ? "touch-none" : ""
-        } ${isInteractivePan ? "cursor-grab active:cursor-grabbing" : ""}`}
+        } ${isInteractivePan ? "cursor-grab active:cursor-grabbing" : ""} ${
+          isCropMode ? "ring-2 ring-inset ring-sky-500" : ""
+        }`}
         onMouseDown={(e) => {
-          if (interactive && img) e.stopPropagation();
+          if (isInteractivePan) e.stopPropagation();
         }}
         onTouchStart={(e) => {
-          if (interactive && img) e.stopPropagation();
+          if (isInteractivePan || (interactive && img && !el.freePhoto)) e.stopPropagation();
         }}
         style={inner}
+        onWheel={(e) => {
+          if (!isCropMode) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const nextScale = Math.max(
+            0.1,
+            Math.min(4, (el.imageScale ?? 1) + (e.deltaY < 0 ? 0.08 : -0.08)),
+          );
+          updateElement(el.id, { imageScale: nextScale });
+        }}
         onPointerDown={(e) => {
           const isTouchGesture = e.pointerType === "touch";
-          if (!isTouchGesture && !isInteractivePan) return;
+          const shouldPanImage = isInteractivePan || (isTouchGesture && !el.freePhoto);
+          if (!shouldPanImage) return;
           e.preventDefault();
           e.stopPropagation();
           onSelect?.();
@@ -1474,7 +1666,7 @@ function PhotoBody({
           <img
             src={img.src}
             alt=""
-            className="h-full w-full object-cover"
+            className={`h-full w-full ${el.freePhoto ? "object-contain" : "object-cover"}`}
             draggable={false}
             style={{
               objectPosition: `calc(50% + ${el.imageX ?? 0}px) calc(50% + ${el.imageY ?? 0}px)`,
@@ -1490,6 +1682,24 @@ function PhotoBody({
             existingMask={el.eraseMask}
             onSave={(mask) => updateElement(el.id, { eraseMask: mask })}
           />
+        )}
+        {isCropMode && !isFrameEraserActive && (
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex items-center justify-center gap-2">
+            <span className="rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg">
+              Drag to position · wheel or pinch to zoom
+            </span>
+            <button
+              type="button"
+              className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-900 shadow-lg hover:bg-slate-100"
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onCropDone();
+              }}
+            >
+              Done
+            </button>
+          </div>
         )}
       </div>
       {el.caption && (

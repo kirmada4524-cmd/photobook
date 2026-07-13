@@ -135,6 +135,12 @@ export function DesignSidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
+  useEffect(() => {
+    const openCropTools = () => setActiveTab("frames");
+    window.addEventListener("photobook:open-crop-tools", openCropTools);
+    return () => window.removeEventListener("photobook:open-crop-tools", openCropTools);
+  }, []);
+
   const filteredTemplates = TEMPLATES;
 
   const safeApplyLayout = (templateId: (typeof TEMPLATES)[number]["id"]) => {

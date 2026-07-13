@@ -273,7 +273,13 @@ type Actions = {
   selectElement: (id: string | null) => void;
 
   applyLayout: (templateId: TemplateId) => void;
-  addPhotoToCurrentPage: (imageId: string, x?: number, y?: number) => void;
+  addPhotoToCurrentPage: (
+    imageId: string,
+    x?: number,
+    y?: number,
+    forceFloating?: boolean,
+    aspectRatio?: number,
+  ) => void;
   addStickerToCurrentPage: (emojiOrSrc: string) => void;
   addQuoteToCurrentPage: (text: string) => void;
   addTextToCurrentPage: (text?: string) => void;
@@ -850,13 +856,19 @@ export const useBookStore = create<State & Actions>()(
             };
           }),
 
-        addPhotoToCurrentPage: (imageId, x = 100, y = 100) => {
+        addPhotoToCurrentPage: (
+          imageId,
+          x = 100,
+          y = 100,
+          forceFloating = false,
+          aspectRatio = 1,
+        ) => {
           const state = get();
           const page = state.book.pages.find((p) => p.id === state.currentPageId);
           if (!page) return;
 
           // 1. If a photo element is currently selected, replace its image
-          if (state.selectedElementId) {
+          if (!forceFloating && state.selectedElementId) {
             const selectedEl = page.elements.find((e) => e.id === state.selectedElementId);
             if (selectedEl && selectedEl.type === "photo") {
               state.updateElement(selectedEl.id, { imageId });
@@ -865,27 +877,33 @@ export const useBookStore = create<State & Actions>()(
           }
 
           // 2. Otherwise, if there is an empty photo frame, fill the first one
-          const emptyFrame = page.elements.find(
-            (e) => (e.type === "photo" && !("imageId" in e)) || !(e as PhotoElement).imageId,
-          );
-          if (emptyFrame) {
-            state.updateElement(emptyFrame.id, { imageId });
-            return;
+          if (!forceFloating) {
+            const emptyFrame = page.elements.find(
+              (e) => (e.type === "photo" && !("imageId" in e)) || !(e as PhotoElement).imageId,
+            );
+            if (emptyFrame) {
+              state.updateElement(emptyFrame.id, { imageId });
+              return;
+            }
           }
 
           // 3. Otherwise, add as a new floating photo element
+          const safeRatio = Math.max(0.2, Math.min(5, aspectRatio || 1));
+          const floatingWidth = safeRatio >= 1 ? 360 : 360 * safeRatio;
+          const floatingHeight = safeRatio >= 1 ? 360 / safeRatio : 360;
           const el: PhotoElement = {
             id: nid("el"),
             type: "photo",
             imageId,
+            freePhoto: forceFloating,
             x,
             y,
-            w: 360,
-            h: 360,
+            w: floatingWidth,
+            h: floatingHeight,
             rotation: 0,
             z: 10,
             frame: "none",
-            radius: 16,
+            radius: 0,
           };
           state.addElement(el);
         },

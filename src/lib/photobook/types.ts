@@ -80,6 +80,7 @@ export type ElementBase = {
 export type PhotoElement = ElementBase & {
   type: "photo";
   imageId: string;
+  freePhoto?: boolean;
   frame: FrameStyle;
   shape?: ShapeMask;
   radius: number;

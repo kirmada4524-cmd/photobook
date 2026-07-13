@@ -12,6 +12,8 @@ import {
   Plus,
   Trash2,
   WandSparkles,
+  Scissors,
+  Wand2,
 } from "lucide-react";
 import { AddTemplatesModal } from "./AddTemplatesModal";
 import { MobilePagesStrip } from "./LibrarySidebar";
@@ -316,6 +318,9 @@ export function Canvas() {
   const idx = pages.findIndex((p) => p.id === currentPageId);
   const currentIdx = idx < 0 ? 0 : idx;
   const activePage = pages[currentIdx];
+  const selectedPhoto = activePage?.elements.find(
+    (element): element is PhotoElement => element.id === selectedId && element.type === "photo",
+  );
 
   const preset = PAGE_SIZES[0];
   const pageW = preset.width;
@@ -399,6 +404,42 @@ export function Canvas() {
               <span className="hidden sm:inline">Magic Layout</span>
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 px-2 shadow-sm md:px-3"
+            disabled={!selectedPhoto?.imageId}
+            title="Crop selected image"
+            onClick={() => {
+              if (!selectedPhoto) return;
+              window.dispatchEvent(
+                new CustomEvent("photobook:open-crop-tools", {
+                  detail: { elementId: selectedPhoto.id },
+                }),
+              );
+            }}
+          >
+            <Scissors className="h-4 w-4" />
+            <span className="hidden lg:inline">Crop</span>
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 px-2 shadow-sm md:px-3"
+            disabled={!selectedPhoto?.imageId}
+            title="Remove selected image background"
+            onClick={() => {
+              if (!selectedPhoto) return;
+              window.dispatchEvent(
+                new CustomEvent("photobook:remove-photo-background", {
+                  detail: { elementId: selectedPhoto.id },
+                }),
+              );
+            }}
+          >
+            <Wand2 className="h-4 w-4" />
+            <span className="hidden lg:inline">Remove BG</span>
+          </Button>
           <Button
             size="sm"
             variant="outline"
