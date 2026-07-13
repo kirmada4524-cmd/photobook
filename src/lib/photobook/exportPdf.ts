@@ -5,6 +5,7 @@ import {
   type StickerElement,
   type QuoteElement,
   type TextElement,
+  type DrawingElement,
   type ShapeMask,
   type FrameStyle,
 } from "./types";
@@ -544,18 +545,22 @@ const wrapText = (ctx: CanvasRenderingContext2D, text: string, maxW: number): st
   const paragraphs = text.split("\n");
   const result: string[] = [];
   for (const para of paragraphs) {
-    const words = para.split(" ");
+    if (para.length === 0) {
+      result.push("");
+      continue;
+    }
+    const words = para.match(/\S+\s*/g) ?? [" "];
     let line = "";
     for (const word of words) {
-      const test = line ? `${line} ${word}` : word;
+      const test = `${line}${word}`;
       if (ctx.measureText(test).width > maxW && line) {
-        result.push(line);
+        result.push(line.replace(/\s+$/g, ""));
         line = word;
       } else {
         line = test;
       }
     }
-    if (line) result.push(line);
+    result.push(line.replace(/\s+$/g, ""));
   }
   return result;
 };
@@ -760,6 +765,24 @@ export async function exportBookPdf(title: string) {
       }
 
       // ── Quote or Text element ─────────────────────────────────────────────
+      else if (el.type === "drawing") {
+        const drawing = el as DrawingElement;
+        try {
+          ctx.globalAlpha = drawing.opacity ?? 1;
+          ctx.strokeStyle = drawing.stroke;
+          ctx.lineWidth = drawing.strokeWidth;
+          ctx.lineCap = "round";
+          ctx.lineJoin = "round";
+          if (drawing.brush === "neon") {
+            ctx.shadowColor = drawing.stroke;
+            ctx.shadowBlur = Math.max(6, drawing.strokeWidth);
+          }
+          ctx.stroke(new Path2D(drawing.path));
+        } catch {
+          /* skip invalid drawing path */
+        }
+      }
+
       else if (el.type === "quote" || el.type === "text") {
         const txt = el as QuoteElement | TextElement;
         const isQ = el.type === "quote";

@@ -121,6 +121,19 @@ export type QuoteElement = ElementBase & {
   fontWeight?: string;
   fontStyle?: string;
   align?: "left" | "center" | "right";
+  letterSpacing?: number;
+  lineHeight?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  textCurve?: "none" | "arcUp" | "arcDown" | "wave";
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  padding?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowX?: number;
+  shadowY?: number;
 };
 
 export type TextElement = ElementBase & {
@@ -132,9 +145,31 @@ export type TextElement = ElementBase & {
   fontWeight?: string;
   fontStyle?: string;
   align?: "left" | "center" | "right";
+  letterSpacing?: number;
+  lineHeight?: number;
+  textTransform?: "none" | "uppercase" | "lowercase" | "capitalize";
+  textCurve?: "none" | "arcUp" | "arcDown" | "wave";
+  backgroundColor?: string;
+  backgroundOpacity?: number;
+  padding?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowX?: number;
+  shadowY?: number;
 };
 
-export type PageElement = PhotoElement | StickerElement | QuoteElement | TextElement;
+export type DrawingElement = ElementBase & {
+  type: "drawing";
+  path: string;
+  stroke: string;
+  strokeWidth: number;
+  opacity?: number;
+  brush?: "pen" | "marker" | "highlighter" | "neon" | "pressure";
+};
+
+export type PageElement = PhotoElement | StickerElement | QuoteElement | TextElement | DrawingElement;
 
 export type BackgroundTheme =
   | "cream"

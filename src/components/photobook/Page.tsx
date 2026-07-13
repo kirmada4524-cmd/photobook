@@ -5,6 +5,7 @@ import { themeClass, shapeStyle, THEMES } from "@/lib/photobook/catalogs";
 import { createMagicLayoutSelection, type MagicLayoutSelection } from "@/lib/photobook/magicLayout";
 import {
   PAGE_SIZES,
+  type DrawingElement,
   type PageElement,
   type PhotoElement,
   type BackgroundTheme,
@@ -54,6 +55,50 @@ const isImageUrl = (src?: string) => {
   );
 };
 
+const colorWithOpacity = (color: string, opacity: number) => {
+  const alpha = Math.max(0, Math.min(1, opacity));
+  if (/^#[0-9a-f]{6}$/i.test(color)) {
+    const r = parseInt(color.slice(1, 3), 16);
+    const g = parseInt(color.slice(3, 5), 16);
+    const b = parseInt(color.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return color;
+};
+
+type DrawPoint = { x: number; y: number; pressure: number };
+
+const getSmoothPathFromPoints = (points: DrawPoint[]) => {
+  if (points.length < 2) return "";
+  const [first, ...rest] = points;
+  let path = `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}`;
+  for (let i = 0; i < rest.length - 1; i += 1) {
+    const current = rest[i];
+    const next = rest[i + 1];
+    const midX = (current.x + next.x) / 2;
+    const midY = (current.y + next.y) / 2;
+    path += ` Q ${current.x.toFixed(1)} ${current.y.toFixed(1)} ${midX.toFixed(1)} ${midY.toFixed(1)}`;
+  }
+  const last = points[points.length - 1];
+  path += ` L ${last.x.toFixed(1)} ${last.y.toFixed(1)}`;
+  return path;
+};
+
+const textPathForCurve = (
+  curve: "arcUp" | "arcDown" | "wave",
+  width: number,
+  height: number,
+) => {
+  const y = height / 2;
+  if (curve === "arcUp") {
+    return `M ${width * 0.08} ${y} Q ${width / 2} ${height * 0.08} ${width * 0.92} ${y}`;
+  }
+  if (curve === "arcDown") {
+    return `M ${width * 0.08} ${y} Q ${width / 2} ${height * 0.92} ${width * 0.92} ${y}`;
+  }
+  return `M ${width * 0.06} ${y} C ${width * 0.22} ${height * 0.12} ${width * 0.34} ${height * 0.88} ${width * 0.5} ${y} S ${width * 0.78} ${height * 0.12} ${width * 0.94} ${y}`;
+};
+
 export function Page({
   pageId,
   interactive = true,
@@ -87,9 +132,16 @@ export function Page({
   const editingBackgroundPageId = useBookStore((s) => s.editingBackgroundPageId);
   const updatePageBackgroundPosition = useBookStore((s) => s.updatePageBackgroundPosition);
   const customBackgroundsList = useBookStore((s) => s.customBackgroundsList ?? []);
+  const drawMode = useBookStore((s) => s.drawMode);
+  const drawBrushSize = useBookStore((s) => s.drawBrushSize);
+  const drawBrushColor = useBookStore((s) => s.drawBrushColor);
+  const drawBrushOpacity = useBookStore((s) => s.drawBrushOpacity);
+  const addDrawingToCurrentPage = useBookStore((s) => s.addDrawingToCurrentPage);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [magicSelection, setMagicSelection] = useState<MagicLayoutSelection | null>(null);
   const [isMagicSelecting, setIsMagicSelecting] = useState(false);
+  const [liveDrawingPath, setLiveDrawingPath] = useState("");
+  const drawingPointsRef = useRef<DrawPoint[]>([]);
 
   useEffect(() => {
     if (!isMagicLayoutMode) setMagicSelection(null);
@@ -103,6 +155,8 @@ export function Page({
 
   const isEditingBg = editingBackgroundPageId === page.id && interactive;
   const isStructureProtected = Boolean(page.adminTemplateProtected && !isAdmin);
+  const isPageDrawMode =
+    interactive && !isStructureProtected && !isMagicLayoutMode && drawMode !== "off";
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
 
   const handleBgMouseDown = (e: React.MouseEvent) => {
@@ -231,6 +285,26 @@ export function Page({
       toast.success("Magic photo slot created. Drop or upload a photo into it.");
     }
   };
+
+  const pointFromPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    return {
+      x: ((e.clientX - rect.left) / rect.width) * pageW,
+      y: ((e.clientY - rect.top) / rect.height) * pageH,
+      pressure: e.pressure || 0.5,
+    };
+  };
+
+  const drawStrokeWidth =
+    drawMode === "marker"
+      ? drawBrushSize * 1.8
+      : drawMode === "highlighter"
+        ? drawBrushSize * 2.4
+        : drawMode === "pressure"
+          ? drawBrushSize * 1.15
+          : drawBrushSize;
+  const drawStrokeOpacity =
+    drawMode === "highlighter" ? Math.min(drawBrushOpacity, 0.38) : drawBrushOpacity;
 
   const pageContent = (
     <div className="relative" style={{ width: pageW, height: pageH }}>
@@ -369,6 +443,74 @@ export function Page({
             </div>
           </>
         )}
+
+        {isPageDrawMode && (
+          <div
+            className="absolute inset-0 z-[1300] touch-none"
+            style={{
+              cursor: drawMode === "highlighter" ? "crosshair" : "cell",
+            }}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setCurrentPage(page.id);
+              selectElement(null);
+              drawingPointsRef.current = [pointFromPointer(e)];
+              setLiveDrawingPath("");
+              e.currentTarget.setPointerCapture?.(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              if (!drawingPointsRef.current.length) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const point = pointFromPointer(e);
+              const last = drawingPointsRef.current[drawingPointsRef.current.length - 1];
+              if (Math.hypot(point.x - last.x, point.y - last.y) < 1.5) return;
+              drawingPointsRef.current.push(point);
+              setLiveDrawingPath(getSmoothPathFromPoints(drawingPointsRef.current));
+            }}
+            onPointerUp={(e) => {
+              if (!drawingPointsRef.current.length) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const path = getSmoothPathFromPoints(drawingPointsRef.current);
+              drawingPointsRef.current = [];
+              setLiveDrawingPath("");
+              if (!path) return;
+              addDrawingToCurrentPage(path, {
+                stroke: drawBrushColor,
+                strokeWidth: drawStrokeWidth,
+                opacity: drawStrokeOpacity,
+                brush: drawMode,
+              });
+            }}
+            onPointerCancel={() => {
+              drawingPointsRef.current = [];
+              setLiveDrawingPath("");
+            }}
+          >
+            {liveDrawingPath && (
+              <svg className="pointer-events-none h-full w-full" viewBox={`0 0 ${pageW} ${pageH}`}>
+                <path
+                  d={liveDrawingPath}
+                  fill="none"
+                  stroke={drawBrushColor}
+                  strokeWidth={drawStrokeWidth}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={drawStrokeOpacity}
+                  style={{
+                    filter:
+                      drawMode === "neon"
+                        ? `drop-shadow(0 0 ${Math.max(6, drawStrokeWidth)}px ${drawBrushColor})`
+                        : undefined,
+                    mixBlendMode: drawMode === "highlighter" ? "multiply" : undefined,
+                  }}
+                />
+              </svg>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -412,7 +554,7 @@ function ElementRenderer({
   setEditingTextId: (id: string | null) => void;
   selected: boolean;
   interactive: boolean;
-  canMoveFrame: boolean;
+  canMoveFrame?: boolean;
   onSelect: () => void;
   onChange: (p: Partial<PageElement>) => void;
   onRemove: () => void;
@@ -446,6 +588,41 @@ function ElementRenderer({
       ? el.src ||
         (el.stickerId ? customStickersList.find((s) => s.id === el.stickerId)?.src : undefined)
       : undefined;
+
+  if (el.type === "drawing") {
+    const drawing = el as DrawingElement;
+    return (
+      <svg
+        className="pointer-events-none absolute overflow-visible"
+        viewBox={`0 0 ${drawing.w} ${drawing.h}`}
+        style={{
+          left: drawing.x,
+          top: drawing.y,
+          width: drawing.w,
+          height: drawing.h,
+          transform: `rotate(${drawing.rotation}deg)`,
+          zIndex: drawing.z,
+          mixBlendMode: drawing.brush === "highlighter" ? "multiply" : undefined,
+        }}
+      >
+        <path
+          d={drawing.path}
+          fill="none"
+          stroke={drawing.stroke}
+          strokeWidth={drawing.strokeWidth}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          opacity={drawing.opacity ?? 1}
+          style={{
+            filter:
+              drawing.brush === "neon"
+                ? `drop-shadow(0 0 ${Math.max(6, drawing.strokeWidth)}px ${drawing.stroke})`
+                : undefined,
+          }}
+        />
+      </svg>
+    );
+  }
 
   const uploadReplacement = async (file: File) => {
     try {
@@ -567,11 +744,53 @@ function ElementRenderer({
             fontWeight: el.fontWeight || "normal",
             fontStyle: el.fontStyle || "italic",
             textAlign: el.align || "center",
+            letterSpacing: el.letterSpacing ? `${el.letterSpacing}px` : undefined,
+            lineHeight: el.lineHeight ?? 1.18,
+            textTransform: el.textTransform ?? "none",
+            whiteSpace: "pre-wrap",
           }}
         />
+      ) : el.textCurve && el.textCurve !== "none" ? (
+        <svg
+          className="h-full w-full overflow-visible"
+          viewBox={`0 0 ${el.w} ${el.h}`}
+          preserveAspectRatio="none"
+          style={{
+            backgroundColor: el.backgroundColor
+              ? colorWithOpacity(el.backgroundColor, el.backgroundOpacity ?? 1)
+              : undefined,
+            borderRadius: el.backgroundColor ? 12 : undefined,
+          }}
+        >
+          <defs>
+            <path id={`text-curve-${el.id}`} d={textPathForCurve(el.textCurve, el.w, el.h)} />
+          </defs>
+          <text
+            fill={el.color || "currentColor"}
+            fontSize={el.fontSize}
+            fontFamily={el.fontFamily || '"Playfair Display", serif'}
+            fontWeight={el.fontWeight || "normal"}
+            fontStyle={el.fontStyle || "italic"}
+            letterSpacing={el.letterSpacing ?? 0}
+            textAnchor="middle"
+            style={{
+              textTransform: el.textTransform ?? "none",
+              paintOrder: "stroke",
+              stroke: el.strokeColor,
+              strokeWidth: el.strokeWidth || 0,
+              filter: el.shadowColor
+                ? `drop-shadow(${el.shadowX ?? 0}px ${el.shadowY ?? 2}px ${el.shadowBlur ?? 8}px ${el.shadowColor})`
+                : undefined,
+            }}
+          >
+            <textPath href={`#text-curve-${el.id}`} startOffset="50%">
+              {el.text.replace(/\s+/g, " ")}
+            </textPath>
+          </text>
+        </svg>
       ) : (
         <div
-          className="flex h-full w-full items-center justify-center px-4 text-center"
+          className="flex h-full w-full items-center justify-center text-center"
           style={{
             fontSize: el.fontSize,
             fontFamily: el.fontFamily || '"Playfair Display", serif',
@@ -579,6 +798,22 @@ function ElementRenderer({
             fontWeight: el.fontWeight || "normal",
             fontStyle: el.fontStyle || "italic",
             textAlign: el.align || "center",
+            letterSpacing: el.letterSpacing ? `${el.letterSpacing}px` : undefined,
+            lineHeight: el.lineHeight ?? 1.18,
+            textTransform: el.textTransform ?? "none",
+            whiteSpace: "pre-wrap",
+            padding: el.padding ?? 16,
+            WebkitTextStroke:
+              el.strokeWidth && el.strokeColor
+                ? `${el.strokeWidth}px ${el.strokeColor}`
+                : undefined,
+            textShadow: el.shadowColor
+              ? `${el.shadowX ?? 0}px ${el.shadowY ?? 2}px ${el.shadowBlur ?? 8}px ${el.shadowColor}`
+              : undefined,
+            backgroundColor: el.backgroundColor
+              ? colorWithOpacity(el.backgroundColor, el.backgroundOpacity ?? 1)
+              : undefined,
+            borderRadius: el.backgroundColor ? 12 : undefined,
           }}
         >
           {el.text}

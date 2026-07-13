@@ -1,7 +1,7 @@
-import { useBookStore } from "@/lib/photobook/store";
+import { useBookStore, type DrawMode } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { TEMPLATES } from "@/lib/photobook/templates";
-import { FRAMES, QUOTES, THEMES, PAGE_BORDERS } from "@/lib/photobook/catalogs";
+import { FRAMES, THEMES, PAGE_BORDERS } from "@/lib/photobook/catalogs";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Slider } from "@/components/ui/slider";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,10 @@ import {
   Eraser,
   RotateCcw,
   Loader2,
+  PenLine,
+  Brush,
+  Highlighter,
+  Zap,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -48,7 +52,6 @@ export function DesignSidebar() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const applyLayout = useBookStore((s) => s.applyLayout);
   const addSticker = useBookStore((s) => s.addStickerToCurrentPage);
-  const addQuote = useBookStore((s) => s.addQuoteToCurrentPage);
   const currentPageId = useBookStore((s) => s.currentPageId);
   const setPageBackground = useBookStore((s) => s.setPageBackground);
   const setPageBorder = useBookStore((s) => s.setPageBorder);
@@ -71,6 +74,15 @@ export function DesignSidebar() {
   const adminStickerFolders = useBookStore((s) => s.adminStickerFolders ?? []);
   const adminBackgrounds = useBookStore((s) => s.adminBackgrounds ?? []);
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
+  const drawMode = useBookStore((s) => s.drawMode);
+  const setDrawMode = useBookStore((s) => s.setDrawMode);
+  const drawBrushSize = useBookStore((s) => s.drawBrushSize);
+  const setDrawBrushSize = useBookStore((s) => s.setDrawBrushSize);
+  const drawBrushColor = useBookStore((s) => s.drawBrushColor);
+  const setDrawBrushColor = useBookStore((s) => s.setDrawBrushColor);
+  const drawBrushOpacity = useBookStore((s) => s.drawBrushOpacity);
+  const setDrawBrushOpacity = useBookStore((s) => s.setDrawBrushOpacity);
+  const clearCurrentPageDrawings = useBookStore((s) => s.clearCurrentPageDrawings);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -115,8 +127,10 @@ export function DesignSidebar() {
   };
 
   useEffect(() => {
-    if (selected) {
+    if (selected?.type === "photo") {
       setActiveTab("frames");
+    } else if (selected?.type === "text" || selected?.type === "quote") {
+      setActiveTab("quotes");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
@@ -160,7 +174,7 @@ export function DesignSidebar() {
         onValueChange={setActiveTab}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <TabsList className="m-3 grid grid-cols-6">
+        <TabsList className="m-3 grid grid-cols-7">
           <TabsTrigger value="layouts" className="text-[11px]">
             Layout
           </TabsTrigger>
@@ -179,6 +193,9 @@ export function DesignSidebar() {
           </TabsTrigger>
           <TabsTrigger value="quotes" disabled={pageStructureLocked} className="text-[11px]">
             Text
+          </TabsTrigger>
+          <TabsTrigger value="draw" disabled={pageStructureLocked} className="text-[11px]">
+            Draw
           </TabsTrigger>
           <TabsTrigger value="bg" disabled={pageStructureLocked} className="text-[11px]">
             BG
@@ -475,16 +492,10 @@ export function DesignSidebar() {
                       onPick={(id) => replacePhotoImage(selected!.id, id)}
                     />
                   </>
-                ) : selected?.type === "text" || selected?.type === "quote" ? (
-                  <TextControls
-                    selected={selected as QuoteElement | TextElement}
-                    updateElement={updateElement}
-                    moveElementLayer={moveElementLayer}
-                  />
                 ) : (
                   <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
-                    Select a photo on the page to apply a frame, or select a text/quote to edit its
-                    style.
+                    Select a photo on the page to apply a frame. Text editing is available in the
+                    Text tab.
                   </div>
                 )}
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -653,7 +664,7 @@ export function DesignSidebar() {
               <>
                 <div className="space-y-1.5 rounded-xl border bg-card p-3">
                   <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    Custom Text Box
+                    Text Box
                   </div>
                   <Button
                     onClick={() => useBookStore.getState().addTextToCurrentPage()}
@@ -661,28 +672,40 @@ export function DesignSidebar() {
                   >
                     [+] Add Text Box
                   </Button>
-                  <p className="text-[10px] leading-normal text-muted-foreground text-center mt-1">
-                    Adds an editable text box to the canvas and sidebar.
-                  </p>
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
-                    Text Ideas
+                {selected?.type === "text" || selected?.type === "quote" ? (
+                  <TextControls
+                    selected={selected as QuoteElement | TextElement}
+                    updateElement={updateElement}
+                    moveElementLayer={moveElementLayer}
+                  />
+                ) : (
+                  <div className="rounded-xl border border-dashed p-4 text-center text-xs text-muted-foreground">
+                    Add a text box or select existing text on the page to edit all typography here.
                   </div>
-                  <div className="space-y-2">
-                    {QUOTES.map((q) => (
-                      <button
-                        key={q}
-                        onClick={() => addQuote(q)}
-                        className="font-display w-full rounded-xl border bg-card p-3 text-left text-xs italic transition hover:border-accent hover:shadow-md"
-                      >
-                        {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                )}
               </>
+            )}
+          </TabsContent>
+
+          <TabsContent value="draw" className="mt-0 space-y-3.5">
+            {activeTab === "draw" && (
+              <DrawControls
+                mode={drawMode}
+                setMode={setDrawMode}
+                size={drawBrushSize}
+                setSize={setDrawBrushSize}
+                color={drawBrushColor}
+                setColor={setDrawBrushColor}
+                opacity={drawBrushOpacity}
+                setOpacity={setDrawBrushOpacity}
+                onClear={() => {
+                  const removed = clearCurrentPageDrawings();
+                  if (removed > 0) toast.success(`Removed ${removed} drawing stroke${removed === 1 ? "" : "s"}`);
+                  else toast.message("No drawing strokes on this page.");
+                }}
+              />
             )}
           </TabsContent>
 
@@ -1061,6 +1084,157 @@ function ReplaceImagePicker({
             />
           </button>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function DrawControls({
+  mode,
+  setMode,
+  size,
+  setSize,
+  color,
+  setColor,
+  opacity,
+  setOpacity,
+  onClear,
+}: {
+  mode: DrawMode;
+  setMode: (mode: DrawMode) => void;
+  size: number;
+  setSize: (size: number) => void;
+  color: string;
+  setColor: (color: string) => void;
+  opacity: number;
+  setOpacity: (opacity: number) => void;
+  onClear: () => void;
+}) {
+  const tools: { mode: DrawMode; label: string; icon: typeof PenLine }[] = [
+    { mode: "off", label: "Select", icon: Paintbrush },
+    { mode: "pen", label: "Pen", icon: PenLine },
+    { mode: "marker", label: "Marker", icon: Brush },
+    { mode: "highlighter", label: "Highlight", icon: Highlighter },
+    { mode: "neon", label: "Neon", icon: Zap },
+    { mode: "pressure", label: "Ink", icon: PenLine },
+  ];
+
+  const colors = [
+    "#111827",
+    "#ffffff",
+    "#ef4444",
+    "#f97316",
+    "#eab308",
+    "#22c55e",
+    "#06b6d4",
+    "#3b82f6",
+    "#8b5cf6",
+    "#ec4899",
+    "#a16207",
+    "#64748b",
+  ];
+
+  return (
+    <div className="space-y-3 rounded-xl border bg-card p-3">
+      <div>
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Drawing Tool
+        </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {tools.map((tool) => {
+            const Icon = tool.icon;
+            const active = mode === tool.mode;
+            return (
+              <Button
+                key={tool.mode}
+                type="button"
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="h-9 gap-1.5 px-2 text-[11px] font-semibold"
+                onClick={() => setMode(tool.mode)}
+                title={tool.label}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {tool.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <label className="text-xs font-medium">Color</label>
+          <input
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+            className="h-8 w-10 cursor-pointer rounded-md border bg-background p-0"
+            title="Pick drawing color"
+          />
+        </div>
+        <div className="grid grid-cols-6 gap-1.5">
+          {colors.map((swatch) => (
+            <button
+              key={swatch}
+              type="button"
+              onClick={() => setColor(swatch)}
+              className={`h-7 rounded-md border transition hover:scale-105 ${
+                color.toLowerCase() === swatch.toLowerCase()
+                  ? "border-accent ring-1 ring-accent"
+                  : "border-border"
+              }`}
+              style={{ backgroundColor: swatch }}
+              title={swatch}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 flex justify-between text-xs">
+          <span className="font-medium">Brush Size</span>
+          <span className="tabular-nums text-muted-foreground">{size}px</span>
+        </div>
+        <Slider value={[size]} min={2} max={80} step={1} onValueChange={([v]) => setSize(v)} />
+      </div>
+
+      <div>
+        <div className="mb-1 flex justify-between text-xs">
+          <span className="font-medium">Opacity</span>
+          <span className="tabular-nums text-muted-foreground">{Math.round(opacity * 100)}%</span>
+        </div>
+        <Slider
+          value={[opacity]}
+          min={0.05}
+          max={1}
+          step={0.05}
+          onValueChange={([v]) => setOpacity(v)}
+        />
+      </div>
+
+      <div className="rounded-lg border border-dashed bg-muted/35 p-2 text-[10px] leading-normal text-muted-foreground">
+        Select a brush, then drag directly on the page. Strokes are saved with the page and work in
+        preview/export.
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 text-xs font-semibold"
+          onClick={() => setMode("off")}
+        >
+          Done
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-8 text-xs font-semibold text-sky-700 hover:text-sky-700"
+          onClick={onClear}
+        >
+          Clear Drawings
+        </Button>
       </div>
     </div>
   );
@@ -1728,6 +1902,8 @@ function TextControls({
   moveElementLayer: (id: string, direction: "front" | "back" | "forward" | "backward") => void;
 }) {
   const markerFont = '"Permanent Marker", cursive';
+  const colorInputValue = (value?: string, fallback = "#37322d") =>
+    value && /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
   const fonts = [
     { label: "Modern Sans", value: "var(--font-sans)" },
     { label: "Classic Serif", value: '"Playfair Display", serif' },
@@ -1741,23 +1917,78 @@ function TextControls({
   const stylePresets = [
     {
       label: "Clean",
-      patch: { fontFamily: "var(--font-sans)", fontWeight: "normal", fontStyle: "normal" },
+      patch: {
+        fontFamily: "var(--font-sans)",
+        fontWeight: "normal",
+        fontStyle: "normal",
+        letterSpacing: 0,
+        lineHeight: 1.18,
+        textCurve: "none",
+        backgroundColor: undefined,
+        strokeWidth: 0,
+        shadowColor: undefined,
+      },
     },
     {
       label: "Marker",
-      patch: { fontFamily: markerFont, fontWeight: "normal", fontStyle: "normal" },
+      patch: {
+        fontFamily: markerFont,
+        fontWeight: "normal",
+        fontStyle: "normal",
+        letterSpacing: 0,
+        lineHeight: 1,
+        textCurve: "none",
+        shadowColor: "rgba(0,0,0,.18)",
+        shadowBlur: 2,
+        shadowX: 1,
+        shadowY: 2,
+      },
     },
     {
       label: "Signature",
-      patch: { fontFamily: '"Sacramento", cursive', fontWeight: "normal", fontStyle: "normal" },
+      patch: {
+        fontFamily: '"Sacramento", cursive',
+        fontWeight: "normal",
+        fontStyle: "normal",
+        fontSize: Math.max(selected.fontSize, 46),
+        lineHeight: 0.95,
+        textCurve: "none",
+      },
     },
     {
       label: "Serif",
-      patch: { fontFamily: '"Playfair Display", serif', fontWeight: "600", fontStyle: "normal" },
+      patch: {
+        fontFamily: '"Playfair Display", serif',
+        fontWeight: "600",
+        fontStyle: "normal",
+        letterSpacing: 0,
+        textCurve: "none",
+      },
     },
     {
       label: "Typewriter",
-      patch: { fontFamily: '"Courier New", monospace', fontWeight: "normal", fontStyle: "normal" },
+      patch: {
+        fontFamily: '"Courier New", monospace',
+        fontWeight: "normal",
+        fontStyle: "normal",
+        letterSpacing: 1,
+        lineHeight: 1.25,
+        textCurve: "none",
+      },
+    },
+    {
+      label: "Label",
+      patch: {
+        fontFamily: "var(--font-sans)",
+        fontWeight: "bold",
+        fontStyle: "normal",
+        textTransform: "uppercase",
+        textCurve: "none",
+        letterSpacing: 2,
+        backgroundColor: "#ffffff",
+        backgroundOpacity: 0.82,
+        padding: 12,
+      },
     },
   ] as const;
 
@@ -1847,7 +2078,7 @@ function TextControls({
           <label className="block text-xs font-medium">Text Color</label>
           <input
             type="color"
-            value={selected.color || "#37322d"}
+            value={colorInputValue(selected.color)}
             onChange={(e) => updateElement(selected.id, { color: e.target.value })}
             className="h-8 w-10 cursor-pointer rounded-md border bg-background p-0"
             title="Pick a custom text color"
@@ -1867,6 +2098,40 @@ function TextControls({
               title={c.label}
             />
           ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium">Line Height</label>
+        <div className="flex items-center gap-2">
+          <Slider
+            value={[selected.lineHeight ?? 1.18]}
+            max={2}
+            min={0.8}
+            step={0.02}
+            onValueChange={([v]) => updateElement(selected.id, { lineHeight: v })}
+            className="flex-1"
+          />
+          <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+            {(selected.lineHeight ?? 1.18).toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1 block text-xs font-medium">Letter Spacing</label>
+        <div className="flex items-center gap-2">
+          <Slider
+            value={[selected.letterSpacing ?? 0]}
+            max={12}
+            min={-1}
+            step={0.5}
+            onValueChange={([v]) => updateElement(selected.id, { letterSpacing: v })}
+            className="flex-1"
+          />
+          <span className="w-9 text-right text-xs tabular-nums text-muted-foreground">
+            {selected.letterSpacing ?? 0}px
+          </span>
         </div>
       </div>
 
@@ -1898,6 +2163,158 @@ function TextControls({
             Italic
           </Button>
         </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-medium">Transform</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {(["none", "uppercase", "lowercase", "capitalize"] as const).map((transform) => (
+            <Button
+              key={transform}
+              size="sm"
+              variant={(selected.textTransform ?? "none") === transform ? "default" : "outline"}
+              className="h-8 px-1 text-[10px]"
+              onClick={() => updateElement(selected.id, { textTransform: transform })}
+            >
+              {transform === "none"
+                ? "Aa"
+                : transform === "uppercase"
+                  ? "AA"
+                  : transform === "lowercase"
+                    ? "aa"
+                    : "Title"}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-medium">Text Curve</label>
+        <div className="grid grid-cols-2 gap-1.5">
+          {[
+            { label: "None", value: "none" },
+            { label: "Arc up", value: "arcUp" },
+            { label: "Arc down", value: "arcDown" },
+            { label: "Wave", value: "wave" },
+          ].map((curve) => (
+            <Button
+              key={curve.value}
+              size="sm"
+              variant={(selected.textCurve ?? "none") === curve.value ? "default" : "outline"}
+              className="h-8 text-xs"
+              onClick={() =>
+                updateElement(selected.id, {
+                  textCurve: curve.value as QuoteElement["textCurve"],
+                })
+              }
+            >
+              {curve.label}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2 rounded-lg border bg-muted/25 p-2">
+        <div className="flex items-center justify-between gap-2">
+          <label className="text-xs font-medium">Text Background</label>
+          <input
+            type="color"
+            value={colorInputValue(selected.backgroundColor, "#ffffff")}
+            onChange={(e) => updateElement(selected.id, { backgroundColor: e.target.value })}
+            className="h-7 w-9 cursor-pointer rounded-md border bg-background p-0"
+          />
+        </div>
+        <div className="flex gap-1.5">
+          <Button
+            size="sm"
+            variant={selected.backgroundColor ? "default" : "outline"}
+            className="h-7 flex-1 text-[10px]"
+            onClick={() =>
+              updateElement(selected.id, {
+                backgroundColor: selected.backgroundColor ? undefined : "#ffffff",
+                backgroundOpacity: selected.backgroundOpacity ?? 0.82,
+                padding: selected.padding ?? 12,
+              })
+            }
+          >
+            {selected.backgroundColor ? "On" : "Off"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 flex-1 text-[10px]"
+            onClick={() =>
+              updateElement(selected.id, {
+                backgroundColor: undefined,
+                strokeWidth: 0,
+                shadowColor: undefined,
+              })
+            }
+          >
+            Clear FX
+          </Button>
+        </div>
+        {selected.backgroundColor && (
+          <>
+            <div>
+              <div className="mb-1 flex justify-between text-[10px]">
+                <span>Opacity</span>
+                <span>{Math.round((selected.backgroundOpacity ?? 0.82) * 100)}%</span>
+              </div>
+              <Slider
+                value={[selected.backgroundOpacity ?? 0.82]}
+                min={0.05}
+                max={1}
+                step={0.05}
+                onValueChange={([v]) => updateElement(selected.id, { backgroundOpacity: v })}
+              />
+            </div>
+            <div>
+              <div className="mb-1 flex justify-between text-[10px]">
+                <span>Padding</span>
+                <span>{selected.padding ?? 12}px</span>
+              </div>
+              <Slider
+                value={[selected.padding ?? 12]}
+                min={0}
+                max={36}
+                step={1}
+                onValueChange={([v]) => updateElement(selected.id, { padding: v })}
+              />
+            </div>
+          </>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          size="sm"
+          variant={selected.strokeWidth ? "default" : "outline"}
+          className="h-8 text-xs"
+          onClick={() =>
+            updateElement(selected.id, {
+              strokeColor: selected.strokeColor || "#ffffff",
+              strokeWidth: selected.strokeWidth ? 0 : 1,
+            })
+          }
+        >
+          Outline
+        </Button>
+        <Button
+          size="sm"
+          variant={selected.shadowColor ? "default" : "outline"}
+          className="h-8 text-xs"
+          onClick={() =>
+            updateElement(selected.id, {
+              shadowColor: selected.shadowColor ? undefined : "rgba(0,0,0,.28)",
+              shadowBlur: selected.shadowBlur ?? 8,
+              shadowX: selected.shadowX ?? 0,
+              shadowY: selected.shadowY ?? 3,
+            })
+          }
+        >
+          Shadow
+        </Button>
       </div>
 
       <div>

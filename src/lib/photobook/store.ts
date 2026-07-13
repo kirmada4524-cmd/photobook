@@ -199,6 +199,8 @@ export type SavedProjectMetadata = {
   cover?: string;
 };
 
+export type DrawMode = "off" | "pen" | "marker" | "highlighter" | "neon" | "pressure";
+
 type State = {
   book: Book;
   library: LibraryImage[];
@@ -217,6 +219,10 @@ type State = {
   projectFilePath: string | null;
   isEraserMode: boolean;
   eraserBrushSize: number;
+  drawMode: DrawMode;
+  drawBrushSize: number;
+  drawBrushColor: string;
+  drawBrushOpacity: number;
   isMagicLayoutMode: boolean;
   magicLayoutTolerance: number;
   magicLayoutFeather: number;
@@ -271,6 +277,16 @@ type Actions = {
   addStickerToCurrentPage: (emojiOrSrc: string) => void;
   addQuoteToCurrentPage: (text: string) => void;
   addTextToCurrentPage: (text?: string) => void;
+  addDrawingToCurrentPage: (
+    path: string,
+    opts?: {
+      stroke?: string;
+      strokeWidth?: number;
+      opacity?: number;
+      brush?: Exclude<DrawMode, "off">;
+    },
+  ) => void;
+  clearCurrentPageDrawings: () => number;
 
   setZoom: (z: number) => void;
   resetBook: () => void;
@@ -304,6 +320,10 @@ type Actions = {
   setProjectFilePath: (path: string | null) => void;
   setIsEraserMode: (b: boolean) => void;
   setEraserBrushSize: (size: number) => void;
+  setDrawMode: (mode: DrawMode) => void;
+  setDrawBrushSize: (size: number) => void;
+  setDrawBrushColor: (color: string) => void;
+  setDrawBrushOpacity: (opacity: number) => void;
   setIsMagicLayoutMode: (b: boolean) => void;
   setMagicLayoutTolerance: (value: number) => void;
   setMagicLayoutFeather: (value: number) => void;
@@ -463,6 +483,10 @@ export const useBookStore = create<State & Actions>()(
         projectFilePath: null,
         isEraserMode: false,
         eraserBrushSize: 30,
+        drawMode: "off",
+        drawBrushSize: 12,
+        drawBrushColor: "#1f2937",
+        drawBrushOpacity: 1,
         isMagicLayoutMode: false,
         magicLayoutTolerance: 25,
         magicLayoutFeather: 1,
@@ -919,6 +943,48 @@ export const useBookStore = create<State & Actions>()(
             fontFamily: "var(--font-sans)",
             align: "center",
           });
+        },
+        addDrawingToCurrentPage: (path, opts) => {
+          const state = get();
+          const page = state.book.pages.find((p) => p.id === state.currentPageId);
+          if (!page || !pageMutationAllowed(page) || !path.trim()) return;
+          const maxZ = Math.max(0, ...page.elements.map((e) => e.z));
+          state.addElement({
+            id: nid("draw"),
+            type: "drawing",
+            path,
+            stroke: opts?.stroke ?? state.drawBrushColor,
+            strokeWidth: opts?.strokeWidth ?? state.drawBrushSize,
+            opacity: opts?.opacity ?? state.drawBrushOpacity,
+            brush: opts?.brush ?? (state.drawMode === "off" ? "pen" : state.drawMode),
+            x: 0,
+            y: 0,
+            w: PAGE_SIZES[0].width,
+            h: PAGE_SIZES[0].height,
+            rotation: 0,
+            z: maxZ + 1,
+          });
+        },
+        clearCurrentPageDrawings: () => {
+          let removed = 0;
+          set((s) => {
+            const page = s.book.pages.find((p) => p.id === s.currentPageId);
+            if (!page || !pageMutationAllowed(page)) return s;
+            removed = page.elements.filter((e) => e.type === "drawing").length;
+            if (removed === 0) return s;
+            return {
+              book: {
+                ...s.book,
+                pages: s.book.pages.map((p) =>
+                  p.id === page.id
+                    ? { ...p, elements: p.elements.filter((e) => e.type !== "drawing") }
+                    : p,
+                ),
+              },
+              selectedElementId: null,
+            };
+          });
+          return removed;
         },
 
         setZoom: (z) => set({ zoom: Math.max(0.05, Math.min(1.5, z)) }),
@@ -1385,10 +1451,25 @@ export const useBookStore = create<State & Actions>()(
           }
         },
         setProjectFilePath: (path) => set({ projectFilePath: path }),
-        setIsEraserMode: (b) => set({ isEraserMode: b }),
+        setIsEraserMode: (b) => set({ isEraserMode: b, drawMode: b ? "off" : get().drawMode }),
         setEraserBrushSize: (size) => set({ eraserBrushSize: size }),
+        setDrawMode: (mode) =>
+          set({
+            drawMode: mode,
+            isEraserMode: mode !== "off" ? false : get().isEraserMode,
+            isMagicLayoutMode: mode !== "off" ? false : get().isMagicLayoutMode,
+          }),
+        setDrawBrushSize: (size) =>
+          set({ drawBrushSize: Math.max(2, Math.min(80, Math.round(size))) }),
+        setDrawBrushColor: (color) => set({ drawBrushColor: color || "#1f2937" }),
+        setDrawBrushOpacity: (opacity) =>
+          set({ drawBrushOpacity: Math.max(0.05, Math.min(1, opacity)) }),
         setIsMagicLayoutMode: (b) =>
-          set({ isMagicLayoutMode: b, isEraserMode: b ? false : get().isEraserMode }),
+          set({
+            isMagicLayoutMode: b,
+            isEraserMode: b ? false : get().isEraserMode,
+            drawMode: b ? "off" : get().drawMode,
+          }),
         setMagicLayoutTolerance: (value) =>
           set({ magicLayoutTolerance: Math.max(5, Math.min(60, Math.round(value))) }),
         setMagicLayoutFeather: (value) =>
