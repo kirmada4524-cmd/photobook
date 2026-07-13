@@ -148,7 +148,7 @@ function PreviewPage() {
   const totalPages = previewPages.length;
   const singlePageMode = totalPages <= 1;
   const isMobileFullscreen = false;
-  const isPortraitBook = singlePageMode || (isMobilePreview && !isFullscreen);
+  const isPortraitBook = singlePageMode;
   const useFullscreenSpread = isFullscreen && !singlePageMode;
   const isFullscreenSinglePage =
     useFullscreenSpread && (currentPage <= 0 || currentPage >= totalPages - 1);
@@ -655,7 +655,7 @@ function PreviewPage() {
         </button>
 
         <div
-          className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${isFirst ? "is-cover" : ""} ${isLast ? "is-back-cover" : ""} ${
+          className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${singlePageMode && isFirst ? "is-cover" : ""} ${singlePageMode && isLast ? "is-back-cover" : ""} ${
             isFullscreen && !isFullscreenSinglePage && !singlePageMode
               ? "has-fullscreen-binding"
               : ""
@@ -698,9 +698,9 @@ function PreviewPage() {
               maxHeight={1800}
               drawShadow
               flippingTime={isMobilePreview ? 1300 : 1050}
-              usePortrait={isPortraitBook}
+              usePortrait={false}
               startPage={0}
-              showCover
+              showCover={false}
               autoSize={false}
               maxShadowOpacity={0.6}
               mobileScrollSupport={false}
