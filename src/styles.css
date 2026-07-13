@@ -1044,7 +1044,7 @@
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
   border-radius: 7px;
   padding: 4px;
 }
@@ -1093,8 +1093,8 @@
 
 .book-preview-swatch {
   display: grid;
-  width: 24px;
-  height: 24px;
+  width: 34px;
+  height: 34px;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -1384,14 +1384,6 @@
   opacity: 0.92;
 }
 
-.book-preview-book.is-fullscreen-cover-page .book-preview-flipbook {
-  transform: translateX(-25%);
-}
-
-.book-preview-book.is-fullscreen-back-cover-page .book-preview-flipbook {
-  transform: translateX(25%);
-}
-
 .book-preview-static-page {
   position: relative;
   z-index: 3;
@@ -1415,22 +1407,16 @@
   inset-block: 0;
   left: 50%;
   z-index: 40;
-  width: clamp(8px, 1.2vw, 16px);
+  width: clamp(3px, 0.45vw, 6px);
   pointer-events: none;
   transform: translateX(-50%);
   background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2), transparent 68%),
-    repeating-linear-gradient(
-      180deg,
-      rgba(120, 82, 38, 0.55) 0 2px,
-      rgba(245, 224, 185, 0.42) 2px 4px,
-      rgba(80, 48, 22, 0.46) 4px 7px
-    );
+    linear-gradient(90deg, transparent, rgba(34, 21, 10, 0.2) 45%, rgba(255, 255, 255, 0.16) 52%, transparent);
   box-shadow:
-    -10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    inset 0 0 10px rgba(0, 0, 0, 0.24);
-  opacity: 0.82;
+    -10px 0 18px -16px rgba(0, 0, 0, 0.52),
+    10px 0 18px -16px rgba(0, 0, 0, 0.48);
+  opacity: 0.72;
+  mix-blend-mode: multiply;
 }
 
 .book-preview-fullscreen-spread .book-preview-leaf {
@@ -1443,22 +1429,16 @@
   inset-block: 0;
   left: 50%;
   z-index: 42;
-  width: clamp(8px, 1.2vw, 16px);
+  width: clamp(3px, 0.45vw, 6px);
   pointer-events: none;
   transform: translateX(-50%);
   background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2), transparent 68%),
-    repeating-linear-gradient(
-      180deg,
-      rgba(120, 82, 38, 0.55) 0 2px,
-      rgba(245, 224, 185, 0.42) 2px 4px,
-      rgba(80, 48, 22, 0.46) 4px 7px
-    );
+    linear-gradient(90deg, transparent, rgba(34, 21, 10, 0.2) 45%, rgba(255, 255, 255, 0.16) 52%, transparent);
   box-shadow:
-    -10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    inset 0 0 10px rgba(0, 0, 0, 0.24);
-  opacity: 0.82;
+    -10px 0 18px -16px rgba(0, 0, 0, 0.52),
+    10px 0 18px -16px rgba(0, 0, 0, 0.48);
+  opacity: 0.72;
+  mix-blend-mode: multiply;
 }
 
 .book-preview-leaf {
@@ -2376,8 +2356,8 @@
   }
 
   .book-preview-swatch {
-    width: 26px;
-    height: 26px;
+    width: 32px;
+    height: 32px;
   }
 
   .book-preview-stage {

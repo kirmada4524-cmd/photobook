@@ -150,30 +150,32 @@ function PreviewPage() {
   const isMobileFullscreen = false;
   const isPortraitBook = singlePageMode;
   const useFullscreenSpread = isFullscreen && !singlePageMode;
-  const isFullscreenSinglePage =
-    useFullscreenSpread && (currentPage <= 0 || currentPage >= totalPages - 1);
-  const isFullscreenCoverPage = useFullscreenSpread && currentPage <= 0;
-  const isFullscreenBackCoverPage = useFullscreenSpread && currentPage >= totalPages - 1;
+  const enableMoveTool = !isFullscreen && settings.enableBookMove;
+  const enableOrbitTool = !isFullscreen && settings.enable3DOrbit;
+  const canManipulateBook = enableMoveTool || enableOrbitTool;
 
   const fit = useMemo(() => {
     const fitViewportW = isMobileFullscreen ? viewportH : viewportW;
     const fitViewportH = isMobileFullscreen ? viewportW : viewportH;
-    const mobileFullscreenMargin = 36;
+    const fullscreenMarginW = Math.max(
+      isMobilePreview ? 28 : 80,
+      fitViewportW * (isMobilePreview ? 0.08 : 0.12),
+    );
+    const fullscreenMarginH = Math.max(
+      isMobilePreview ? 28 : 72,
+      fitViewportH * (isMobilePreview ? 0.08 : 0.12),
+    );
     const chromeW = isFullscreen
       ? isMobileFullscreen
-        ? mobileFullscreenMargin
-        : isMobilePreview
-          ? 10
-          : 96
+        ? fullscreenMarginW
+        : fullscreenMarginW
       : isMobilePreview
         ? 36
         : 120;
     const chromeH = isFullscreen
       ? isMobileFullscreen
-        ? mobileFullscreenMargin
-        : isMobilePreview
-          ? 10
-          : 96
+        ? fullscreenMarginH
+        : fullscreenMarginH
       : isMobilePreview
         ? 200
         : 220;
@@ -206,12 +208,16 @@ function PreviewPage() {
   const isBlankPage = activePage?.id === "blank-placeholder-page";
   const mobileOffsetLimitX = Math.max(18, viewportW * 0.08);
   const mobileOffsetLimitY = Math.max(16, viewportH * 0.04);
-  const effectiveBookOffsetX = isMobilePreview
-    ? clamp(settings.bookOffsetX, -mobileOffsetLimitX, mobileOffsetLimitX)
-    : settings.bookOffsetX;
-  const effectiveBookOffsetY = isMobilePreview
-    ? clamp(settings.bookOffsetY, -mobileOffsetLimitY, mobileOffsetLimitY)
-    : settings.bookOffsetY;
+  const effectiveBookOffsetX = isFullscreen
+    ? 0
+    : isMobilePreview
+      ? clamp(settings.bookOffsetX, -mobileOffsetLimitX, mobileOffsetLimitX)
+      : settings.bookOffsetX;
+  const effectiveBookOffsetY = isFullscreen
+    ? 0
+    : isMobilePreview
+      ? clamp(settings.bookOffsetY, -mobileOffsetLimitY, mobileOffsetLimitY)
+      : settings.bookOffsetY;
   const effectiveRotateX = isFullscreen
     ? 0
     : isMobilePreview
@@ -294,7 +300,7 @@ function PreviewPage() {
       return;
     }
 
-    if (settings.enableBookMove) {
+    if (enableMoveTool) {
       e.preventDefault();
       activeDragToolRef.current = "move";
       setIsDraggingBook(true);
@@ -308,7 +314,7 @@ function PreviewPage() {
       return;
     }
 
-    if (settings.enable3DOrbit) {
+    if (enableOrbitTool) {
       e.preventDefault();
       activeDragToolRef.current = "orbit";
       setIsDraggingOrbit(true);
@@ -375,11 +381,11 @@ function PreviewPage() {
 
   const isFirst = currentPage <= 0;
   const isLast = currentPage >= totalPages - 1;
-  const stageCursor = settings.enableBookMove
+  const stageCursor = enableMoveTool
     ? isDraggingBook
       ? "grabbing"
       : "grab"
-    : settings.enable3DOrbit
+    : enableOrbitTool
       ? isDraggingOrbit
         ? "grabbing"
         : "grab"
@@ -446,6 +452,7 @@ function PreviewPage() {
         <button
           type="button"
           aria-expanded={showToolsMenu}
+          title="Open preview controls"
           onClick={() => setShowToolsMenu((value) => !value)}
           className={`book-preview-tool-btn book-preview-menu-trigger ${showToolsMenu ? "is-active" : ""}`}
         >
@@ -458,6 +465,7 @@ function PreviewPage() {
             <button
               type="button"
               aria-pressed={settings.enable3DOrbit}
+              title="Rotate the book view"
               onClick={() =>
                 patchSettings({
                   enable3DOrbit: !settings.enable3DOrbit,
@@ -473,6 +481,7 @@ function PreviewPage() {
             <button
               type="button"
               aria-pressed={settings.enableBookMove}
+              title="Move the book in normal preview"
               onClick={() =>
                 patchSettings({
                   enableBookMove: !settings.enableBookMove,
@@ -492,6 +501,7 @@ function PreviewPage() {
               settings.rotateY !== 0) && (
               <button
                 type="button"
+                title="Reset preview view"
                 onClick={() =>
                   patchSettings({
                     enable3DOrbit: false,
@@ -512,6 +522,7 @@ function PreviewPage() {
             <button
               type="button"
               aria-expanded={showSceneControls}
+              title="Change preview scene"
               onClick={() => setShowSceneControls((value) => !value)}
               className={`book-preview-tool-btn ${showSceneControls ? "is-active" : ""}`}
             >
@@ -519,7 +530,12 @@ function PreviewPage() {
               Scene
             </button>
 
-            <button type="button" onClick={toggleFullscreen} className="book-preview-tool-btn">
+            <button
+              type="button"
+              title={isFullscreen ? "Exit fullscreen" : "Open fullscreen preview"}
+              onClick={toggleFullscreen}
+              className="book-preview-tool-btn"
+            >
               {isFullscreen ? (
                 <Minimize2 className="h-3.5 w-3.5" />
               ) : (
@@ -534,6 +550,7 @@ function PreviewPage() {
                   <button
                     type="button"
                     aria-pressed={settings.showGuide}
+                    title="Toggle preview guide"
                     onClick={() => patchSettings({ showGuide: !settings.showGuide })}
                     className={`book-preview-guide-toggle ${settings.showGuide ? "is-active" : ""}`}
                   >
@@ -618,7 +635,7 @@ function PreviewPage() {
       />
 
       <main
-        className={`book-preview-stage ${settings.enableBookMove || settings.enable3DOrbit ? "is-interactive" : ""}`}
+        className={`book-preview-stage ${canManipulateBook ? "is-interactive" : ""}`}
         onPointerDownCapture={handleStagePointerDown}
         onPointerMoveCapture={handleStagePointerMove}
         onPointerUpCapture={handleStagePointerUp}
@@ -655,11 +672,11 @@ function PreviewPage() {
         </button>
 
         <div
-          className={`book-preview-book ${settings.enableBookMove || settings.enable3DOrbit ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${singlePageMode && isFirst ? "is-cover" : ""} ${singlePageMode && isLast ? "is-back-cover" : ""} ${
-            isFullscreen && !isFullscreenSinglePage && !singlePageMode
+          className={`book-preview-book ${canManipulateBook ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${singlePageMode && isFirst ? "is-cover" : ""} ${singlePageMode && isLast ? "is-back-cover" : ""} ${
+            isFullscreen && useFullscreenSpread && !singlePageMode
               ? "has-fullscreen-binding"
               : ""
-          } ${isFullscreenCoverPage ? "is-fullscreen-cover-page" : ""} ${isFullscreenBackCoverPage ? "is-fullscreen-back-cover-page" : ""}`}
+          }`}
           style={
             {
               "--preview-page-width": `${scaledPageW}px`,
@@ -708,7 +725,7 @@ function PreviewPage() {
               useMouseEvents
               swipeDistance={isMobilePreview ? 48 : 28}
               showPageCorners={false}
-              disableFlipByClick={settings.enableBookMove || settings.enable3DOrbit}
+              disableFlipByClick={canManipulateBook}
               startZIndex={20}
               className="book-preview-flipbook"
               style={{}}
