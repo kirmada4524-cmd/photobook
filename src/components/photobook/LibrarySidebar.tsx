@@ -421,6 +421,9 @@ export function MobilePagesStrip() {
   const [open, setOpen] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   const stripRef = useRef<HTMLDivElement>(null);
+  // Suppress the tile's native drag when a press starts on a [data-no-drag] control,
+  // so the delete/reorder buttons' clicks land instead of being eaten by a drag.
+  const suppressDrag = useRef(false);
 
   const preset = PAGE_SIZES[0];
   const THUMB_W = 72;
@@ -450,7 +453,16 @@ export function MobilePagesStrip() {
                 <div
                   key={page.id}
                   draggable
-                  onDragStart={() => setDragId(page.id)}
+                  onPointerDown={(e) => {
+                    suppressDrag.current = !!(e.target as HTMLElement).closest("[data-no-drag]");
+                  }}
+                  onDragStart={(e) => {
+                    if (suppressDrag.current) {
+                      e.preventDefault();
+                      return;
+                    }
+                    setDragId(page.id);
+                  }}
                   onDragOver={(e) => e.preventDefault()}
                   onDrop={(e) => {
                     e.preventDefault();
@@ -490,17 +502,12 @@ export function MobilePagesStrip() {
                       <Page pageId={page.id} interactive={false} />
                     </div>
                   </div>
-                  {/* Controls for Rearranging & Deleting.
-                      draggable={false} + canceling dragstart here stops the parent's
-                      native drag from stealing clicks on these buttons (which made the
-                      trash/reorder icons intermittently do nothing). */}
+                  {/* Controls for Rearranging & Deleting. data-no-drag makes the parent tile
+                      cancel its native drag for presses that start here, so these buttons'
+                      clicks land instead of being eaten by a drag gesture. */}
                   <div
+                    data-no-drag
                     className="flex items-center justify-between border-t bg-muted/40 px-1 py-0.5"
-                    draggable={false}
-                    onDragStart={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
                   >
                     <button
                       type="button"
@@ -613,10 +620,18 @@ function PageThumb({
   // Since FIXED_PAGE_SIZE width/height is 550, scale factor is containerWidth / 550
   const scale = Math.max(0.05, containerWidth / 550);
 
+  // When a press starts on a [data-no-drag] control, suppress the parent's native drag
+  // for that gesture so the button's click actually lands (the drag source is THIS div —
+  // the nearest draggable ancestor — so the guard must live here, not on the control).
+  const suppressDrag = useRef(false);
+
   return (
     <div
       role="button"
       tabIndex={0}
+      onPointerDown={(e) => {
+        suppressDrag.current = !!(e.target as HTMLElement).closest("[data-no-drag]");
+      }}
       onClick={() => setCurrentPage(page.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -625,7 +640,13 @@ function PageThumb({
         }
       }}
       draggable
-      onDragStart={() => setPageDragState({ id: page.id, dropped: false })}
+      onDragStart={(e) => {
+        if (suppressDrag.current) {
+          e.preventDefault();
+          return;
+        }
+        setPageDragState({ id: page.id, dropped: false });
+      }}
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         e.preventDefault();
@@ -670,15 +691,8 @@ function PageThumb({
         <span className="block truncate">{pageLabel(index, total)}</span>
       </div>
       <div
-        className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100"
-        draggable={false}
-        onDragStart={(e) => {
-          // Prevent the draggable parent from starting a drag when the press begins on
-          // these controls — otherwise a slight pointer move eats the click and the
-          // trash/duplicate icons silently do nothing.
-          e.preventDefault();
-          e.stopPropagation();
-        }}
+        data-no-drag
+        className="absolute right-1 top-1 flex gap-1.5 opacity-0 transition group-hover:opacity-100 max-md:opacity-100"
       >
         <button
           type="button"
@@ -689,9 +703,9 @@ function PageThumb({
             e.stopPropagation();
             duplicatePage(page.id);
           }}
-          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm transition hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="grid h-9 w-9 place-items-center rounded-lg bg-background/95 text-foreground shadow-md transition hover:bg-background hover:text-accent active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
-          <Copy className="h-3.5 w-3.5" />
+          <Copy className="h-4 w-4" />
         </button>
         <button
           type="button"
@@ -703,9 +717,9 @@ function PageThumb({
             e.stopPropagation();
             deletePage(page.id);
           }}
-          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-sky-600 shadow-sm transition hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:text-muted-foreground/40 disabled:hover:bg-background/90"
+          className="grid h-9 w-9 place-items-center rounded-lg bg-background/95 text-red-600 shadow-md transition hover:bg-red-50 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 disabled:cursor-default disabled:text-muted-foreground/40 disabled:hover:bg-background/95"
         >
-          <Trash2 className="h-3.5 w-3.5" />
+          <Trash2 className="h-5 w-5" />
         </button>
       </div>
     </div>
@@ -725,6 +739,8 @@ function Grid({
   onDel: (id: string) => void;
   onExclude: (id: string) => void;
 }) {
+  // Suppress a tile's native drag when the press starts on a [data-no-drag] control.
+  const suppressDrag = useRef(false);
   return (
     <div className="grid grid-flow-col auto-cols-[120px] md:grid-flow-row md:auto-cols-auto md:grid-cols-2 gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0 snap-x touch-pan-x">
       {items.map((img) => (
@@ -734,7 +750,14 @@ function Grid({
           tabIndex={0}
           aria-label={`Add ${img.name || "photo"} to the current page`}
           draggable
+          onPointerDown={(e) => {
+            suppressDrag.current = !!(e.target as HTMLElement).closest("[data-no-drag]");
+          }}
           onDragStart={(e) => {
+            if (suppressDrag.current) {
+              e.preventDefault();
+              return;
+            }
             e.dataTransfer.setData("text/photobook-image", img.id);
             e.dataTransfer.setData("text/plain", img.id);
             e.dataTransfer.effectAllowed = "copy";
@@ -754,11 +777,8 @@ function Grid({
           className="group relative aspect-square overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm transition hover:border-accent/40 hover:shadow-md snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
         >
           <button
+            data-no-drag="true"
             draggable={false}
-            onDragStart={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-            }}
             onClick={(e) => {
               e.stopPropagation();
               onExclude(img.id);
@@ -790,11 +810,8 @@ function Grid({
             <Button
               size="icon"
               variant="ghost"
+              data-no-drag="true"
               draggable={false}
-              onDragStart={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
               className="h-8 w-8 text-white hover:bg-white/20"
               aria-label={img.favorite ? "Remove from favorites" : "Add to favorites"}
               aria-pressed={img.favorite}
@@ -809,12 +826,9 @@ function Grid({
             <Button
               size="icon"
               variant="ghost"
+              data-no-drag="true"
               draggable={false}
-              onDragStart={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-              }}
-              className="h-8 w-8 text-white hover:bg-sky-500/80"
+              className="h-9 w-9 text-white hover:bg-red-500/80"
               aria-label={`Delete ${img.name || "photo"}`}
               title="Delete photo"
               onClick={(e) => {
@@ -822,7 +836,7 @@ function Grid({
                 onDel(img.id);
               }}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-4 w-4" />
             </Button>
           </div>
         </div>

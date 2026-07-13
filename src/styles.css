@@ -935,6 +935,49 @@
   pointer-events: none;
 }
 
+/* "Shared by …" magic-link banner shown to recipients. */
+.book-preview-share-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: calc(9px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px))
+    9px calc(14px + env(safe-area-inset-left, 0px));
+  background: linear-gradient(90deg, rgba(228, 180, 93, 0.96), rgba(208, 148, 70, 0.96));
+  color: #251c12;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 6px 20px -8px rgba(0, 0, 0, 0.55);
+  animation: u-fade-in 0.4s ease both;
+}
+.book-preview-share-banner .book-preview-share-cta {
+  flex-shrink: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(37, 28, 18, 0.28);
+  background: rgba(255, 255, 255, 0.55);
+  padding: 4px 12px;
+  color: #251c12;
+  font-size: 12px;
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    background 0.2s var(--ease-smooth, ease),
+    transform 0.2s var(--ease-smooth, ease);
+}
+.book-preview-share-banner .book-preview-share-cta:hover {
+  background: rgba(255, 255, 255, 0.9);
+  transform: translateY(-1px);
+}
+/* Push the preview topbar below the banner when it's present. */
+.book-preview-shell.has-share-banner .book-preview-header-container {
+  padding-top: calc(56px + env(safe-area-inset-top, 0px));
+}
+
 .book-preview-topbar {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1369,22 +1412,19 @@
   inset-block: 0;
   left: 50%;
   z-index: 40;
-  width: clamp(8px, 1.2vw, 16px);
+  width: clamp(2px, 0.4vw, 5px);
   pointer-events: none;
   transform: translateX(-50%);
-  background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2), transparent 68%),
-    repeating-linear-gradient(
-      180deg,
-      rgba(120, 82, 38, 0.55) 0 2px,
-      rgba(245, 224, 185, 0.42) 2px 4px,
-      rgba(80, 48, 22, 0.46) 4px 7px
-    );
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.22),
+    rgba(0, 0, 0, 0.04) 50%,
+    rgba(0, 0, 0, 0.22)
+  );
   box-shadow:
-    -10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    inset 0 0 10px rgba(0, 0, 0, 0.24);
-  opacity: 0.82;
+    -8px 0 16px -14px rgba(0, 0, 0, 0.5),
+    8px 0 16px -14px rgba(0, 0, 0, 0.5);
+  opacity: 0.7;
 }
 
 .book-preview-fullscreen-spread .book-preview-leaf {
@@ -1397,22 +1437,19 @@
   inset-block: 0;
   left: 50%;
   z-index: 42;
-  width: clamp(8px, 1.2vw, 16px);
+  width: clamp(2px, 0.4vw, 5px);
   pointer-events: none;
   transform: translateX(-50%);
-  background:
-    radial-gradient(ellipse at center, rgba(0, 0, 0, 0.2), transparent 68%),
-    repeating-linear-gradient(
-      180deg,
-      rgba(120, 82, 38, 0.55) 0 2px,
-      rgba(245, 224, 185, 0.42) 2px 4px,
-      rgba(80, 48, 22, 0.46) 4px 7px
-    );
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.22),
+    rgba(0, 0, 0, 0.04) 50%,
+    rgba(0, 0, 0, 0.22)
+  );
   box-shadow:
-    -10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    10px 0 18px -16px rgba(0, 0, 0, 0.72),
-    inset 0 0 10px rgba(0, 0, 0, 0.24);
-  opacity: 0.82;
+    -8px 0 16px -14px rgba(0, 0, 0, 0.5),
+    8px 0 16px -14px rgba(0, 0, 0, 0.5);
+  opacity: 0.7;
 }
 
 .book-preview-leaf {

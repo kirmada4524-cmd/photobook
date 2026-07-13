@@ -17,6 +17,8 @@ import {
   X,
 } from "lucide-react";
 import { PreviewGuideAvatar } from "@/components/photobook/PreviewGuideAvatar";
+import { prefersReducedMotion } from "@/lib/anim";
+import { getSharedBook } from "@/lib/api/shares.functions";
 import { Page } from "@/components/photobook/Page";
 import { PAGE_SIZES } from "@/lib/photobook/types";
 import { useBookStore } from "@/lib/photobook/store";
@@ -116,9 +118,57 @@ function PreviewPage() {
     reader.readAsDataURL(file);
   };
 
+  // If opened via a magic link (?share=<id>), load the shared book from the server
+  // instead of the local library, and remember who shared it for the banner.
+  const [sharedBy, setSharedBy] = useState<string | null>(null);
+  const [shareState, setShareState] = useState<"none" | "loading" | "error">("none");
+
   useEffect(() => {
-    initLibrary();
-    initCustomAssets();
+    const shareId =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search).get("share")
+        : null;
+
+    if (!shareId) {
+      initLibrary();
+      initCustomAssets();
+      return;
+    }
+
+    let active = true;
+    setShareState("loading");
+    (async () => {
+      try {
+        const result = await getSharedBook({ data: { id: shareId } });
+        if (!active) return;
+        if (!result.found || !result.book) {
+          setShareState("error");
+          return;
+        }
+        const sharedBook = result.book as ReturnType<typeof useBookStore.getState>["book"];
+        useBookStore.setState({
+          book: sharedBook,
+          library: (result.library ?? []).map((item) => ({
+            id: item.id,
+            src: item.src,
+            name: item.name || "",
+            favorite: false,
+            excluded: false,
+            createdAt: 0,
+          })),
+          currentPageId: sharedBook?.pages?.[0]?.id ?? "",
+          selectedElementId: null,
+        });
+        setSharedBy(result.sharedBy || "A friend");
+        setShareState("none");
+      } catch (error) {
+        console.error("Failed to load shared book:", error);
+        if (active) setShareState("error");
+      }
+    })();
+    return () => {
+      active = false;
+    };
   }, [initCustomAssets, initLibrary]);
 
   useEffect(() => {
@@ -179,15 +229,15 @@ function PreviewPage() {
           ? 10
           : 36
       : isMobilePreview
-        ? 220
-        : 160;
+        ? 210
+        : 132;
     const availableW = Math.max(260, fitViewportW - chromeW);
     const availableH = Math.max(240, fitViewportH - chromeH);
     const spreadPages = isPortraitBook ? 1 : 2;
     return clamp(
       Math.min(availableW / (pageW * spreadPages), availableH / pageH),
       0.16,
-      isFullscreen ? 1.35 : isMobilePreview ? 0.72 : 0.96,
+      isFullscreen ? 1.6 : isMobilePreview ? 0.82 : 1.2,
     );
   }, [
     isFullscreen,
@@ -292,6 +342,20 @@ function PreviewPage() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goNext, goPrev]);
+
+  // "Book opens" intro: start on the closed cover, then automatically flip it open into the
+  // first 1–2 spread. Uses react-pageflip's own animation. Runs once, only if the reader
+  // hasn't already turned a page, and is skipped under reduced-motion.
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
+  useEffect(() => {
+    if (hasAutoOpened || singlePageMode || prefersReducedMotion()) return;
+    const timer = window.setTimeout(() => {
+      setHasAutoOpened(true);
+      if (currentPage === 0) bookRef.current?.pageFlip()?.flipNext?.();
+    }, 1100);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasAutoOpened, singlePageMode, mounted]);
 
   const handleStagePointerDown = (e: React.PointerEvent) => {
     if (
@@ -404,6 +468,22 @@ function PreviewPage() {
     );
   }
 
+  if (shareState === "error") {
+    return (
+      <div className={`book-preview-shell ${shellClass}`}>
+        <PreviewAtmosphere customBg={settings.customBackground} />
+        <div className="book-preview-empty">
+          <BookOpen className="h-8 w-8" />
+          <span>This shared book isn’t available</span>
+          <span style={{ fontSize: 13, fontWeight: 500, opacity: 0.7 }}>
+            The link may have expired or been deleted.
+          </span>
+          <Link to="/">Make your own →</Link>
+        </div>
+      </div>
+    );
+  }
+
   if (pages.length === 0) {
     return (
       <div className={`book-preview-shell ${shellClass}`}>
@@ -420,7 +500,7 @@ function PreviewPage() {
   return (
     <div
       ref={shellRef}
-      className={`book-preview-shell ${shellClass} ${isFullscreen ? "is-fullscreen" : ""} ${isMobileFullscreen ? "is-mobile-landscape-book" : ""}`}
+      className={`book-preview-shell ${shellClass} ${isFullscreen ? "is-fullscreen" : ""} ${isMobileFullscreen ? "is-mobile-landscape-book" : ""} ${sharedBy ? "has-share-banner" : ""}`}
       style={
         settings.atmosphere === "custom" && settings.customBackground
           ? ({ "--preview-custom-bg": `url(${settings.customBackground})` } as React.CSSProperties)
@@ -431,6 +511,18 @@ function PreviewPage() {
         customBg={settings.customBackground}
         isCustom={settings.atmosphere === "custom"}
       />
+
+      {sharedBy && !isFullscreen && (
+        <div className="book-preview-share-banner">
+          <BookOpen className="h-4 w-4 shrink-0" />
+          <span className="min-w-0 truncate">
+            <strong>{sharedBy}</strong> shared this photobook with you
+          </span>
+          <Link to="/" className="book-preview-share-cta">
+            Make your own
+          </Link>
+        </div>
+      )}
 
       <header className="book-preview-header-container">
         <div className="book-preview-topbar">

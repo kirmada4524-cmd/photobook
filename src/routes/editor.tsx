@@ -7,7 +7,7 @@ import { Canvas } from "@/components/photobook/Canvas";
 import { Toaster } from "@/components/ui/sonner";
 import { useBookStore } from "@/lib/photobook/store";
 import { Button } from "@/components/ui/button";
-import { Eye, Image as ImageIcon, Palette, Sparkles } from "lucide-react";
+import { Eye, Image as ImageIcon, Palette, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/editor")({
@@ -71,8 +71,10 @@ function EditorPage() {
 
   const showLibrarySidebar = useBookStore((s) => s.showLibrarySidebar);
   const showDesignSidebar = useBookStore((s) => s.showDesignSidebar);
-  const toggleLibrarySidebar = useBookStore((s) => s.toggleLibrarySidebar);
-  const toggleDesignSidebar = useBookStore((s) => s.toggleDesignSidebar);
+  // On mobile the panels are a bottom-drawer OVERLAY driven by local state (closed by
+  // default) so the canvas gets full height — decoupled from the desktop store flags,
+  // which default open and would otherwise squeeze the mobile canvas.
+  const [mobilePanel, setMobilePanel] = useState<"none" | "photos" | "design">("none");
 
   if (!mounted) {
     return (
@@ -86,8 +88,6 @@ function EditorPage() {
       </div>
     );
   }
-
-  const panelOpen = showLibrarySidebar || showDesignSidebar;
 
   return (
     /*
@@ -133,24 +133,42 @@ function EditorPage() {
         </div>
       </div>
 
-      {/* ── MOBILE: sidebar panel (BELOW canvas, ABOVE toolbar) ── */}
-      {panelOpen && (
-        <div
-          className="animate-float-in shrink-0 overflow-hidden border-t bg-background md:hidden"
-          style={{ height: "min(42dvh, 360px)" }}
-        >
-          {showLibrarySidebar && (
-            <div className="w-full h-full overflow-y-auto">
-              <LibrarySidebar />
+      {/* ── MOBILE: sidebar as a bottom-drawer OVERLAY (doesn't shrink the canvas) ── */}
+      {mobilePanel !== "none" && (
+        <div className="md:hidden">
+          <button
+            type="button"
+            aria-label="Close panel"
+            className="fixed inset-0 z-30 bg-black/35 backdrop-blur-[1px] duration-200 animate-in fade-in"
+            onClick={() => setMobilePanel("none")}
+          />
+          <div
+            className="fixed inset-x-0 z-40 flex flex-col overflow-hidden rounded-t-2xl border-t bg-background shadow-[0_-16px_44px_-18px_rgba(0,0,0,0.55)] duration-300 animate-in slide-in-from-bottom"
+            style={{ bottom: MOBILE_TOOLBAR_H, height: "min(62dvh, 480px)" }}
+          >
+            <div className="flex items-center justify-between border-b px-4 py-2.5">
+              <span className="text-sm font-semibold">
+                {mobilePanel === "photos" ? "Photos" : "Design"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobilePanel("none")}
+                aria-label="Close panel"
+                className="grid h-9 w-9 place-items-center rounded-full text-muted-foreground transition hover:bg-muted hover:text-foreground active:scale-95"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          )}
-          {showDesignSidebar && !showLibrarySidebar && (
-            <div className="w-full h-full overflow-y-auto">
-              <SidebarErrorBoundary>
-                <DesignSidebar />
-              </SidebarErrorBoundary>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {mobilePanel === "photos" ? (
+                <LibrarySidebar />
+              ) : (
+                <SidebarErrorBoundary>
+                  <DesignSidebar />
+                </SidebarErrorBoundary>
+              )}
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -172,11 +190,9 @@ function EditorPage() {
 
         <Button
           variant="ghost"
-          className={`flex flex-col gap-1 h-full flex-1 rounded-none ${showLibrarySidebar ? "bg-accent/10 text-accent" : ""}`}
-          onClick={() => {
-            if (showDesignSidebar) toggleDesignSidebar();
-            toggleLibrarySidebar();
-          }}
+          aria-pressed={mobilePanel === "photos"}
+          className={`flex flex-col gap-1 h-full flex-1 rounded-none ${mobilePanel === "photos" ? "bg-accent/10 text-accent" : ""}`}
+          onClick={() => setMobilePanel((m) => (m === "photos" ? "none" : "photos"))}
         >
           <ImageIcon className="h-5 w-5" />
           <span className="text-[10px]">Photos</span>
@@ -204,11 +220,9 @@ function EditorPage() {
 
         <Button
           variant="ghost"
-          className={`flex flex-col gap-1 h-full flex-1 rounded-none ${showDesignSidebar ? "bg-accent/10 text-accent" : ""}`}
-          onClick={() => {
-            if (showLibrarySidebar) toggleLibrarySidebar();
-            toggleDesignSidebar();
-          }}
+          aria-pressed={mobilePanel === "design"}
+          className={`flex flex-col gap-1 h-full flex-1 rounded-none ${mobilePanel === "design" ? "bg-accent/10 text-accent" : ""}`}
+          onClick={() => setMobilePanel((m) => (m === "design" ? "none" : "design"))}
         >
           <Palette className="h-5 w-5" />
           <span className="text-[10px]">Design</span>

@@ -20,6 +20,7 @@ import {
   RefreshCw,
   Sparkles,
   Shield,
+  Share2,
   UserRound,
 } from "lucide-react";
 import { Link } from "@tanstack/react-router";
@@ -52,14 +53,17 @@ import {
   saveCustomBg,
 } from "@/lib/photobook/db";
 import { LoginModal } from "../landing/LoginModal";
+import { ShareModal } from "./ShareModal";
 import { LogOut, LogIn } from "lucide-react";
 
 export function EditorHeader() {
   const title = useBookStore((s) => s.book.title);
   const setTitle = useBookStore((s) => s.setTitle);
+  const book = useBookStore((s) => s.book);
   const { isAdmin, currentUser, logout } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const showLibrarySidebar = useBookStore((s) => s.showLibrarySidebar);
   const showDesignSidebar = useBookStore((s) => s.showDesignSidebar);
@@ -582,6 +586,16 @@ export function EditorHeader() {
         </Link>
       </Button>
       <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowShare(true)}
+        className="h-9 shrink-0 gap-1.5 bg-background px-2.5 shadow-sm"
+        title="Create a share link"
+      >
+        <Share2 className="h-4 w-4" />
+        <span className="hidden lg:inline">Share</span>
+      </Button>
+      <Button
         size="sm"
         onClick={onMagicFill}
         className="hidden h-9 shrink-0 gap-1.5 bg-accent px-2.5 text-accent-foreground shadow-sm hover:bg-accent/90 md:inline-flex"
@@ -656,6 +670,12 @@ export function EditorHeader() {
       )}
 
       <LoginModal open={showLogin} onOpenChange={setShowLogin} />
+      <ShareModal
+        open={showShare}
+        onOpenChange={setShowShare}
+        book={book}
+        title={displayTitle}
+      />
 
       <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
         <AlertDialogContent>

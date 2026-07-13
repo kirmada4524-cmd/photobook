@@ -14,7 +14,6 @@ import {
   Maximize,
   Plus,
   Shuffle,
-  Sparkles,
   Trash2,
   WandSparkles,
   ZoomIn,
@@ -377,22 +376,6 @@ export function Canvas() {
     if (currentIdx < pages.length - 1) setCurrentPage(pages[currentIdx + 1].id);
   };
 
-  const autofillCurrentPage = () => {
-    if (!activePage) return;
-    const result = useBookStore.getState().autofillLeastUsedImages(activePage.id);
-    if (result.framesFilled > 0) {
-      toast.success(
-        `Autofilled ${result.framesFilled} frame${result.framesFilled === 1 ? "" : "s"} on this page${result.framesUnlocked ? ` and unlocked ${result.framesUnlocked}` : ""}.`,
-      );
-    } else if (result.skippedReason === "no-available-images") {
-      toast.warning("Upload or include photos before autofill.");
-    } else if (result.skippedReason === "no-photo-frames") {
-      toast.message("Apply a layout with photo frames first.");
-    } else {
-      toast.message("No unlocked frames to autofill on this page.");
-    }
-  };
-
   const shuffleCurrentPage = () => {
     if (!activePage) return;
     useBookStore.getState().shufflePageImages(activePage.id);
@@ -513,28 +496,19 @@ export function Canvas() {
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 shadow-sm px-2 md:px-3"
+            className="gap-1.5 shadow-sm px-2.5 md:px-3"
             disabled={!activePage}
             onClick={shuffleCurrentPage}
+            title="Shuffle the photos already on this page"
             aria-label="Shuffle photos on this page"
           >
             <Shuffle className="h-4 w-4" />
-            <span className="hidden sm:inline">Shuffle</span>
-          </Button>
-          <Button
-            size="sm"
-            className="gap-1.5 bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 px-2 md:px-3"
-            disabled={!activePage}
-            onClick={autofillCurrentPage}
-            aria-label="Autofill this page"
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Autofill</span>
+            <span className="hidden md:inline">Shuffle</span>
           </Button>
           <Button
             size="sm"
             variant={isMagicLayoutMode ? "default" : "outline"}
-            className={`gap-1.5 shadow-sm px-2 md:px-3 ${
+            className={`gap-1.5 shadow-sm px-2.5 md:px-3 ${
               isMagicLayoutMode ? "bg-sky-500 text-white hover:bg-sky-600" : ""
             }`}
             disabled={!activePage}
@@ -543,7 +517,7 @@ export function Canvas() {
             aria-pressed={isMagicLayoutMode}
           >
             <WandSparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Magic Layout</span>
+            <span className="hidden md:inline">Magic Layout</span>
           </Button>
           <Button
             size="sm"

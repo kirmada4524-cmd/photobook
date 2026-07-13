@@ -1071,11 +1071,32 @@ function PhotoBody({
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
-  // Track the pan offset locally during a drag so we don't push a history entry on every
-  // pointer-move (which would make Ctrl+Z undo one pixel at a time). We commit once on release.
-  const [panDraft, setPanDraft] = useState<{ imageX: number; imageY: number } | null>(null);
-  const effectiveImageX = panDraft ? panDraft.imageX : el.imageX ?? 0;
-  const effectiveImageY = panDraft ? panDraft.imageY : el.imageY ?? 0;
+  // Image panning is driven IMPERATIVELY during the drag: we mutate the image element's
+  // style directly (rAF-throttled) instead of calling setState on every pointer-move, which
+  // would re-render the whole photo (image + masks + frame) each frame and feel janky.
+  // The final offset is committed to the store once on release (single undo entry).
+  const panImgRef = useRef<HTMLImageElement | null>(null);
+  const liveOffsetRef = useRef<{ imageX: number; imageY: number } | null>(null);
+  const panRafRef = useRef<number | null>(null);
+  const effectiveImageX = el.imageX ?? 0;
+  const effectiveImageY = el.imageY ?? 0;
+
+  useEffect(() => {
+    return () => {
+      if (panRafRef.current != null) cancelAnimationFrame(panRafRef.current);
+    };
+  }, []);
+
+  const applyLiveOffset = () => {
+    const node = panImgRef.current;
+    const off = liveOffsetRef.current;
+    if (!node || !off) return;
+    if ((el.imageScale ?? 1) < 1) {
+      node.style.transform = `translate(${off.imageX}px, ${off.imageY}px)`;
+    } else {
+      node.style.objectPosition = `calc(50% + ${off.imageX}px) calc(50% + ${off.imageY}px)`;
+    }
+  };
 
   const beginPan = (clientX: number, clientY: number) => {
     if (!isInteractivePan) return;
@@ -1085,28 +1106,37 @@ function PhotoBody({
       imageX: el.imageX ?? 0,
       imageY: el.imageY ?? 0,
     };
-    setPanDraft({ imageX: el.imageX ?? 0, imageY: el.imageY ?? 0 });
+    liveOffsetRef.current = { imageX: el.imageX ?? 0, imageY: el.imageY ?? 0 };
   };
 
   const updatePan = (clientX: number, clientY: number) => {
     const start = panStartRef.current;
     if (!start) return;
-    setPanDraft({
+    liveOffsetRef.current = {
       imageX: start.imageX + (clientX - start.x) / coordinateScale,
       imageY: start.imageY + (clientY - start.y) / coordinateScale,
-    });
+    };
+    if (panRafRef.current == null) {
+      panRafRef.current = requestAnimationFrame(() => {
+        panRafRef.current = null;
+        applyLiveOffset();
+      });
+    }
   };
 
   const endPan = () => {
     const start = panStartRef.current;
+    const off = liveOffsetRef.current;
     panStartRef.current = null;
-    if (start && panDraft) {
-      // Commit a single history entry only if the image actually moved.
-      if (panDraft.imageX !== start.imageX || panDraft.imageY !== start.imageY) {
-        updateElement(el.id, { imageX: panDraft.imageX, imageY: panDraft.imageY });
-      }
+    liveOffsetRef.current = null;
+    if (panRafRef.current != null) {
+      cancelAnimationFrame(panRafRef.current);
+      panRafRef.current = null;
     }
-    setPanDraft(null);
+    // Commit a single history entry only if the image actually moved.
+    if (start && off && (off.imageX !== start.imageX || off.imageY !== start.imageY)) {
+      updateElement(el.id, { imageX: off.imageX, imageY: off.imageY });
+    }
   };
 
   const effectiveMask = useCombinedPhotoMask(el.magicMask, el.eraseMask, el.w, el.h);
@@ -1228,6 +1258,7 @@ function PhotoBody({
           {isZoomedOut ? (
             // ZOOM OUT: shrink the image so the full image is visible inside the frame
             <img
+              ref={panImgRef}
               src={img.src}
               alt=""
               draggable={false}
@@ -1243,6 +1274,7 @@ function PhotoBody({
           ) : (
             // ZOOM IN: fill the frame and allow cropping / panning
             <img
+              ref={panImgRef}
               src={img.src}
               alt=""
               className="h-full w-full object-cover"
