@@ -455,8 +455,8 @@ export function Canvas() {
             <Trash2 className="h-4 w-4" />
           </Button>
 
-          {/* Zoom controls (desktop) */}
-          <div className="editor-toolbar-cluster ml-1 hidden md:flex items-center gap-0.5 pl-1 pr-0.5">
+          {/* Zoom controls (desktop) — icon steppers + a draggable zoom slider */}
+          <div className="editor-toolbar-cluster ml-1 hidden md:flex items-center gap-1 pl-1 pr-1.5">
             <Button
               size="icon"
               variant="ghost"
@@ -467,15 +467,15 @@ export function Canvas() {
             >
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <button
-              type="button"
-              onClick={() => setZoom(1)}
-              title="Reset to 100%"
-              aria-label="Reset zoom to 100%"
-              className="min-w-[3rem] rounded px-1 text-center text-xs font-semibold tabular-nums text-muted-foreground transition hover:text-foreground"
-            >
-              {Math.round(zoom * 100)}%
-            </button>
+            <Slider
+              className="w-24 lg:w-28"
+              value={[Math.round(zoom * 100)]}
+              min={10}
+              max={150}
+              step={1}
+              aria-label="Zoom level"
+              onValueChange={([value]) => setZoom(value / 100)}
+            />
             <Button
               size="icon"
               variant="ghost"
@@ -486,6 +486,16 @@ export function Canvas() {
             >
               <ZoomIn className="h-4 w-4" />
             </Button>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              title="Reset to 100%"
+              aria-label="Reset zoom to 100%"
+              className="min-w-[3.25rem] rounded px-1.5 py-0.5 text-center text-xs font-semibold tabular-nums text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <div className="mx-0.5 h-5 w-px bg-border" />
             <Button
               size="icon"
               variant="ghost"
@@ -548,7 +558,7 @@ export function Canvas() {
         </div>
 
         {isMagicLayoutMode && (
-          <div className="flex basis-full flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-2 text-xs text-sky-900 shadow-sm">
+          <div className="u-scale-in flex basis-full flex-wrap items-center gap-3 rounded-lg border border-sky-200 bg-sky-50/90 px-3 py-2 text-xs text-sky-900 shadow-sm">
             <div className="flex min-w-[220px] items-center gap-2 font-semibold">
               <WandSparkles className="h-4 w-4 text-sky-600" />
               Click inside the blank photo frame area.

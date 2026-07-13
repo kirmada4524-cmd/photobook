@@ -600,6 +600,8 @@ function ElementRenderer({
             fontWeight: el.fontWeight || "normal",
             fontStyle: el.fontStyle || "italic",
             textAlign: el.align || "center",
+            opacity: el.opacity ?? 1,
+            textShadow: el.textShadow || undefined,
           }}
         >
           {el.text}

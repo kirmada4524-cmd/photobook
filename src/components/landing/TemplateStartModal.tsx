@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import { LayoutGrid, Sparkles, Square } from "lucide-react";
+import { Check, LayoutGrid, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -126,7 +126,7 @@ export function TemplateStartModal({
                     key={category}
                     type="button"
                     onClick={() => setActiveCategory(category)}
-                    className="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
+                    className="shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 active:scale-95"
                     style={{
                       borderColor: activeCategory === category ? "rgb(59 130 246)" : "rgb(226 232 240)",
                       background: activeCategory === category ? "rgb(59 130 246)" : "white",
@@ -146,6 +146,7 @@ export function TemplateStartModal({
                     <button
                       key={template.id}
                       type="button"
+                      aria-pressed={isSelected}
                       onClick={() => {
                         setSelectedTemplateIds((current) =>
                           current.includes(template.id)
@@ -153,16 +154,34 @@ export function TemplateStartModal({
                             : [...current, template.id],
                         );
                       }}
-                      className={`group relative aspect-square overflow-hidden rounded-lg border-2 bg-slate-100 transition ${
-                        isSelected ? "border-blue-500 shadow-md" : "border-transparent hover:border-blue-300"
+                      className={`group relative aspect-square overflow-hidden rounded-xl bg-slate-100 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
+                        isSelected
+                          ? "-translate-y-0.5 ring-2 ring-blue-500 shadow-lg"
+                          : "ring-1 ring-black/[0.06] shadow-sm hover:shadow-lg"
                       }`}
                     >
-                      <TemplatePreview template={template} className="opacity-90" />
-                      <span className="absolute right-2 top-2 rounded-md bg-black/40 p-1 text-white backdrop-blur-sm">
-                        {isSelected ? <span className="text-xs font-bold">{selectedIndex + 1}</span> : <Square className="h-4 w-4" />}
-                      </span>
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-slate-950/65 px-2 py-2 text-left text-[11px] font-semibold text-white backdrop-blur-sm">
-                        {template.label}
+                      <TemplatePreview
+                        template={template}
+                        className="absolute inset-0 transition-transform duration-[600ms] ease-out group-hover:scale-[1.08]"
+                      />
+                      <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent px-2.5 pb-2 pt-7">
+                        <span className="block truncate text-left text-[11px] font-semibold text-white/95">
+                          {template.label}
+                        </span>
+                      </div>
+                      <span
+                        className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border text-white shadow-sm transition-all duration-300 ${
+                          isSelected
+                            ? "scale-100 border-blue-300 bg-blue-500 opacity-100"
+                            : "scale-90 border-white/70 bg-white/85 text-transparent opacity-0 group-hover:opacity-100 group-hover:text-black/40"
+                        }`}
+                        aria-hidden="true"
+                      >
+                        {isSelected ? (
+                          <span className="text-xs font-bold tabular-nums">{selectedIndex + 1}</span>
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
                       </span>
                     </button>
                   );

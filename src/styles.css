@@ -2501,3 +2501,491 @@
 .hp-float {
   animation: hpFloat1 3.8s ease-in-out infinite;
 }
+
+/* ═══════════════════════════════════════════════════
+   Global motion system — shared, reduced-motion-safe
+   utilities used across the whole app. Kept CSS-only so
+   entrances ALWAYS complete to their visible end-state
+   (no GSAP immediateRender stalling — see anim.ts notes).
+═══════════════════════════════════════════════════ */
+
+:root {
+  --ease-out-expo: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+/* Consistent, snappy easing on every interactive element without
+   forcing a blanket transition-all (which would jank on load). */
+a,
+button,
+[role="button"],
+summary,
+label,
+input,
+select,
+textarea {
+  transition-timing-function: var(--ease-smooth);
+}
+
+/* ── Entrance keyframes ── */
+@keyframes u-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes u-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes u-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes u-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes u-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ── Entrance utilities (always land on visible end-state) ── */
+.u-fade-up {
+  animation: u-fade-up 0.6s var(--ease-out-expo) both;
+}
+.u-fade-in {
+  animation: u-fade-in 0.5s ease both;
+}
+.u-scale-in {
+  animation: u-scale-in 0.42s var(--ease-out-expo) both;
+}
+.u-slide-in-right {
+  animation: u-slide-in-right 0.45s var(--ease-out-expo) both;
+}
+.u-slide-in-left {
+  animation: u-slide-in-left 0.45s var(--ease-out-expo) both;
+}
+
+/* ── Staggered children reveal: wrap a container in .u-stagger ── */
+.u-stagger > * {
+  animation: u-fade-up 0.55s var(--ease-out-expo) both;
+}
+.u-stagger > *:nth-child(1) {
+  animation-delay: 0.02s;
+}
+.u-stagger > *:nth-child(2) {
+  animation-delay: 0.06s;
+}
+.u-stagger > *:nth-child(3) {
+  animation-delay: 0.1s;
+}
+.u-stagger > *:nth-child(4) {
+  animation-delay: 0.14s;
+}
+.u-stagger > *:nth-child(5) {
+  animation-delay: 0.18s;
+}
+.u-stagger > *:nth-child(6) {
+  animation-delay: 0.22s;
+}
+.u-stagger > *:nth-child(7) {
+  animation-delay: 0.26s;
+}
+.u-stagger > *:nth-child(8) {
+  animation-delay: 0.3s;
+}
+.u-stagger > *:nth-child(n + 9) {
+  animation-delay: 0.34s;
+}
+
+/* ── Hover-lift + tactile press feedback ── */
+.u-lift {
+  transition:
+    transform 0.22s var(--ease-smooth),
+    box-shadow 0.22s var(--ease-smooth);
+}
+.u-lift:hover {
+  transform: translateY(-2px);
+}
+.u-press {
+  transition: transform 0.14s var(--ease-smooth);
+}
+.u-press:active {
+  transform: scale(0.96);
+}
+
+/* ── Shimmer sweep for loading skeletons ── */
+@keyframes u-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+.u-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.u-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--foreground) 8%, transparent),
+    transparent
+  );
+  animation: u-shimmer 1.6s var(--ease-smooth) infinite;
+}
+
+/* ── Page-level entrances (soft fade as each route mounts) ── */
+.editor-shell {
+  animation: u-fade-in 0.45s ease both;
+}
+.book-preview-shell {
+  animation: u-fade-in 0.6s ease both;
+}
+
+/* ── Editor chrome micro-interactions ── */
+.editor-tab-inactive,
+.editor-tab-active {
+  transition:
+    background 0.2s var(--ease-smooth),
+    color 0.2s var(--ease-smooth),
+    box-shadow 0.2s var(--ease-smooth),
+    transform 0.2s var(--ease-smooth);
+}
+.editor-tab-inactive:hover {
+  transform: translateY(-1px);
+}
+.editor-toolbar-cluster > button {
+  transition:
+    background 0.18s var(--ease-smooth),
+    color 0.18s var(--ease-smooth),
+    transform 0.14s var(--ease-smooth);
+}
+.editor-toolbar-cluster > button:active {
+  transform: scale(0.92);
+}
+.editor-brand-mark {
+  transition:
+    transform 0.25s var(--ease-spring),
+    box-shadow 0.25s var(--ease-smooth);
+}
+
+/* Editor sidebars slide in from their respective edges when mounted. */
+.editor-sidebar {
+  animation: u-fade-in 0.32s ease both;
+}
+@media (min-width: 768px) {
+  .editor-sidebar.editor-sidebar-left {
+    animation: u-slide-in-right 0.34s var(--ease-out-expo) both;
+  }
+  .editor-sidebar.editor-sidebar-right {
+    animation: u-slide-in-left 0.34s var(--ease-out-expo) both;
+  }
+}
+
+/* ── Design sidebar: professional tabbed options panel ── */
+.design-sidebar [role="tab"] {
+  transition:
+    color 0.18s var(--ease-smooth),
+    background 0.18s var(--ease-smooth),
+    box-shadow 0.18s var(--ease-smooth),
+    transform 0.12s var(--ease-smooth);
+}
+.design-sidebar [role="tab"]:hover:not([data-state="active"]):not(:disabled) {
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 5%, transparent);
+}
+.design-sidebar [role="tab"]:active:not(:disabled) {
+  transform: scale(0.93);
+}
+/* Each options panel eases up as it becomes active. */
+.design-sidebar [role="tabpanel"] {
+  animation: u-fade-up 0.28s var(--ease-out-expo) both;
+}
+/* Refined thin scrollbar inside both editor sidebars. */
+.editor-sidebar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--foreground) 18%, transparent) transparent;
+}
+.editor-sidebar ::-webkit-scrollbar {
+  width: 8px;
+}
+.editor-sidebar ::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 16%, transparent);
+}
+.editor-sidebar ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklab, var(--foreground) 28%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════
+   Book preview — premium page-turn feedback
+   A feedback layer around react-pageflip's own 3D turn:
+   warm light-sweep, spine bloom, shadow settle, nav ripple,
+   and a rolling page counter. NOTE: never animates transform
+   on .book-preview-book (its transform is React-controlled) —
+   only pseudo/overlay/child elements and non-transform props.
+═══════════════════════════════════════════════════ */
+
+/* Light-sweep + spine-bloom overlay — sits above the leaves (screen-blended,
+   so it only adds warm light) but below the spine and binding. */
+.book-preview-flip-fx {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+  opacity: 0;
+  mix-blend-mode: screen;
+  transition: opacity 0.3s ease;
+}
+.book-preview-book.is-flipping .book-preview-flip-fx {
+  opacity: 1;
+}
+
+/* Warm glow blooming out from the binding as a leaf lifts. */
+.book-preview-flip-bloom {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 30%;
+  height: 112%;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse 62% 54% at 50% 50%,
+    rgba(255, 234, 196, 0.6),
+    rgba(255, 216, 156, 0.16) 46%,
+    transparent 72%
+  );
+  filter: blur(7px);
+  opacity: 0;
+}
+.book-preview-book.is-flipping .book-preview-flip-bloom {
+  animation: flip-bloom 0.9s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+}
+@keyframes flip-bloom {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(0.55);
+  }
+  38% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(1.05);
+  }
+}
+
+/* A band of light travelling across the spread in the turn direction, as if
+   the moving page catches the desk light. */
+.book-preview-flip-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 46%;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 240, 214, 0.4),
+    transparent
+  );
+}
+.book-preview-book.is-flipping.flip-next .book-preview-flip-sweep {
+  animation: flip-sweep-next 0.85s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.book-preview-book.is-flipping.flip-prev .book-preview-flip-sweep {
+  animation: flip-sweep-prev 0.85s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+}
+@keyframes flip-sweep-next {
+  0% {
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(240%);
+  }
+}
+@keyframes flip-sweep-prev {
+  0% {
+    opacity: 0;
+    transform: translateX(240%);
+  }
+  28% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-120%);
+  }
+}
+
+/* Spine glows warmer while a page is in motion (box-shadow/opacity only). */
+.book-preview-book.is-flipping .book-preview-spine {
+  animation: spine-pulse 0.85s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+}
+@keyframes spine-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 20px rgba(33, 19, 8, 0.42);
+    opacity: 0.85;
+  }
+  45% {
+    box-shadow:
+      0 0 36px rgba(255, 214, 150, 0.55),
+      0 0 20px rgba(33, 19, 8, 0.42);
+    opacity: 1;
+  }
+}
+
+/* The cast shadow deepens/softens as the book takes the weight of the turn. */
+.book-preview-book.is-flipping .book-preview-shadow {
+  animation: shadow-settle 0.85s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+}
+@keyframes shadow-settle {
+  0%,
+  100% {
+    opacity: 1;
+    filter: blur(6px);
+  }
+  50% {
+    opacity: 0.72;
+    filter: blur(9px);
+  }
+}
+
+/* Nav-button ripple + warm highlight the moment its direction is triggered.
+   Uses box-shadow (not transform) so it never fights the fullscreen
+   translateY(-50%) centering on these buttons. */
+.book-preview-nav.is-turning {
+  animation: nav-ripple 0.7s ease-out;
+  border-color: rgba(228, 180, 93, 0.6) !important;
+  color: #fff7e9;
+}
+@keyframes nav-ripple {
+  0% {
+    box-shadow: 0 0 0 0 rgba(228, 180, 93, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 0 15px rgba(228, 180, 93, 0);
+  }
+}
+/* Chevron gives a small directional nudge in sympathy with the turn. */
+.book-preview-nav.is-turning svg {
+  animation: nav-nudge 0.7s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.book-preview-nav-prev.is-turning svg {
+  animation-name: nav-nudge-prev;
+}
+@keyframes nav-nudge {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(4px);
+  }
+}
+@keyframes nav-nudge-prev {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  40% {
+    transform: translateX(-4px);
+  }
+}
+
+/* Rolling page counter: the label rolls in each time the page changes
+   (keyed remount), in the direction of the turn. */
+.book-preview-count-value {
+  display: inline-block;
+}
+.book-preview-count-value.roll-next {
+  animation: count-roll-next 0.42s var(--ease-out-expo, cubic-bezier(0.22, 1, 0.36, 1));
+}
+.book-preview-count-value.roll-prev {
+  animation: count-roll-prev 0.42s var(--ease-out-expo, cubic-bezier(0.22, 1, 0.36, 1));
+}
+@keyframes count-roll-next {
+  from {
+    opacity: 0;
+    transform: translateY(0.55em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes count-roll-prev {
+  from {
+    opacity: 0;
+    transform: translateY(-0.55em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Active nav dot: warm glow to match the turn feedback. */
+.book-preview-dots button {
+  transition:
+    width 0.24s ease,
+    background 0.24s ease,
+    box-shadow 0.24s ease;
+}
+.book-preview-dots button.is-active {
+  box-shadow: 0 0 10px rgba(218, 173, 89, 0.7);
+}
+
+/* ── Global reduced-motion guard (applies app-wide, not just landing) ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

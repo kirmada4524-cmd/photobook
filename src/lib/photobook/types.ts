@@ -120,6 +120,8 @@ export type QuoteElement = ElementBase & {
   fontWeight?: string;
   fontStyle?: string;
   align?: "left" | "center" | "right";
+  opacity?: number;
+  textShadow?: string;
 };
 
 export type TextElement = ElementBase & {
@@ -131,6 +133,8 @@ export type TextElement = ElementBase & {
   fontWeight?: string;
   fontStyle?: string;
   align?: "left" | "center" | "right";
+  opacity?: number;
+  textShadow?: string;
 };
 
 export type PageElement = PhotoElement | StickerElement | QuoteElement | TextElement;

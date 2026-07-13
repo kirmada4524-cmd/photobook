@@ -81,6 +81,11 @@ function PreviewPage() {
   const [settings, setSettings] = useState<PreviewSettings>(() => loadPreviewSettings());
   const [currentPage, setCurrentPage] = useState(0);
   const [isFlipping, setIsFlipping] = useState(false);
+  // Direction of the in-flight page turn ("next" | "prev"), used to orient the
+  // light-sweep / nav-ripple feedback. Tracked via a ref so onFlip (which fires
+  // on completion, without going through triggerFlip) can still detect direction.
+  const [flipDir, setFlipDir] = useState<"next" | "prev" | null>(null);
+  const currentPageRef = useRef(0);
   const [isDraggingOrbit, setIsDraggingOrbit] = useState(false);
   const [isDraggingBook, setIsDraggingBook] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -233,9 +238,14 @@ function PreviewPage() {
           ? "Blank page"
           : `Page ${pages.findIndex((p) => p.id === activePage?.id) + 1}`;
 
+  useEffect(() => {
+    currentPageRef.current = currentPage;
+  }, [currentPage]);
+
   const triggerFlip = useCallback(
     (direction: "next" | "prev") => {
       setIsFlipping(true);
+      setFlipDir(direction);
       if (direction === "next") {
         if (bookRef.current) {
           bookRef.current.pageFlip().flipNext();
@@ -435,7 +445,13 @@ function PreviewPage() {
           </div>
 
           <div className="book-preview-count font-semibold opacity-80">
-            {pageLabel} / {totalPages}
+            <span
+              key={pageLabel}
+              className={`book-preview-count-value ${flipDir ? `roll-${flipDir}` : ""}`}
+            >
+              {pageLabel}
+            </span>
+            <span className="book-preview-count-sep">&nbsp;/&nbsp;{totalPages}</span>
           </div>
         </div>
       </header>
@@ -627,7 +643,7 @@ function PreviewPage() {
 
         <button
           type="button"
-          className="book-preview-nav book-preview-nav-prev"
+          className={`book-preview-nav book-preview-nav-prev ${isFlipping && flipDir === "prev" ? "is-turning" : ""}`}
           onClick={goPrev}
           disabled={isFirst}
           aria-label="Previous page"
@@ -640,7 +656,7 @@ function PreviewPage() {
             isFullscreen && !isFullscreenSinglePage && !singlePageMode
               ? "has-fullscreen-binding"
               : ""
-          } ${isFullscreenCoverPage ? "is-fullscreen-cover-page" : ""} ${isFullscreenBackCoverPage ? "is-fullscreen-back-cover-page" : ""}`}
+          } ${isFullscreenCoverPage ? "is-fullscreen-cover-page" : ""} ${isFullscreenBackCoverPage ? "is-fullscreen-back-cover-page" : ""} ${isFlipping ? "is-flipping" : ""} ${flipDir ? `flip-${flipDir}` : ""}`}
           style={
             {
               "--preview-page-width": `${scaledPageW}px`,
@@ -653,6 +669,10 @@ function PreviewPage() {
           <div className="book-preview-page-stack" aria-hidden="true" />
           <div className="book-preview-spine" aria-hidden="true" />
           <div className="book-preview-shadow" />
+          <div className="book-preview-flip-fx" aria-hidden="true">
+            <span className="book-preview-flip-bloom" />
+            <span className="book-preview-flip-sweep" />
+          </div>
 
           {totalPages === 1 ? (
             <div className="book-preview-static-page">
@@ -693,7 +713,12 @@ function PreviewPage() {
               startZIndex={20}
               className="book-preview-flipbook"
               style={{}}
-              onFlip={(event: { data: number }) => setCurrentPage(event.data)}
+              onFlip={(event: { data: number }) => {
+                const prev = currentPageRef.current;
+                if (event.data > prev) setFlipDir("next");
+                else if (event.data < prev) setFlipDir("prev");
+                setCurrentPage(event.data);
+              }}
               onChangeState={(event: { data: string }) =>
                 // Drive the flipping indicator from the library's own state machine instead of a
                 // fixed timeout, so rapid clicks/keys can't desync it.
@@ -720,7 +745,7 @@ function PreviewPage() {
 
         <button
           type="button"
-          className="book-preview-nav book-preview-nav-next"
+          className={`book-preview-nav book-preview-nav-next ${isFlipping && flipDir === "next" ? "is-turning" : ""}`}
           onClick={goNext}
           disabled={isLast}
           aria-label="Next page"

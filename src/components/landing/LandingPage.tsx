@@ -152,27 +152,50 @@ function TemplateCard({
       className="group block w-full min-w-0 text-left focus-visible:outline-none"
     >
       <div
-        className={`relative aspect-square overflow-hidden rounded-md border-2 bg-white transition duration-200 group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-offset-2 ${
+        className={`relative aspect-square overflow-hidden rounded-xl bg-white transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:-translate-y-1.5 group-focus-visible:ring-2 group-focus-visible:ring-offset-2 group-focus-visible:ring-emerald-500 ${
           selected
-            ? "border-emerald-600 shadow-[0_12px_28px_-16px_rgba(5,150,105,0.8)]"
-            : "border-black/10 shadow-[0_8px_24px_-18px_rgba(0,0,0,0.45)]"
+            ? "-translate-y-1 ring-2 ring-emerald-500 shadow-[0_18px_40px_-18px_rgba(5,150,105,0.75)]"
+            : "ring-1 ring-black/[0.08] shadow-[0_10px_28px_-20px_rgba(0,0,0,0.5)] group-hover:shadow-[0_22px_46px_-22px_rgba(0,0,0,0.5)]"
         }`}
       >
         <TemplatePreview
           template={template}
           showSamplePhotos
-          className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+          className="absolute inset-0 transition-transform duration-[600ms] ease-out group-hover:scale-[1.08]"
         />
+
+        {/* Label scrim — keeps template names readable at a glance */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent px-2.5 pb-2 pt-7">
+          <span className="block truncate text-[11px] font-semibold text-white/95">
+            {template.label}
+          </span>
+        </div>
+
+        {/* Hover "Add" affordance (hidden once selected) */}
+        {!selected && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <span
+              className="translate-y-1.5 rounded-full bg-white/95 px-3 py-1 text-[11px] font-bold text-black opacity-0 shadow-lg transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"
+              style={{ color: C.brand }}
+            >
+              <span className="inline-flex items-center gap-1">
+                <Plus className="h-3 w-3" /> Add
+              </span>
+            </span>
+          </div>
+        )}
+
+        {/* Selection / order badge */}
         <span
-          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border transition ${
+          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border text-white shadow-sm transition-all duration-300 ${
             selected
-              ? "scale-100 border-emerald-500 bg-emerald-600 text-white"
-              : "scale-90 border-white/80 bg-white/85 text-transparent group-hover:text-black/30"
+              ? "scale-100 border-emerald-300 bg-emerald-600 opacity-100"
+              : "scale-90 border-white/70 bg-white/85 text-transparent opacity-0 group-hover:opacity-100 group-hover:text-black/40"
           }`}
           aria-hidden="true"
         >
           {selected && order ? (
-            <span className="text-[11px] font-bold">{order}</span>
+            <span className="text-[11px] font-bold tabular-nums">{order}</span>
           ) : (
             <Check className="h-3.5 w-3.5" />
           )}
@@ -196,11 +219,40 @@ function TemplateCategorySection({
   onShowMore: (category: string) => void;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ left: false, right: false });
   const scrollRail = (direction: -1 | 1) => {
     const rail = railRef.current;
     if (!rail) return;
     rail.scrollBy({ left: direction * Math.max(320, rail.clientWidth * 0.82), behavior: "smooth" });
   };
+
+  useEffect(() => {
+    const rail = railRef.current;
+    if (!rail) return;
+    const update = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = rail;
+      setEdges({
+        left: scrollLeft > 4,
+        right: scrollLeft < scrollWidth - clientWidth - 4,
+      });
+    };
+    update();
+    rail.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => {
+      rail.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+    };
+  }, [templates.length]);
+
+  const railMask =
+    edges.left && edges.right
+      ? "linear-gradient(90deg, transparent, #000 42px, #000 calc(100% - 42px), transparent)"
+      : edges.right
+        ? "linear-gradient(90deg, #000 calc(100% - 42px), transparent)"
+        : edges.left
+          ? "linear-gradient(90deg, transparent, #000 42px)"
+          : undefined;
 
   return (
     <section
@@ -218,7 +270,8 @@ function TemplateCategorySection({
           <button
             type="button"
             onClick={() => scrollRail(-1)}
-            className="grid h-8 w-8 place-items-center rounded-md border border-black/10 text-black/55 transition hover:bg-black/[0.04] hover:text-black"
+            disabled={!edges.left}
+            className="grid h-8 w-8 place-items-center rounded-full border border-black/10 text-black/55 transition-all duration-200 hover:-translate-y-0.5 hover:bg-black/[0.04] hover:text-black hover:shadow-sm disabled:cursor-default disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:shadow-none"
             title="Scroll left"
             aria-label={`Scroll ${category} left`}
           >
@@ -227,7 +280,8 @@ function TemplateCategorySection({
           <button
             type="button"
             onClick={() => scrollRail(1)}
-            className="grid h-8 w-8 place-items-center rounded-md border border-black/10 text-black/55 transition hover:bg-black/[0.04] hover:text-black"
+            disabled={!edges.right}
+            className="grid h-8 w-8 place-items-center rounded-full border border-black/10 text-black/55 transition-all duration-200 hover:-translate-y-0.5 hover:bg-black/[0.04] hover:text-black hover:shadow-sm disabled:cursor-default disabled:opacity-30 disabled:hover:translate-y-0 disabled:hover:bg-transparent disabled:hover:shadow-none"
             title="Scroll right"
             aria-label={`Scroll ${category} right`}
           >
@@ -246,6 +300,7 @@ function TemplateCategorySection({
 
       <div
         ref={railRef}
+        style={{ maskImage: railMask, WebkitMaskImage: railMask }}
         className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1.5 [scrollbar-color:rgba(0,0,0,.22)_transparent] [scrollbar-width:thin] sm:gap-3"
       >
         {templates.map((template) => {
@@ -307,16 +362,21 @@ function HomeTemplatesGrid({
     (category) => (templatesByCategory.get(category)?.length ?? 0) > 0,
   );
 
+  // Selected templates in tap order — drives the bucket bar's stacked thumbnails.
+  const selectedTemplates = selectedIds
+    .map((id) => templates.find((template) => template.id === id))
+    .filter((template): template is SavedPageTemplate => Boolean(template));
+
   return (
     <div>
       {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className="border-b border-black/5 py-4">
-              <div className="mb-3 h-6 w-40 animate-pulse rounded bg-black/5" />
+              <div className="u-shimmer mb-3 h-6 w-40 rounded bg-black/5" />
               <div className="flex gap-3 overflow-hidden">
                 {Array.from({ length: 5 }).map((__, itemIndex) => (
-                  <div key={itemIndex} className="aspect-square w-[132px] shrink-0 animate-pulse rounded-md bg-black/5 sm:w-40" />
+                  <div key={itemIndex} className="u-shimmer aspect-square w-[132px] shrink-0 rounded-md bg-black/5 sm:w-40" />
                 ))}
               </div>
             </div>
@@ -348,15 +408,36 @@ function HomeTemplatesGrid({
       {selectedIds.length > 0 && (
         <div
           data-testid="template-bucket"
-          className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-black/10 bg-white/95 p-2.5 shadow-2xl backdrop-blur-xl motion-safe:animate-in motion-safe:slide-in-from-bottom-4 sm:bottom-5 sm:p-3"
+          className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-3xl items-center gap-3 rounded-2xl border border-black/[0.08] bg-white/85 p-2.5 shadow-[0_28px_70px_-24px_rgba(0,0,0,0.5)] backdrop-blur-xl motion-safe:animate-in motion-safe:slide-in-from-bottom-4 sm:bottom-5 sm:p-3"
         >
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-emerald-800" style={{ background: C.mint }}>
-            <Layers className="h-5 w-5" />
+          {/* Stacked thumbnails of the current selection, in page order */}
+          <div className="flex shrink-0 items-center pl-1 pr-1">
+            {selectedTemplates.slice(0, 5).map((template, index) => (
+              <div
+                key={template.id}
+                className="relative -ml-3 h-11 w-11 overflow-hidden rounded-lg shadow-md ring-2 ring-white transition-transform first:ml-0 hover:-translate-y-0.5 motion-safe:animate-in motion-safe:zoom-in-75"
+                style={{ zIndex: 10 - index }}
+                title={`${index + 1}. ${template.label}`}
+              >
+                <TemplatePreview template={template} showSamplePhotos className="absolute inset-0" />
+                <span className="absolute inset-x-0 bottom-0 bg-black/55 text-center text-[9px] font-bold leading-4 text-white">
+                  {index + 1}
+                </span>
+              </div>
+            ))}
+            {selectedTemplates.length > 5 && (
+              <div
+                className="relative -ml-3 grid h-11 w-11 place-items-center rounded-lg bg-black/80 text-xs font-bold text-white shadow-md ring-2 ring-white"
+                style={{ zIndex: 4 }}
+              >
+                +{selectedTemplates.length - 5}
+              </div>
+            )}
           </div>
           <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold">Template bucket</div>
+            <div className="text-sm font-bold">Your book</div>
             <div className="truncate text-xs text-black/50">
-              {selectedIds.length} page{selectedIds.length === 1 ? "" : "s"} selected in order
+              {selectedIds.length} page{selectedIds.length === 1 ? "" : "s"} selected · numbers show order
             </div>
           </div>
           <button
@@ -364,7 +445,7 @@ function HomeTemplatesGrid({
             onClick={onClear}
             title="Clear bucket"
             aria-label="Clear template bucket"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-black/45 transition hover:bg-black/5 hover:text-black"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-black/45 transition-all duration-200 hover:-translate-y-0.5 hover:bg-black/5 hover:text-black active:scale-95"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -373,10 +454,10 @@ function HomeTemplatesGrid({
             onClick={onStart}
             disabled={isStarting}
             data-testid="open-bucket-editor"
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 disabled:opacity-60"
+            className="group inline-flex h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold text-white shadow-lg transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl active:scale-[0.97] disabled:opacity-60"
             style={{ background: C.brand }}
           >
-            <Rocket className="h-4 w-4" />
+            <Rocket className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
             <span className="hidden sm:inline">{isStarting ? "Opening..." : "Open in Editor"}</span>
             <span className="sm:hidden">Open</span>
           </button>
@@ -640,17 +721,26 @@ export function LandingPage() {
             </p>
 
             <div data-anim="cta" className="mt-6 grid max-w-lg grid-cols-2 gap-2.5">
-              <button onClick={() => setShowNewProject(true)} className="group col-span-2 flex items-center justify-between rounded-md px-4 py-3 text-sm font-semibold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 hover:shadow-xl" style={{ background: C.brand }}>
-                <span className="inline-flex items-center gap-2"><Plus className="h-4 w-4 transition group-hover:rotate-90" />Create New Project</span>
-                <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
+              <button
+                onClick={() => setShowNewProject(true)}
+                className="group relative col-span-2 flex items-center justify-between overflow-hidden rounded-xl px-4 py-3.5 text-sm font-semibold text-white shadow-[0_16px_36px_-14px_rgba(150,70,40,0.65)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-0.5 hover:shadow-[0_22px_48px_-16px_rgba(150,70,40,0.7)] active:scale-[0.99]"
+                style={{ background: `linear-gradient(135deg, ${C.brand}, ${C.brandDark})` }}
+              >
+                {/* Shine sweep on hover */}
+                <span className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
+                <span className="relative inline-flex items-center gap-2">
+                  <Plus className="h-4 w-4 transition-transform duration-300 group-hover:rotate-90" />
+                  Create New Project
+                </span>
+                <ChevronRight className="relative h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
               </button>
-              <button onClick={() => { setTemplateModalCategory(null); setShowTemplates(true); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 hover:shadow-md" style={{ borderColor: `${C.ink}18` }}>
-                <Layers className="h-4 w-4" /> Templates
+              <button onClick={() => { setTemplateModalCategory(null); setShowTemplates(true); }} className="group inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md active:scale-[0.98]" style={{ borderColor: `${C.ink}18` }}>
+                <Layers className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" style={{ color: C.brand }} /> Templates
               </button>
-              <button onClick={() => setShowProjects("recent")} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 hover:shadow-md" style={{ borderColor: `${C.ink}18` }}>
-                <Clock3 className="h-4 w-4" /> Recent
+              <button onClick={() => setShowProjects("recent")} className="group inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-3 py-2.5 text-sm font-semibold shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-black/20 hover:shadow-md active:scale-[0.98]" style={{ borderColor: `${C.ink}18` }}>
+                <Clock3 className="h-4 w-4 transition-transform duration-300 group-hover:scale-110" style={{ color: C.brand }} /> Recent
               </button>
-              <button onClick={() => setShowProjects("open")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60 transition duration-200 hover:-translate-y-0.5 hover:text-black/80" style={{ borderColor: `${C.ink}2a` }}>
+              <button onClick={() => setShowProjects("open")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-xl border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60 transition-all duration-200 hover:-translate-y-0.5 hover:border-solid hover:text-black/80 active:scale-[0.99]" style={{ borderColor: `${C.ink}2a` }}>
                 <FolderOpen className="h-4 w-4" /> Open saved project
               </button>
             </div>

@@ -27,10 +27,50 @@ import {
   RotateCcw,
   Sparkles,
   Loader2,
+  LayoutGrid,
+  Frame,
+  SquareDashed,
+  Sticker,
+  Type,
+  Palette,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
+
+/** Collapsible titled section — keeps the long options panels tidy and scannable. */
+function CollapsibleSection({
+  title,
+  icon: Icon,
+  defaultOpen = false,
+  children,
+}: {
+  title: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className="overflow-hidden rounded-xl border bg-card shadow-sm">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:bg-muted/40"
+      >
+        <span className="flex items-center gap-2">
+          {Icon && <Icon className="h-3.5 w-3.5 text-accent" />}
+          {title}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+      {open && <div className="u-fade-in space-y-3 border-t px-3 pb-3 pt-3">{children}</div>}
+    </div>
+  );
+}
 
 const isBgImage = (bg?: string) => {
   if (!bg) return false;
@@ -162,15 +202,46 @@ export function DesignSidebar() {
     }
   };
 
+  const applyBackgroundToAllPages = () => {
+    if (!page) return;
+    const state = useBookStore.getState();
+    const allPages = state.book.pages;
+    allPages.forEach((p) => {
+      state.setPageBackground(p.id, page.background);
+      if (page.backgroundMode) state.updatePageBackgroundMode(p.id, page.backgroundMode);
+      state.updatePageBackgroundScale(p.id, page.backgroundScale ?? 1);
+      state.updatePageBackgroundPosition(p.id, page.backgroundX ?? 0, page.backgroundY ?? 0);
+    });
+    toast.success(
+      `Applied background to ${allPages.length} page${allPages.length === 1 ? "" : "s"}`,
+    );
+  };
+
+  const frameTabLabel =
+    selected?.type === "text" || selected?.type === "quote" ? "Text" : "Frame";
+  const designTabs = [
+    { value: "layouts", label: "Layout", Icon: LayoutGrid, disabled: false },
+    { value: "frames", label: frameTabLabel, Icon: Frame, disabled: false },
+    { value: "border", label: "Border", Icon: SquareDashed, disabled: pageStructureLocked },
+    { value: "stickers", label: "Sticker", Icon: Sticker, disabled: pageStructureLocked },
+    { value: "quotes", label: "Text", Icon: Type, disabled: pageStructureLocked },
+    { value: "bg", label: "BG", Icon: Palette, disabled: pageStructureLocked },
+  ];
+
   return (
     <aside
       style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
-      className="editor-sidebar relative flex h-full shrink-0 flex-col md:border-l w-full md:w-auto bg-background"
+      className="design-sidebar editor-sidebar editor-sidebar-right relative flex h-full shrink-0 flex-col md:border-l w-full md:w-auto bg-background"
     >
       <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
-        <div>
-          <h2 className="font-display text-base font-semibold">Design Studio</h2>
-          <p className="text-[11px] text-muted-foreground">Layouts · frames · backgrounds</p>
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent shadow-sm">
+            <Palette className="h-[18px] w-[18px]" />
+          </span>
+          <div>
+            <h2 className="font-display text-base font-semibold leading-tight">Design Studio</h2>
+            <p className="text-[11px] text-muted-foreground">Layouts · frames · backgrounds</p>
+          </div>
         </div>
         <Button
           variant="ghost"
@@ -189,29 +260,19 @@ export function DesignSidebar() {
         onValueChange={setActiveTab}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <TabsList className="m-3 grid grid-cols-6">
-          <TabsTrigger value="layouts" className="text-[11px]">
-            Layout
-          </TabsTrigger>
-          <TabsTrigger value="frames" className="text-[11px]">
-            {selected?.type === "photo"
-              ? "Frame"
-              : selected?.type === "text" || selected?.type === "quote"
-                ? "Text"
-                : "Frame"}
-          </TabsTrigger>
-          <TabsTrigger value="border" disabled={pageStructureLocked} className="text-[11px]">
-            Border
-          </TabsTrigger>
-          <TabsTrigger value="stickers" disabled={pageStructureLocked} className="text-[11px]">
-            Stick
-          </TabsTrigger>
-          <TabsTrigger value="quotes" disabled={pageStructureLocked} className="text-[11px]">
-            Text
-          </TabsTrigger>
-          <TabsTrigger value="bg" disabled={pageStructureLocked} className="text-[11px]">
-            BG
-          </TabsTrigger>
+        <TabsList className="mx-3 mt-3 grid h-auto grid-cols-6 gap-1 rounded-xl p-1">
+          {designTabs.map(({ value, label, Icon, disabled }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              disabled={disabled}
+              title={label}
+              className="flex h-auto flex-col gap-1 rounded-lg px-1 py-1.5 text-[10px] font-semibold leading-none data-[state=active]:text-accent"
+            >
+              <Icon className="h-4 w-4" />
+              <span>{label}</span>
+            </TabsTrigger>
+          ))}
         </TabsList>
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4">
@@ -761,6 +822,19 @@ export function DesignSidebar() {
                   />
                 </div>
 
+                {page?.background && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-9 w-full gap-2 text-xs font-semibold"
+                    onClick={applyBackgroundToAllPages}
+                    title="Copy this page's background to every page in the book"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                    Apply Background to All Pages
+                  </Button>
+                )}
+
                 {adminBackgrounds.length > 0 ? (
                   <div className="space-y-2 border-b pb-3 mb-2">
                     <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-1">
@@ -1117,130 +1191,121 @@ function PhotoControls({
   const eraserBrushSize = useBookStore((s) => s.eraserBrushSize);
   const setEraserBrushSize = useBookStore((s) => s.setEraserBrushSize);
 
-  return (
-    <div className="space-y-3 rounded-xl border bg-card p-3">
-      <div>
-        <label className="mb-1.5 block text-xs font-medium">Layer</label>
-        <div className="grid grid-cols-4 gap-1.5">
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-8 w-full"
-            title="Bring to front"
-            onClick={() => moveElementLayer(selected.id, "front")}
-          >
-            <BringToFront className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-8 w-full"
-            title="Move forward"
-            onClick={() => moveElementLayer(selected.id, "forward")}
-          >
-            <ArrowUp className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-8 w-full"
-            title="Move backward"
-            onClick={() => moveElementLayer(selected.id, "backward")}
-          >
-            <ArrowDown className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
-            className="h-8 w-full"
-            title="Send to back"
-            onClick={() => moveElementLayer(selected.id, "back")}
-          >
-            <SendToBack className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-      </div>
-      <div>
-        <label className="mb-1 block text-xs font-medium">Corner radius</label>
-        <Slider
-          value={[selected.radius]}
-          max={80}
-          min={0}
-          step={1}
-          onValueChange={([v]) => updateElement(selected.id, { radius: v })}
-        />
-      </div>
+  const aspectPresets = [
+    { label: "1:1", r: 1 },
+    { label: "4:3", r: 4 / 3 },
+    { label: "3:4", r: 3 / 4 },
+    { label: "3:2", r: 3 / 2 },
+    { label: "2:3", r: 2 / 3 },
+    { label: "16:9", r: 16 / 9 },
+  ];
+  const applyAspect = (r: number) => {
+    const w = selected.w;
+    const newH = Math.max(40, Math.round(w / r));
+    const centerY = selected.y + selected.h / 2;
+    updateElement(selected.id, { h: newH, y: Math.round(centerY - newH / 2) });
+  };
 
-      <div>
-        <label className="mb-1 block text-xs font-medium">Caption</label>
-        <Input
-          value={selected.caption ?? ""}
-          onChange={(e) => updateElement(selected.id, { caption: e.target.value })}
-          placeholder="Add a caption…"
-        />
-      </div>
-      <div>
-        <div className="flex justify-between text-xs mb-1">
-          <label className="font-medium text-xs">Opacity</label>
-          <span className="text-[10px] tabular-nums font-semibold">
-            {Math.round((selected.opacity ?? 1) * 100)}%
-          </span>
-        </div>
-        <Slider
-          value={[selected.opacity ?? 1]}
-          max={1}
-          min={0}
-          step={0.01}
-          onValueChange={([v]) => updateElement(selected.id, { opacity: v })}
-        />
-      </div>
-      <div className="border-t pt-3 mt-3 space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Image Eraser
-          </span>
-          <Button
-            size="sm"
-            variant={isEraserMode ? "default" : "outline"}
-            className="h-8 gap-1.5 text-xs font-semibold"
-            disabled={!selected.imageId}
-            onClick={() => setIsEraserMode(!isEraserMode)}
-            title="Erase only inside the selected photo frame"
-          >
-            <Eraser className="h-3.5 w-3.5" />
-            {isEraserMode ? "On" : "Erase"}
-          </Button>
-        </div>
-        {isEraserMode && selected.imageId && (
-          <div>
-            <div className="mb-1 flex justify-between text-xs">
-              <span className="text-[11px] font-medium text-muted-foreground">Brush Size</span>
-              <span className="text-[10px] tabular-nums font-semibold">{eraserBrushSize}px</span>
-            </div>
-            <Slider
-              value={[eraserBrushSize]}
-              max={90}
-              min={8}
-              step={1}
-              onValueChange={([v]) => setEraserBrushSize(v)}
-            />
+  return (
+    <div className="space-y-2.5">
+      <CollapsibleSection title="Arrange" icon={BringToFront} defaultOpen>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium">Layer</label>
+          <div className="grid grid-cols-4 gap-1.5">
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-full"
+              title="Bring to front"
+              onClick={() => moveElementLayer(selected.id, "front")}
+            >
+              <BringToFront className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-full"
+              title="Move forward"
+              onClick={() => moveElementLayer(selected.id, "forward")}
+            >
+              <ArrowUp className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-full"
+              title="Move backward"
+              onClick={() => moveElementLayer(selected.id, "backward")}
+            >
+              <ArrowDown className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-full"
+              title="Send to back"
+              onClick={() => moveElementLayer(selected.id, "back")}
+            >
+              <SendToBack className="h-3.5 w-3.5" />
+            </Button>
           </div>
-        )}
-        {selected.eraseMask && (
-          <Button
-            variant="outline"
-            className="h-8 w-full gap-1.5 text-xs font-semibold"
-            onClick={() => updateElement(selected.id, { eraseMask: undefined })}
-          >
-            <RotateCcw className="h-3.5 w-3.5" />
-            Reset Erased Areas
-          </Button>
-        )}
-      </div>
-      <div className="border-t pt-3 mt-3 space-y-3">
-        <span className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Crop & Adjust Image
-        </span>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium">Corner radius</label>
+          <Slider
+            value={[selected.radius]}
+            max={80}
+            min={0}
+            step={1}
+            onValueChange={([v]) => updateElement(selected.id, { radius: v })}
+          />
+        </div>
+        <div>
+          <div className="flex justify-between text-xs mb-1">
+            <label className="font-medium text-xs">Opacity</label>
+            <span className="text-[10px] tabular-nums font-semibold">
+              {Math.round((selected.opacity ?? 1) * 100)}%
+            </span>
+          </div>
+          <Slider
+            value={[selected.opacity ?? 1]}
+            max={1}
+            min={0}
+            step={0.01}
+            onValueChange={([v]) => updateElement(selected.id, { opacity: v })}
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-medium">Caption</label>
+          <Input
+            value={selected.caption ?? ""}
+            onChange={(e) => updateElement(selected.id, { caption: e.target.value })}
+            placeholder="Add a caption…"
+          />
+        </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Crop & Aspect" icon={Frame} defaultOpen>
+        <div>
+          <label className="mb-1.5 block text-xs font-medium">Aspect ratio</label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {aspectPresets.map((preset) => (
+              <Button
+                key={preset.label}
+                size="sm"
+                variant="outline"
+                className="h-8 text-[11px] font-semibold tabular-nums"
+                onClick={() => applyAspect(preset.r)}
+                title={`Set frame to ${preset.label}`}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[10px] leading-normal text-muted-foreground">
+            Reshapes the photo frame to a ratio, kept centered.
+          </p>
+        </div>
         <div>
           <div className="flex justify-between text-xs mb-1">
             <span className="text-[11px] font-medium text-muted-foreground">Zoom / Scale</span>
@@ -1282,13 +1347,11 @@ function PhotoControls({
             onValueChange={([v]) => updateElement(selected.id, { imageY: v })}
           />
         </div>
-      </div>
-
-      <div className="flex flex-col items-center border-t pt-3 mt-3">
-        <span className="block text-[11px] font-semibold uppercase tracking-wider text-muted-foreground self-start mb-2">
-          Fine Tune Pan (D-pad)
-        </span>
-        <div className="grid grid-cols-3 gap-1.5 w-28">
+        <div className="flex flex-col items-center pt-1">
+          <span className="mb-2 block self-start text-[11px] font-medium text-muted-foreground">
+            Fine Tune Pan (D-pad)
+          </span>
+          <div className="grid grid-cols-3 gap-1.5 w-28">
           <div />
           <Button
             size="icon"
@@ -1348,9 +1411,52 @@ function PhotoControls({
           <div />
         </div>
       </div>
+      </CollapsibleSection>
+
+      <CollapsibleSection title="Erase" icon={Eraser}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium">Image Eraser</span>
+          <Button
+            size="sm"
+            variant={isEraserMode ? "default" : "outline"}
+            className="h-8 gap-1.5 text-xs font-semibold"
+            disabled={!selected.imageId}
+            onClick={() => setIsEraserMode(!isEraserMode)}
+            title="Erase only inside the selected photo frame"
+          >
+            <Eraser className="h-3.5 w-3.5" />
+            {isEraserMode ? "On" : "Erase"}
+          </Button>
+        </div>
+        {isEraserMode && selected.imageId && (
+          <div>
+            <div className="mb-1 flex justify-between text-xs">
+              <span className="text-[11px] font-medium text-muted-foreground">Brush Size</span>
+              <span className="text-[10px] tabular-nums font-semibold">{eraserBrushSize}px</span>
+            </div>
+            <Slider
+              value={[eraserBrushSize]}
+              max={90}
+              min={8}
+              step={1}
+              onValueChange={([v]) => setEraserBrushSize(v)}
+            />
+          </div>
+        )}
+        {selected.eraseMask && (
+          <Button
+            variant="outline"
+            className="h-8 w-full gap-1.5 text-xs font-semibold"
+            onClick={() => updateElement(selected.id, { eraseMask: undefined })}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Reset Erased Areas
+          </Button>
+        )}
+      </CollapsibleSection>
 
       {selected.frame && selected.frame !== "none" && (
-        <div className="border-t pt-3 mt-3 space-y-2">
+        <CollapsibleSection title="Frame Colour" icon={Paintbrush}>
           <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between">
             <span>Frame Color</span>
             <div className="flex items-center gap-1.5" title="Custom frame color picker">
@@ -1404,11 +1510,11 @@ function PhotoControls({
               />
             ))}
           </div>
-        </div>
+        </CollapsibleSection>
       )}
 
       {selected.imageId && (
-        <div className="border-t pt-3 mt-3 space-y-2">
+        <div className="pt-1">
           <Button
             variant="destructive"
             className="w-full h-8 text-xs font-semibold gap-1.5"
@@ -1795,6 +1901,13 @@ function TextControls({
     { label: "Chocolate", value: "oklch(0.32 0.06 45)" },
   ];
 
+  const textShadowPresets = [
+    { label: "None", value: "" },
+    { label: "Soft", value: "0 1px 3px rgba(0,0,0,0.35)" },
+    { label: "Strong", value: "0 2px 6px rgba(0,0,0,0.55)" },
+    { label: "Glow", value: "0 0 10px rgba(255,255,255,0.9)" },
+  ];
+
   return (
     <div className="space-y-3 rounded-xl border bg-card p-3">
       <div>
@@ -1939,6 +2052,46 @@ function TextControls({
                 title={`Align ${align}`}
               >
                 <Icon className="h-4 w-4" />
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1 flex justify-between text-xs">
+          <label className="font-medium">Opacity</label>
+          <span className="text-[10px] tabular-nums font-semibold">
+            {Math.round((selected.opacity ?? 1) * 100)}%
+          </span>
+        </div>
+        <Slider
+          value={[selected.opacity ?? 1]}
+          max={1}
+          min={0.1}
+          step={0.01}
+          onValueChange={([v]) => updateElement(selected.id, { opacity: v })}
+        />
+      </div>
+
+      <div>
+        <label className="mb-1.5 block text-xs font-medium">Text Shadow</label>
+        <div className="grid grid-cols-4 gap-1.5">
+          {textShadowPresets.map((preset) => {
+            const active = (selected.textShadow || "") === preset.value;
+            return (
+              <Button
+                key={preset.label}
+                size="sm"
+                variant={active ? "default" : "outline"}
+                className="h-8 px-1 text-[10px] font-semibold"
+                onClick={() =>
+                  updateElement(selected.id, {
+                    textShadow: active ? undefined : preset.value || undefined,
+                  })
+                }
+              >
+                {preset.label}
               </Button>
             );
           })}

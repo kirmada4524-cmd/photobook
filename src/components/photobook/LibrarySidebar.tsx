@@ -16,6 +16,7 @@ import {
   ChevronUp,
   ChevronLeft,
   ChevronRight,
+  Images,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Page } from "./Page";
@@ -92,12 +93,17 @@ export function LibrarySidebar() {
   return (
     <aside
       style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
-      className="editor-sidebar relative flex h-full shrink-0 flex-col md:border-r w-full md:w-auto bg-background"
+      className="library-sidebar editor-sidebar editor-sidebar-left relative flex h-full shrink-0 flex-col md:border-r w-full md:w-auto bg-background"
     >
       <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
-        <div>
-          <h2 className="font-display text-base font-semibold">Photo Library</h2>
-          <p className="text-[11px] text-muted-foreground">{library.length} images uploaded</p>
+        <div className="flex items-center gap-2.5">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent shadow-sm">
+            <Images className="h-[18px] w-[18px]" />
+          </span>
+          <div>
+            <h2 className="font-display text-base font-semibold leading-tight">Photo Library</h2>
+            <p className="text-[11px] text-muted-foreground">{library.length} images uploaded</p>
+          </div>
         </div>
         <Button
           variant="ghost"
@@ -115,23 +121,25 @@ export function LibrarySidebar() {
           <button
             type="button"
             onClick={() => setActiveSection("pages")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200 active:scale-[0.97] ${
               activeSection === "pages"
-                ? "bg-accent text-accent-foreground"
+                ? "bg-accent text-accent-foreground shadow-sm"
                 : "bg-muted/50 hover:bg-muted"
             }`}
           >
+            <LayoutGrid className="h-4 w-4" />
             Pages
           </button>
           <button
             type="button"
             onClick={() => setActiveSection("photos")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
+            className={`flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-all duration-200 active:scale-[0.97] ${
               activeSection === "photos"
-                ? "bg-accent text-accent-foreground"
+                ? "bg-accent text-accent-foreground shadow-sm"
                 : "bg-muted/50 hover:bg-muted"
             }`}
           >
+            <Images className="h-4 w-4" />
             Photos
           </button>
         </div>
@@ -459,8 +467,18 @@ export function MobilePagesStrip() {
                       <Page pageId={page.id} interactive={false} />
                     </div>
                   </div>
-                  {/* Controls for Rearranging & Deleting */}
-                  <div className="flex items-center justify-between border-t bg-muted/40 px-1 py-0.5">
+                  {/* Controls for Rearranging & Deleting.
+                      draggable={false} + canceling dragstart here stops the parent's
+                      native drag from stealing clicks on these buttons (which made the
+                      trash/reorder icons intermittently do nothing). */}
+                  <div
+                    className="flex items-center justify-between border-t bg-muted/40 px-1 py-0.5"
+                    draggable={false}
+                    onDragStart={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                  >
                     <button
                       type="button"
                       disabled={index === 0}
@@ -631,7 +649,17 @@ function PageThumb({
       <div className="flex min-h-8 items-center justify-center gap-2 border-t bg-card px-2 py-1.5 text-center text-[10px] font-semibold">
         <span className="block truncate">{pageLabel(index, total)}</span>
       </div>
-      <div className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100">
+      <div
+        className="absolute right-1 top-1 flex gap-1 opacity-0 transition group-hover:opacity-100"
+        draggable={false}
+        onDragStart={(e) => {
+          // Prevent the draggable parent from starting a drag when the press begins on
+          // these controls — otherwise a slight pointer move eats the click and the
+          // trash/duplicate icons silently do nothing.
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      >
         <span
           role="button"
           tabIndex={0}
@@ -710,6 +738,11 @@ function Grid({
           className="group relative aspect-square overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm transition hover:border-accent/40 hover:shadow-md snap-start"
         >
           <button
+            draggable={false}
+            onDragStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
             onClick={(e) => {
               e.stopPropagation();
               onExclude(img.id);
@@ -739,6 +772,11 @@ function Grid({
             <Button
               size="icon"
               variant="ghost"
+              draggable={false}
+              onDragStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               className="h-7 w-7 text-white hover:bg-white/20"
               onClick={(e) => {
                 e.stopPropagation();
@@ -750,6 +788,11 @@ function Grid({
             <Button
               size="icon"
               variant="ghost"
+              draggable={false}
+              onDragStart={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
               className="h-7 w-7 text-white hover:bg-sky-500/80"
               onClick={(e) => {
                 e.stopPropagation();
