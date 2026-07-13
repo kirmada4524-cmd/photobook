@@ -34,6 +34,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   loadImagesFromDB,
   saveImageToDB,
   loadCustomStickers,
@@ -49,6 +59,7 @@ export function EditorHeader() {
   const setTitle = useBookStore((s) => s.setTitle);
   const { isAdmin, currentUser, logout } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const showLibrarySidebar = useBookStore((s) => s.showLibrarySidebar);
   const showDesignSidebar = useBookStore((s) => s.showDesignSidebar);
@@ -322,14 +333,12 @@ export function EditorHeader() {
     e.target.value = "";
   };
 
-  const handleNewProject = () => {
-    const ok = window.confirm(
-      "Are you sure you want to start a new project? This will delete all pages and uploaded photos.",
-    );
-    if (ok) {
-      useBookStore.getState().resetBook();
-      toast.success("New project started");
-    }
+  const handleNewProject = () => setShowResetConfirm(true);
+
+  const confirmReset = () => {
+    useBookStore.getState().resetBook();
+    setShowResetConfirm(false);
+    toast.success("Started a fresh project");
   };
 
   const handleSaveAsProject = async () => {
@@ -647,6 +656,27 @@ export function EditorHeader() {
       )}
 
       <LoginModal open={showLogin} onOpenChange={setShowLogin} />
+
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Start a fresh project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This clears every page and all uploaded photos in the current book and can't be
+              undone. Export or download your project first if you want to keep it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmReset}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Clear &amp; start fresh
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <input
         type="file"

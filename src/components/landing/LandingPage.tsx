@@ -264,7 +264,7 @@ function TemplateCategorySection({
           <h3 className="truncate text-lg font-semibold sm:text-xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
             {category}
           </h3>
-          <p className="text-xs text-black/45">{templates.length} template{templates.length === 1 ? "" : "s"}</p>
+          <p className="text-xs text-black/55">{templates.length} template{templates.length === 1 ? "" : "s"}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -398,7 +398,7 @@ function HomeTemplatesGrid({
             );
           })}
           {populatedCategories.length === 0 && (
-            <div className="rounded-md border border-dashed border-black/15 bg-white px-4 py-12 text-center text-sm font-semibold text-black/45">
+            <div className="rounded-md border border-dashed border-black/15 bg-white px-4 py-12 text-center text-sm font-semibold text-black/55">
               No templates are available yet.
             </div>
           )}
@@ -436,7 +436,7 @@ function HomeTemplatesGrid({
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-bold">Your book</div>
-            <div className="truncate text-xs text-black/50">
+            <div className="truncate text-xs text-black/60">
               {selectedIds.length} page{selectedIds.length === 1 ? "" : "s"} selected · numbers show order
             </div>
           </div>
@@ -445,7 +445,7 @@ function HomeTemplatesGrid({
             onClick={onClear}
             title="Clear bucket"
             aria-label="Clear template bucket"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-black/45 transition-all duration-200 hover:-translate-y-0.5 hover:bg-black/5 hover:text-black active:scale-95"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-black/55 transition-all duration-200 hover:-translate-y-0.5 hover:bg-black/5 hover:text-black active:scale-95"
           >
             <Trash2 className="h-4 w-4" />
           </button>
@@ -745,7 +745,7 @@ export function LandingPage() {
               </button>
             </div>
 
-            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-black/45">
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-black/55">
               <span className="inline-flex items-center gap-1.5">
                 <Check className="h-3.5 w-3.5" style={{ color: C.brand }} /> No account needed
               </span>
@@ -772,7 +772,7 @@ export function LandingPage() {
             <div className="min-w-0">
               <div className="text-[11px] font-bold uppercase tracking-[0.18em] sm:text-xs" style={{ color: C.brand }}>Template buckets</div>
               <h2 className="mt-1 text-xl font-semibold sm:text-2xl md:text-3xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>Choose pages for your book</h2>
-              <p className="mt-1 text-[13px] text-black/50 sm:text-sm">Tap templates to build your bucket. The number shows page order.</p>
+              <p className="mt-1 text-[13px] text-black/60 sm:text-sm">Tap templates to build your bucket. The number shows page order.</p>
             </div>
           </div>
           <HomeTemplatesGrid
@@ -802,7 +802,7 @@ export function LandingPage() {
               Yaara
             </span>
           </div>
-          <p className="text-xs text-black/45">© 2026 Yaara Photobook Studio · Made for your memories</p>
+          <p className="text-xs text-black/55">© 2026 Yaara Photobook Studio · Made for your memories</p>
         </div>
       </footer>
 

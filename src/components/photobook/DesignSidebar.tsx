@@ -36,6 +36,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { toast } from "sonner";
 
 /** Collapsible titled section — keeps the long options panels tidy and scannable. */
@@ -133,27 +134,35 @@ export function DesignSidebar() {
     0,
   );
 
+  const isMobile = useIsMobile();
   const width = useBookStore((s) => s.designSidebarWidth ?? 320);
   const setWidth = useBookStore((s) => s.setDesignSidebarWidth);
   const isResizing = useRef(false);
 
-  const startResize = (e: React.MouseEvent) => {
+  const clampWidth = (w: number) =>
+    Math.max(260, Math.min(Math.min(560, window.innerWidth - 320), w));
+
+  const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
     isResizing.current = true;
-    document.addEventListener("mousemove", handleResize);
-    document.addEventListener("mouseup", stopResize);
+    document.addEventListener("pointermove", handleResize);
+    document.addEventListener("pointerup", stopResize);
   };
 
-  const handleResize = (e: MouseEvent) => {
+  const handleResize = (e: PointerEvent) => {
     if (!isResizing.current) return;
-    setWidth(window.innerWidth - e.clientX);
+    // Right-docked panel: dragging the handle left (smaller clientX) widens it.
+    setWidth(clampWidth(window.innerWidth - e.clientX));
   };
 
   const stopResize = () => {
     isResizing.current = false;
-    document.removeEventListener("mousemove", handleResize);
-    document.removeEventListener("mouseup", stopResize);
+    document.removeEventListener("pointermove", handleResize);
+    document.removeEventListener("pointerup", stopResize);
   };
+
+  // Keyboard resize: ←/→ nudge the panel width when the separator is focused.
+  const nudgeWidth = (delta: number) => setWidth(clampWidth(width + delta));
 
   useEffect(() => {
     if (selected) {
@@ -224,13 +233,13 @@ export function DesignSidebar() {
     { value: "frames", label: frameTabLabel, Icon: Frame, disabled: false },
     { value: "border", label: "Border", Icon: SquareDashed, disabled: pageStructureLocked },
     { value: "stickers", label: "Sticker", Icon: Sticker, disabled: pageStructureLocked },
-    { value: "quotes", label: "Text", Icon: Type, disabled: pageStructureLocked },
+    { value: "quotes", label: "Quotes", Icon: Type, disabled: pageStructureLocked },
     { value: "bg", label: "BG", Icon: Palette, disabled: pageStructureLocked },
   ];
 
   return (
     <aside
-      style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
+      style={isMobile ? undefined : { width }}
       className="design-sidebar editor-sidebar editor-sidebar-right relative flex h-full shrink-0 flex-col md:border-l w-full md:w-auto bg-background"
     >
       <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
@@ -477,13 +486,14 @@ export function DesignSidebar() {
                               const json = JSON.parse(event.target?.result as string);
                               if (json.background && json.elements) {
                                 useBookStore.getState().importCustomTemplate(json);
+                                toast.success("Template imported");
                               } else {
-                                alert(
-                                  "Invalid template file format. Must contain background and elements.",
+                                toast.error(
+                                  "Invalid template file — it must contain a background and elements.",
                                 );
                               }
                             } catch (err) {
-                              alert("Failed to parse template JSON file.");
+                              toast.error("Could not parse that template JSON file.");
                             }
                           };
                           reader.readAsText(file);
@@ -656,16 +666,20 @@ export function DesignSidebar() {
                         file.type.startsWith("image/"),
                       );
                       if (files.length === 0) return;
+                      const toastId = toast.loading(
+                        `Adding ${files.length} sticker${files.length === 1 ? "" : "s"}…`,
+                      );
                       try {
                         for (const file of files) {
                           await useBookStore.getState().addCustomSticker(file);
                         }
                         toast.success(
                           `Added ${files.length} local sticker${files.length === 1 ? "" : "s"}`,
+                          { id: toastId },
                         );
                       } catch (error) {
                         console.error("Failed to add sticker", error);
-                        toast.error("Could not add sticker");
+                        toast.error("Could not add sticker", { id: toastId });
                       } finally {
                         e.target.value = "";
                       }
@@ -807,14 +821,15 @@ export function DesignSidebar() {
                         item.type.startsWith("image/"),
                       );
                       if (!file) return;
+                      const toastId = toast.loading("Adding background…");
                       try {
                         await useBookStore.getState().addCustomBackground(file);
                         const uploaded = useBookStore.getState().customBackgroundsList.at(-1);
                         if (uploaded) setPageBackground(currentPageId, uploaded.id);
-                        toast.success("Background added to this editor");
+                        toast.success("Background added to this editor", { id: toastId });
                       } catch (error) {
                         console.error("Failed to add background", error);
-                        toast.error("Could not add background");
+                        toast.error("Could not add background", { id: toastId });
                       } finally {
                         e.target.value = "";
                       }
@@ -890,6 +905,7 @@ export function DesignSidebar() {
                               : "#FFFFFF"
                           }
                           onChange={(e) => setPageBackground(currentPageId, e.target.value)}
+                          aria-label="Custom background color"
                           className="absolute inset-0 opacity-0 cursor-pointer h-full w-full"
                         />
                         <div
@@ -923,6 +939,7 @@ export function DesignSidebar() {
                         }
                         placeholder="#HEX"
                         onChange={(e) => setPageBackground(currentPageId, e.target.value)}
+                        aria-label="Background hex color"
                         className="h-6 w-16 text-[10px] px-1 py-0.5 rounded text-center uppercase font-mono border"
                       />
                     </div>
@@ -1135,8 +1152,21 @@ export function DesignSidebar() {
       </Tabs>
       {/* Resizer Handle */}
       <div
-        onMouseDown={startResize}
-        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-accent/40 active:bg-accent transition z-50"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize design panel"
+        tabIndex={0}
+        onPointerDown={startResize}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            nudgeWidth(24);
+          } else if (e.key === "ArrowRight") {
+            e.preventDefault();
+            nudgeWidth(-24);
+          }
+        }}
+        className="absolute left-0 top-0 bottom-0 z-50 w-1.5 cursor-col-resize touch-none transition hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none active:bg-accent"
       />
     </aside>
   );
@@ -1281,6 +1311,7 @@ function PhotoControls({
             value={selected.caption ?? ""}
             onChange={(e) => updateElement(selected.id, { caption: e.target.value })}
             placeholder="Add a caption…"
+            aria-label="Photo caption"
           />
         </div>
       </CollapsibleSection>
@@ -1466,6 +1497,7 @@ function PhotoControls({
                   type="color"
                   value={selected.frameColor || "#FFFFFF"}
                   onChange={(e) => updateElement(selected.id, { frameColor: e.target.value })}
+                  aria-label="Custom frame color"
                   className="absolute inset-0 opacity-0 cursor-pointer h-full w-full"
                 />
                 <div
@@ -1478,6 +1510,7 @@ function PhotoControls({
                 value={selected.frameColor || ""}
                 placeholder="#HEX"
                 onChange={(e) => updateElement(selected.id, { frameColor: e.target.value })}
+                aria-label="Frame hex color"
                 className="h-6 w-16 text-[10px] px-1 py-0.5 rounded text-center uppercase font-mono border"
               />
             </div>
@@ -1985,6 +2018,7 @@ function TextControls({
             value={selected.color || "#37322d"}
             onChange={(e) => updateElement(selected.id, { color: e.target.value })}
             className="h-8 w-10 cursor-pointer rounded-md border bg-background p-0"
+            aria-label="Text color"
             title="Pick a custom text color"
           />
         </div>

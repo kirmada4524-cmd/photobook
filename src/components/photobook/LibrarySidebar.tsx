@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useBookStore } from "@/lib/photobook/store";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -53,12 +54,13 @@ export function LibrarySidebar() {
   const handleFiles = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
     if (arr.length === 0) return;
+    const toastId = toast.loading(`Adding ${arr.length} photo${arr.length > 1 ? "s" : ""}…`);
     try {
       await addImagesFromFiles(arr);
-      toast.success(`Added ${arr.length} photo${arr.length > 1 ? "s" : ""}`);
+      toast.success(`Added ${arr.length} photo${arr.length > 1 ? "s" : ""}`, { id: toastId });
     } catch (error) {
       console.error("Failed to add images", error);
-      toast.error("Failed to add images");
+      toast.error("Failed to add images", { id: toastId });
     }
   };
 
@@ -68,31 +70,39 @@ export function LibrarySidebar() {
   const favorites = filtered.filter((i) => i.favorite);
   const rest = filtered.filter((i) => !i.favorite);
 
+  const isMobile = useIsMobile();
   const width = useBookStore((s) => s.librarySidebarWidth ?? 288);
   const setWidth = useBookStore((s) => s.setLibrarySidebarWidth);
   const isResizing = useRef(false);
 
-  const startResize = (e: React.MouseEvent) => {
+  const clampWidth = (w: number) =>
+    Math.max(240, Math.min(Math.min(560, window.innerWidth - 320), w));
+
+  const startResize = (e: React.PointerEvent) => {
     e.preventDefault();
     isResizing.current = true;
-    document.addEventListener("mousemove", handleResize);
-    document.addEventListener("mouseup", stopResize);
+    document.addEventListener("pointermove", handleResize);
+    document.addEventListener("pointerup", stopResize);
   };
 
-  const handleResize = (e: MouseEvent) => {
+  const handleResize = (e: PointerEvent) => {
     if (!isResizing.current) return;
-    setWidth(e.clientX);
+    // Left-docked panel: width follows the pointer's X.
+    setWidth(clampWidth(e.clientX));
   };
 
   const stopResize = () => {
     isResizing.current = false;
-    document.removeEventListener("mousemove", handleResize);
-    document.removeEventListener("mouseup", stopResize);
+    document.removeEventListener("pointermove", handleResize);
+    document.removeEventListener("pointerup", stopResize);
   };
+
+  // Keyboard resize: ←/→ nudge the panel width when the separator is focused.
+  const nudgeWidth = (delta: number) => setWidth(clampWidth(width + delta));
 
   return (
     <aside
-      style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
+      style={isMobile ? undefined : { width }}
       className="library-sidebar editor-sidebar editor-sidebar-left relative flex h-full shrink-0 flex-col md:border-r w-full md:w-auto bg-background"
     >
       <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
@@ -381,8 +391,21 @@ export function LibrarySidebar() {
       </div>
 
       <div
-        onMouseDown={startResize}
-        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-accent/40 active:bg-accent transition z-50"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize photo panel"
+        tabIndex={0}
+        onPointerDown={startResize}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight") {
+            e.preventDefault();
+            nudgeWidth(24);
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            nudgeWidth(-24);
+          }
+        }}
+        className="absolute right-0 top-0 bottom-0 z-50 w-1.5 cursor-col-resize touch-none transition hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none active:bg-accent"
       />
     </aside>
   );
@@ -491,10 +514,11 @@ export function MobilePagesStrip() {
                         ids.splice(to, 0, page.id);
                         useBookStore.getState().reorderPages(ids);
                       }}
-                      className="rounded p-0.5 hover:bg-muted text-foreground disabled:opacity-30 animate-scale-in"
+                      className="grid h-8 w-8 place-items-center rounded hover:bg-muted text-foreground disabled:opacity-30 animate-scale-in"
+                      aria-label="Move page left"
                       title="Move left"
                     >
-                      <ChevronLeft className="h-3.5 w-3.5" />
+                      <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
@@ -503,10 +527,11 @@ export function MobilePagesStrip() {
                         e.stopPropagation();
                         deletePage(page.id);
                       }}
-                      className="rounded p-0.5 text-sky-600 hover:bg-sky-50 disabled:opacity-30 animate-scale-in"
+                      className="grid h-8 w-8 place-items-center rounded text-sky-600 hover:bg-sky-50 disabled:opacity-30 animate-scale-in"
+                      aria-label="Delete this page"
                       title="Delete page"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-4 w-4" />
                     </button>
                     <button
                       type="button"
@@ -520,10 +545,11 @@ export function MobilePagesStrip() {
                         ids.splice(to, 0, page.id);
                         useBookStore.getState().reorderPages(ids);
                       }}
-                      className="rounded p-0.5 hover:bg-muted text-foreground disabled:opacity-30 animate-scale-in"
+                      className="grid h-8 w-8 place-items-center rounded hover:bg-muted text-foreground disabled:opacity-30 animate-scale-in"
+                      aria-label="Move page right"
                       title="Move right"
                     >
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                   {/* Label */}
@@ -615,14 +641,8 @@ function PageThumb({
         setPageDragState({ id: draggedId, dropped: true });
       }}
       onDragEnd={() => {
-        if (
-          pageDragState.id &&
-          !pageDragState.dropped &&
-          typeof window !== "undefined" &&
-          window.innerWidth < 768
-        ) {
-          deletePage(pageDragState.id);
-        }
+        // Intentionally does NOT delete on drop-outside: that silently destroyed pages
+        // on a stray touch-drag. Deletion is explicit via the trash button only.
         setPageDragState({ id: null, dropped: false });
       }}
       className={`group relative overflow-hidden rounded-lg border bg-background text-left transition select-none shadow-sm ${
@@ -660,46 +680,33 @@ function PageThumb({
           e.stopPropagation();
         }}
       >
-        <span
-          role="button"
-          tabIndex={0}
+        <button
+          type="button"
+          draggable={false}
+          aria-label="Duplicate this page"
           title="Duplicate page"
           onClick={(e) => {
             e.stopPropagation();
             duplicatePage(page.id);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              duplicatePage(page.id);
-            }
-          }}
-          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm hover:bg-background"
+          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-foreground shadow-sm transition hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           <Copy className="h-3.5 w-3.5" />
-        </span>
-        <span
-          role="button"
-          tabIndex={0}
+        </button>
+        <button
+          type="button"
+          draggable={false}
+          disabled={pages.length <= 1}
+          aria-label="Delete this page"
           title="Delete page"
           onClick={(e) => {
             e.stopPropagation();
             deletePage(page.id);
           }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              e.stopPropagation();
-              deletePage(page.id);
-            }
-          }}
-          className={`grid h-6 w-6 place-items-center rounded-md bg-background/90 shadow-sm ${
-            pages.length <= 1 ? "pointer-events-none text-muted-foreground/40" : "text-sky-600"
-          }`}
+          className="grid h-6 w-6 place-items-center rounded-md bg-background/90 text-sky-600 shadow-sm transition hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-default disabled:text-muted-foreground/40 disabled:hover:bg-background/90"
         >
           <Trash2 className="h-3.5 w-3.5" />
-        </span>
+        </button>
       </div>
     </div>
   );
@@ -723,6 +730,9 @@ function Grid({
       {items.map((img) => (
         <div
           key={img.id}
+          role="button"
+          tabIndex={0}
+          aria-label={`Add ${img.name || "photo"} to the current page`}
           draggable
           onDragStart={(e) => {
             e.dataTransfer.setData("text/photobook-image", img.id);
@@ -735,7 +745,13 @@ function Grid({
             }
           }}
           onDoubleClick={() => onAdd(img.id)}
-          className="group relative aspect-square overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm transition hover:border-accent/40 hover:shadow-md snap-start"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              onAdd(img.id);
+            }
+          }}
+          className="group relative aspect-square overflow-hidden rounded-lg border border-border/80 bg-muted shadow-sm transition hover:border-accent/40 hover:shadow-md snap-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1"
         >
           <button
             draggable={false}
@@ -747,11 +763,13 @@ function Grid({
               e.stopPropagation();
               onExclude(img.id);
             }}
-            className={`absolute left-1.5 top-1.5 z-20 flex h-5 w-5 items-center justify-center rounded border bg-white/95 text-charcoal shadow-sm transition hover:scale-105 ${
+            className={`absolute left-1.5 top-1.5 z-20 flex h-6 w-6 items-center justify-center rounded border bg-white/95 text-charcoal shadow-sm transition hover:scale-105 ${
               img.excluded
                 ? "border-accent bg-accent text-accent-foreground"
-                : "border-muted-foreground/30 opacity-0 group-hover:opacity-100"
+                : "border-muted-foreground/30 opacity-0 group-hover:opacity-100 max-md:opacity-100"
             }`}
+            aria-label={img.excluded ? "Include in autofill" : "Exclude from autofill"}
+            aria-pressed={img.excluded}
             title={img.excluded ? "Excluded from random autofill" : "Include in random autofill"}
           >
             {img.excluded ? (
@@ -768,7 +786,7 @@ function Grid({
               img.excluded ? "opacity-40 grayscale-[40%]" : ""
             }`}
           />
-          <div className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/60 via-transparent p-1.5 opacity-0 transition group-hover:opacity-100">
+          <div className="absolute inset-0 flex items-end justify-between bg-gradient-to-t from-black/60 via-transparent p-1.5 opacity-0 transition group-hover:opacity-100 max-md:opacity-100">
             <Button
               size="icon"
               variant="ghost"
@@ -777,7 +795,10 @@ function Grid({
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="h-7 w-7 text-white hover:bg-white/20"
+              className="h-8 w-8 text-white hover:bg-white/20"
+              aria-label={img.favorite ? "Remove from favorites" : "Add to favorites"}
+              aria-pressed={img.favorite}
+              title={img.favorite ? "Remove from favorites" : "Add to favorites"}
               onClick={(e) => {
                 e.stopPropagation();
                 onFav(img.id);
@@ -793,7 +814,9 @@ function Grid({
                 e.preventDefault();
                 e.stopPropagation();
               }}
-              className="h-7 w-7 text-white hover:bg-sky-500/80"
+              className="h-8 w-8 text-white hover:bg-sky-500/80"
+              aria-label={`Delete ${img.name || "photo"}`}
+              title="Delete photo"
               onClick={(e) => {
                 e.stopPropagation();
                 onDel(img.id);
