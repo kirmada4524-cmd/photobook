@@ -413,7 +413,7 @@ export function EditorHeader() {
   };
 
   const onMagicFill = () => {
-    const result = useBookStore.getState().autofillAllEmptyFrames();
+    const result = useBookStore.getState().magicFillAllEmptyFrames();
     if (result.framesFilled > 0) {
       toast.success(
         `Filled ${result.framesFilled} frame${result.framesFilled === 1 ? "" : "s"} across ${result.pagesTouched} page${result.pagesTouched === 1 ? "" : "s"}${result.framesUnlocked ? ` and unlocked ${result.framesUnlocked}` : ""}.`,

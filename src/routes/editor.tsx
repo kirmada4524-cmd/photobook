@@ -216,7 +216,7 @@ function EditorPage() {
           variant="ghost"
           className="flex h-full min-w-0 flex-1 flex-col gap-1 rounded-none px-1 text-accent"
           onClick={() => {
-            const result = useBookStore.getState().autofillAllEmptyFrames();
+            const result = useBookStore.getState().magicFillAllEmptyFrames();
             if (result.framesFilled > 0) {
               toast.success(`Filled ${result.framesFilled} frame(s).`);
             } else if (result.skippedReason === "no-available-images") {

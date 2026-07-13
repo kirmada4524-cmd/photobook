@@ -719,7 +719,7 @@ function Grid({
                 ? "border-accent bg-accent text-accent-foreground"
                 : "border-muted-foreground/30 opacity-0 group-hover:opacity-100"
             }`}
-            title={img.excluded ? "Excluded from random autofill" : "Include in random autofill"}
+            title={img.excluded ? "Excluded from Magic Fill" : "Include in Magic Fill"}
           >
             {img.excluded ? (
               <Check className="h-3 w-3 stroke-[3.5]" />

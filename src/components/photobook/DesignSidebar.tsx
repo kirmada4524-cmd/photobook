@@ -1,4 +1,4 @@
-import { useBookStore, type AutofillResult } from "@/lib/photobook/store";
+import { useBookStore } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { TEMPLATES } from "@/lib/photobook/templates";
 import { FRAMES, QUOTES, THEMES, PAGE_BORDERS } from "@/lib/photobook/catalogs";
@@ -25,7 +25,6 @@ import {
   Paintbrush,
   Eraser,
   RotateCcw,
-  Sparkles,
   Loader2,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
@@ -124,22 +123,6 @@ export function DesignSidebar() {
 
   const filteredTemplates = TEMPLATES;
 
-  const reportFill = (result: AutofillResult) => {
-    if (result.framesFilled > 0) {
-      toast.success(
-        `Filled ${result.framesFilled} frame${result.framesFilled === 1 ? "" : "s"} across ${result.pagesTouched} page${result.pagesTouched === 1 ? "" : "s"}${result.framesUnlocked ? ` and unlocked ${result.framesUnlocked}` : ""}.`,
-      );
-      return;
-    }
-    if (result.skippedReason === "no-available-images") {
-      toast.warning("Upload or include photos before using Magic Fill.");
-    } else if (result.skippedReason === "no-photo-frames") {
-      toast.message("Apply a layout with photo frames first.");
-    } else {
-      toast.message("All frames already have photos.");
-    }
-  };
-
   const safeApplyLayout = (templateId: (typeof TEMPLATES)[number]["id"]) => {
     try {
       applyLayout(templateId);
@@ -148,17 +131,6 @@ export function DesignSidebar() {
     } catch (error) {
       console.error("Failed to apply layout", error);
       toast.error("This layout could not be applied. Please try another layout.");
-    }
-  };
-
-  const applyAndFill = (templateId: (typeof TEMPLATES)[number]["id"]) => {
-    try {
-      safeApplyLayout(templateId);
-      const result = useBookStore.getState().autofillLeastUsedImages(currentPageId);
-      reportFill(result);
-    } catch (error) {
-      console.error("Failed to apply and fill layout", error);
-      toast.error("This layout could not be filled. Please try another layout.");
     }
   };
 
@@ -468,7 +440,7 @@ export function DesignSidebar() {
                                 frames · {t.category}
                               </div>
                             </button>
-                            <div className="mt-2 grid grid-cols-2 gap-1">
+                            <div className="mt-2">
                               <Button
                                 size="sm"
                                 variant="outline"
@@ -476,14 +448,6 @@ export function DesignSidebar() {
                                 onClick={() => safeApplyLayout(t.id)}
                               >
                                 Apply
-                              </Button>
-                              <Button
-                                size="sm"
-                                className="h-7 gap-1 bg-charcoal text-[10px] font-semibold text-cream hover:bg-charcoal/90"
-                                onClick={() => applyAndFill(t.id)}
-                              >
-                                <Sparkles className="h-3 w-3" />
-                                Fill
                               </Button>
                             </div>
                           </div>

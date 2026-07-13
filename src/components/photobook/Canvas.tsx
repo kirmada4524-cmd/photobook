@@ -10,13 +10,10 @@ import {
   Copy,
   LayoutGrid,
   Plus,
-  Shuffle,
-  Sparkles,
   Trash2,
   WandSparkles,
 } from "lucide-react";
 import { AddTemplatesModal } from "./AddTemplatesModal";
-import { toast } from "sonner";
 import { MobilePagesStrip } from "./LibrarySidebar";
 import { useAuthStore } from "@/lib/auth";
 
@@ -332,28 +329,6 @@ export function Canvas() {
     if (currentIdx < pages.length - 1) setCurrentPage(pages[currentIdx + 1].id);
   };
 
-  const autofillCurrentPage = () => {
-    if (!activePage) return;
-    const result = useBookStore.getState().autofillLeastUsedImages(activePage.id);
-    if (result.framesFilled > 0) {
-      toast.success(
-        `Autofilled ${result.framesFilled} frame${result.framesFilled === 1 ? "" : "s"} on this page${result.framesUnlocked ? ` and unlocked ${result.framesUnlocked}` : ""}.`,
-      );
-    } else if (result.skippedReason === "no-available-images") {
-      toast.warning("Upload or include photos before autofill.");
-    } else if (result.skippedReason === "no-photo-frames") {
-      toast.message("Apply a layout with photo frames first.");
-    } else {
-      toast.message("No unlocked frames to autofill on this page.");
-    }
-  };
-
-  const shuffleCurrentPage = () => {
-    if (!activePage) return;
-    useBookStore.getState().shufflePageImages(activePage.id);
-    toast.success("Shuffled unlocked photos on this page.");
-  };
-
   const currentLabel = pageLabel(currentIdx, pages.length);
 
   return (
@@ -410,25 +385,6 @@ export function Canvas() {
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-1.5 md:gap-2">
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1.5 shadow-sm px-2 md:px-3"
-            disabled={!activePage}
-            onClick={shuffleCurrentPage}
-          >
-            <Shuffle className="h-4 w-4" />
-            <span className="hidden sm:inline">Shuffle</span>
-          </Button>
-          <Button
-            size="sm"
-            className="gap-1.5 bg-accent text-accent-foreground shadow-sm hover:bg-accent/90 px-2 md:px-3"
-            disabled={!activePage}
-            onClick={autofillCurrentPage}
-          >
-            <Sparkles className="h-4 w-4" />
-            <span className="hidden sm:inline">Autofill</span>
-          </Button>
           {isAdmin && (
             <Button
               size="sm"

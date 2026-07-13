@@ -8,16 +8,14 @@ import {
   ChevronRight,
   ImagePlus,
   Maximize2,
-  Menu,
   Minimize2,
   Move,
   Palette,
   Rotate3D,
   RotateCcw,
-  User,
+  Settings2,
   X,
 } from "lucide-react";
-import { PreviewGuideAvatar } from "@/components/photobook/PreviewGuideAvatar";
 import { Page } from "@/components/photobook/Page";
 import { PAGE_SIZES } from "@/lib/photobook/types";
 import { useBookStore } from "@/lib/photobook/store";
@@ -64,6 +62,119 @@ function useViewportSize() {
   return size;
 }
 
+const NEKO_SPRITES = {
+  idle: [[-3, -3]],
+  alert: [[-7, -3]],
+  N: [
+    [-1, -2],
+    [-1, -3],
+  ],
+  NE: [
+    [0, -2],
+    [0, -3],
+  ],
+  E: [
+    [-3, 0],
+    [-3, -1],
+  ],
+  SE: [
+    [-5, -1],
+    [-5, -2],
+  ],
+  S: [
+    [-6, -3],
+    [-7, -2],
+  ],
+  SW: [
+    [-5, -3],
+    [-6, -1],
+  ],
+  W: [
+    [-4, -2],
+    [-4, -3],
+  ],
+  NW: [
+    [-1, 0],
+    [-1, -1],
+  ],
+} as const;
+
+function PreviewCursorCat() {
+  const catRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const cat = catRef.current;
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const finePointer = window.matchMedia("(pointer: fine)").matches;
+    if (!cat || reducedMotion || !finePointer) return;
+
+    let catX = 32;
+    let catY = 32;
+    let pointerX = 32;
+    let pointerY = 32;
+    let frameCount = 0;
+    let idleFrames = 0;
+    let lastFrame = 0;
+    let animationFrame = 0;
+
+    const setSprite = (name: keyof typeof NEKO_SPRITES, frame: number) => {
+      const frames = NEKO_SPRITES[name];
+      const sprite = frames[frame % frames.length];
+      cat.style.backgroundPosition = `${sprite[0] * 32}px ${sprite[1] * 32}px`;
+    };
+
+    const moveCat = () => {
+      frameCount += 1;
+      const diffX = catX - pointerX;
+      const diffY = catY - pointerY;
+      const distance = Math.hypot(diffX, diffY);
+
+      if (distance < 48) {
+        idleFrames += 1;
+        setSprite(idleFrames < 7 ? "alert" : "idle", 0);
+        return;
+      }
+
+      idleFrames = 0;
+      let direction = "";
+      direction += diffY / distance > 0.5 ? "N" : "";
+      direction += diffY / distance < -0.5 ? "S" : "";
+      direction += diffX / distance > 0.5 ? "W" : "";
+      direction += diffX / distance < -0.5 ? "E" : "";
+      setSprite(direction as keyof typeof NEKO_SPRITES, frameCount);
+
+      catX -= (diffX / distance) * 10;
+      catY -= (diffY / distance) * 10;
+      catX = Math.min(Math.max(16, catX), window.innerWidth - 16);
+      catY = Math.min(Math.max(16, catY), window.innerHeight - 16);
+      cat.style.transform = `translate3d(${catX - 16}px, ${catY - 16}px, 0)`;
+    };
+
+    const animate = (timestamp: number) => {
+      if (timestamp - lastFrame > 100) {
+        lastFrame = timestamp;
+        moveCat();
+      }
+      animationFrame = window.requestAnimationFrame(animate);
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      pointerX = event.clientX;
+      pointerY = event.clientY;
+      cat.dataset.visible = "true";
+    };
+
+    window.addEventListener("pointermove", handlePointerMove, { passive: true });
+    animationFrame = window.requestAnimationFrame(animate);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.cancelAnimationFrame(animationFrame);
+    };
+  }, []);
+
+  return <div ref={catRef} className="preview-cursor-cat" aria-hidden="true" />;
+}
+
 function PreviewPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
@@ -71,7 +182,6 @@ function PreviewPage() {
   }, []);
 
   const pages = useBookStore((s) => s.book.pages);
-  const title = useBookStore((s) => s.book.title);
   const initLibrary = useBookStore((s) => s.initLibrary);
   const initCustomAssets = useBookStore((s) => s.initCustomAssets);
   const { width: viewportW, height: viewportH } = useViewportSize();
@@ -90,8 +200,6 @@ function PreviewPage() {
   const orbitStartRef = useRef({ x: 0, y: 0, rotX: 0, rotY: 0 });
   const bookMoveStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const activeDragToolRef = useRef<"move" | "orbit" | null>(null);
-
-  const displayTitle = (title || "").trim() || "Untitled photobook";
 
   const patchSettings = useCallback((patch: Partial<PreviewSettings>) => {
     setSettings((prev) => {
@@ -149,7 +257,14 @@ function PreviewPage() {
   const singlePageMode = totalPages <= 1;
   const isMobileFullscreen = false;
   const isPortraitBook = singlePageMode;
-  const useFullscreenSpread = isFullscreen && !singlePageMode;
+  const isFirst = currentPage <= 0;
+  const isLast = currentPage >= totalPages - 1;
+  const isCoverView = !singlePageMode && isFirst;
+  const isBackCoverView = !singlePageMode && isLast;
+  const visibleSpreadPages = isPortraitBook || isCoverView || isBackCoverView ? 1 : 2;
+  const useFullscreenSpread = isFullscreen && visibleSpreadPages === 2;
+  const useHorizontalControls = !isMobilePreview && viewportW / viewportH >= 1.65;
+  const useVerticalControls = !isMobilePreview && !useHorizontalControls;
   const enableMoveTool = !isFullscreen && settings.enableBookMove;
   const enableOrbitTool = !isFullscreen && settings.enable3DOrbit;
   const canManipulateBook = enableMoveTool || enableOrbitTool;
@@ -165,25 +280,36 @@ function PreviewPage() {
       isMobilePreview ? 28 : 72,
       fitViewportH * (isMobilePreview ? 0.08 : 0.12),
     );
+    const controlsHeight = showToolsMenu
+      ? isMobilePreview
+        ? showSceneControls
+          ? 210
+          : 105
+        : useHorizontalControls
+          ? showSceneControls
+            ? 88
+            : 64
+          : 0
+      : 0;
+    const controlsWidth = showToolsMenu && useVerticalControls
+      ? showSceneControls
+        ? 250
+        : 205
+      : 0;
     const chromeW = isFullscreen
-      ? isMobileFullscreen
-        ? fullscreenMarginW
-        : fullscreenMarginW
+      ? fullscreenMarginW + controlsWidth
       : isMobilePreview
-        ? 36
-        : 120;
+        ? 48
+        : 160 + controlsWidth;
     const chromeH = isFullscreen
-      ? isMobileFullscreen
-        ? fullscreenMarginH
-        : fullscreenMarginH
+      ? fullscreenMarginH + controlsHeight
       : isMobilePreview
-        ? 200
-        : 220;
+        ? 104 + controlsHeight
+        : 96 + controlsHeight;
     const availableW = Math.max(260, fitViewportW - chromeW);
     const availableH = Math.max(240, fitViewportH - chromeH);
-    const spreadPages = isPortraitBook ? 1 : 2;
     return clamp(
-      Math.min(availableW / (pageW * spreadPages), availableH / pageH),
+      Math.min(availableW / (pageW * visibleSpreadPages), availableH / pageH),
       0.16,
       isFullscreen ? (isMobilePreview ? 0.78 : 0.86) : isMobilePreview ? 0.68 : 0.82,
     );
@@ -194,6 +320,11 @@ function PreviewPage() {
     isPortraitBook,
     pageH,
     pageW,
+    showSceneControls,
+    showToolsMenu,
+    useHorizontalControls,
+    useVerticalControls,
+    visibleSpreadPages,
     viewportH,
     viewportW,
   ]);
@@ -204,8 +335,6 @@ function PreviewPage() {
   const flipbookPageW = isMobileFullscreen ? scaledPageW * 2 : scaledPageW;
   const flipbookPageH = isMobileFullscreen ? scaledPageH * 2 : scaledPageH;
 
-  const activePage = previewPages[currentPage];
-  const isBlankPage = activePage?.id === "blank-placeholder-page";
   const mobileOffsetLimitX = Math.max(18, viewportW * 0.08);
   const mobileOffsetLimitY = Math.max(16, viewportH * 0.04);
   const effectiveBookOffsetX = isFullscreen
@@ -231,15 +360,6 @@ function PreviewPage() {
   const mobileFullscreenBookScale = isMobileFullscreen ? 2 : 1;
   const bookTransform = `${isMobileFullscreen ? "rotate(90deg) " : ""}translate(${effectiveBookOffsetX}px, ${effectiveBookOffsetY}px) scale(${mobileFullscreenBookScale}) rotateX(${effectiveRotateX}deg) rotateY(${effectiveRotateY}deg)`;
 
-  const pageLabel =
-    currentPage === 0
-      ? "Cover"
-      : currentPage >= totalPages - 1
-        ? "Back cover"
-        : isBlankPage
-          ? "Blank page"
-          : `Page ${pages.findIndex((p) => p.id === activePage?.id) + 1}`;
-
   const triggerFlip = useCallback(
     (direction: "next" | "prev") => {
       if (isFlipping) return;
@@ -264,13 +384,9 @@ function PreviewPage() {
 
   const goPrev = useCallback(() => triggerFlip("prev"), [triggerFlip]);
   const goNext = useCallback(() => triggerFlip("next"), [triggerFlip]);
-  const goToPage = (page: number) => {
-    setIsFlipping(true);
-    bookRef.current?.pageFlip().turnToPage(page);
-    window.setTimeout(() => setIsFlipping(false), isMobilePreview ? 1400 : 1100);
-  };
 
   const toggleFullscreen = async () => {
+    setShowSceneControls(false);
     try {
       if (document.fullscreenElement) {
         await document.exitFullscreen();
@@ -294,7 +410,7 @@ function PreviewPage() {
   const handleStagePointerDown = (e: React.PointerEvent) => {
     if (
       (e.target as HTMLElement).closest(
-        "button, a, input, label, .preview-guide-avatar, .book-preview-header-container, .book-preview-dots",
+        "button, a, input, label, .preview-controller",
       )
     ) {
       return;
@@ -379,8 +495,6 @@ function PreviewPage() {
       ? "atmosphere-custom"
       : (atmosphereMeta?.shellClass ?? "atmosphere-cozy");
 
-  const isFirst = currentPage <= 0;
-  const isLast = currentPage >= totalPages - 1;
   const stageCursor = enableMoveTool
     ? isDraggingBook
       ? "grabbing"
@@ -418,7 +532,7 @@ function PreviewPage() {
   return (
     <div
       ref={shellRef}
-      className={`book-preview-shell ${shellClass} ${isFullscreen ? "is-fullscreen" : ""} ${isMobileFullscreen ? "is-mobile-landscape-book" : ""}`}
+      className={`book-preview-shell ${shellClass} ${isFullscreen ? "is-fullscreen" : ""} ${isMobileFullscreen ? "is-mobile-landscape-book" : ""} ${useHorizontalControls ? "controls-horizontal" : ""} ${useVerticalControls ? "controls-vertical" : ""} ${showToolsMenu ? "has-open-controls" : ""} ${showToolsMenu && showSceneControls ? "has-open-scene" : ""}`}
       style={
         settings.atmosphere === "custom" && settings.customBackground
           ? ({ "--preview-custom-bg": `url(${settings.customBackground})` } as React.CSSProperties)
@@ -430,134 +544,111 @@ function PreviewPage() {
         isCustom={settings.atmosphere === "custom"}
       />
 
-      <header className="book-preview-header-container">
-        <div className="book-preview-topbar">
-          <Link to="/editor" className="book-preview-back">
-            <ArrowLeft className="h-4 w-4" />
-            <span>Editor</span>
-          </Link>
-
-          <div className="book-preview-title">
-            <BookOpen className="h-4 w-4" />
-            <span>{displayTitle}</span>
-          </div>
-
-          <div className="book-preview-count font-semibold opacity-80">
-            {pageLabel} / {totalPages}
-          </div>
-        </div>
-      </header>
-
-      <div className="book-preview-actionbar">
+      <div className="preview-controller">
         <button
           type="button"
           aria-expanded={showToolsMenu}
-          title="Open preview controls"
+          aria-label="Preview controls"
+          title="Open Preview Controls"
           onClick={() => setShowToolsMenu((value) => !value)}
-          className={`book-preview-tool-btn book-preview-menu-trigger ${showToolsMenu ? "is-active" : ""}`}
+          className={`preview-controller-trigger ${showToolsMenu ? "is-active" : ""}`}
         >
-          <Menu className="h-4 w-4" />
-          Controls
+          {showToolsMenu ? <X className="h-5 w-5" /> : <Settings2 className="h-5 w-5" />}
         </button>
 
         {showToolsMenu && (
-          <div className="book-preview-tools-menu">
-            <button
-              type="button"
-              aria-pressed={settings.enable3DOrbit}
-              title="Rotate the book view"
-              onClick={() =>
-                patchSettings({
-                  enable3DOrbit: !settings.enable3DOrbit,
-                  enableBookMove: false,
-                })
-              }
-              className={`book-preview-tool-btn ${settings.enable3DOrbit ? "is-active" : ""}`}
-            >
-              <Rotate3D className="h-3.5 w-3.5" />
-              3D Orbit
-            </button>
-
-            <button
-              type="button"
-              aria-pressed={settings.enableBookMove}
-              title="Move the book in normal preview"
-              onClick={() =>
-                patchSettings({
-                  enableBookMove: !settings.enableBookMove,
-                  enable3DOrbit: false,
-                })
-              }
-              className={`book-preview-tool-btn ${settings.enableBookMove ? "is-active" : ""}`}
-            >
-              <Move className="h-3.5 w-3.5" />
-              Move Book
-            </button>
-
-            {(settings.enable3DOrbit ||
-              settings.bookOffsetX !== 0 ||
-              settings.bookOffsetY !== 0 ||
-              settings.rotateX !== 12 ||
-              settings.rotateY !== 0) && (
+          <div className="book-preview-tools-menu" role="dialog" aria-label="Preview controls">
+            <div className="preview-controller-actions">
+              <Link to="/editor" className="book-preview-tool-btn" title="Back to editor">
+                <ArrowLeft className="h-3.5 w-3.5" />
+                Editor
+              </Link>
               <button
                 type="button"
-                title="Reset preview view"
+                aria-pressed={settings.enable3DOrbit}
+                disabled={isFullscreen}
+                title="Rotate the book view"
                 onClick={() =>
                   patchSettings({
-                    enable3DOrbit: false,
+                    enable3DOrbit: !settings.enable3DOrbit,
                     enableBookMove: false,
-                    rotateX: 12,
-                    rotateY: 0,
-                    bookOffsetX: 0,
-                    bookOffsetY: 0,
                   })
                 }
+                className={`book-preview-tool-btn ${settings.enable3DOrbit ? "is-active" : ""}`}
+              >
+                <Rotate3D className="h-3.5 w-3.5" />
+                3D Orbit
+              </button>
+
+              <button
+                type="button"
+                aria-pressed={settings.enableBookMove}
+                disabled={isFullscreen}
+                title="Move the book in normal preview"
+                onClick={() =>
+                  patchSettings({
+                    enableBookMove: !settings.enableBookMove,
+                    enable3DOrbit: false,
+                  })
+                }
+                className={`book-preview-tool-btn ${settings.enableBookMove ? "is-active" : ""}`}
+              >
+                <Move className="h-3.5 w-3.5" />
+                Move
+              </button>
+
+              {(settings.enable3DOrbit ||
+                settings.bookOffsetX !== 0 ||
+                settings.bookOffsetY !== 0 ||
+                settings.rotateX !== 12 ||
+                settings.rotateY !== 0) && (
+                <button
+                  type="button"
+                  title="Reset preview view"
+                  onClick={() =>
+                    patchSettings({
+                      enable3DOrbit: false,
+                      enableBookMove: false,
+                      rotateX: 12,
+                      rotateY: 0,
+                      bookOffsetX: 0,
+                      bookOffsetY: 0,
+                    })
+                  }
+                  className="book-preview-tool-btn"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Reset
+                </button>
+              )}
+
+              <button
+                type="button"
+                aria-expanded={showSceneControls}
+                title="Change preview scene"
+                onClick={() => setShowSceneControls((value) => !value)}
+                className={`book-preview-tool-btn ${showSceneControls ? "is-active" : ""}`}
+              >
+                <Palette className="h-3.5 w-3.5" />
+                Scene
+              </button>
+
+              <button
+                type="button"
+                title={isFullscreen ? "Exit fullscreen" : "Open fullscreen preview"}
+                onClick={toggleFullscreen}
                 className="book-preview-tool-btn"
               >
-                <RotateCcw className="h-3.5 w-3.5" />
-                Reset
+                {isFullscreen ? (
+                  <Minimize2 className="h-3.5 w-3.5" />
+                ) : (
+                  <Maximize2 className="h-3.5 w-3.5" />
+                )}
+                {isFullscreen ? "Exit" : "Full"}
               </button>
-            )}
-
-            <button
-              type="button"
-              aria-expanded={showSceneControls}
-              title="Change preview scene"
-              onClick={() => setShowSceneControls((value) => !value)}
-              className={`book-preview-tool-btn ${showSceneControls ? "is-active" : ""}`}
-            >
-              <Palette className="h-3.5 w-3.5" />
-              Scene
-            </button>
-
-            <button
-              type="button"
-              title={isFullscreen ? "Exit fullscreen" : "Open fullscreen preview"}
-              onClick={toggleFullscreen}
-              className="book-preview-tool-btn"
-            >
-              {isFullscreen ? (
-                <Minimize2 className="h-3.5 w-3.5" />
-              ) : (
-                <Maximize2 className="h-3.5 w-3.5" />
-              )}
-              {isFullscreen ? "Exit" : "Full"}
-            </button>
-            {showSceneControls && !isFullscreen && (
+            </div>
+            {showSceneControls && (
               <div className="book-preview-scene-panel" role="group" aria-label="Preview scene">
-                <div className="book-preview-scene-header">
-                  <span>Scene</span>
-                  <button
-                    type="button"
-                    aria-pressed={settings.showGuide}
-                    title="Toggle preview guide"
-                    onClick={() => patchSettings({ showGuide: !settings.showGuide })}
-                    className={`book-preview-guide-toggle ${settings.showGuide ? "is-active" : ""}`}
-                  >
-                    <User className="h-3.5 w-3.5" />
-                    Guide
-                  </button>
-                </div>
                 <div className="book-preview-swatch-group">
                   {PREVIEW_ATMOSPHERES.map((atm) => (
                     <button
@@ -601,27 +692,7 @@ function PreviewPage() {
         )}
       </div>
 
-      {isFullscreen && (
-        <button
-          type="button"
-          className="book-preview-fullscreen-exit"
-          onClick={toggleFullscreen}
-          aria-label="Exit fullscreen"
-        >
-          <Minimize2 className="h-5 w-5" />
-        </button>
-      )}
-
-      {settings.showGuide && (
-        <PreviewGuideAvatar
-          currentPage={currentPage}
-          totalPages={totalPages}
-          isFlipping={isFlipping}
-          onPrev={goPrev}
-          onNext={goNext}
-          onDismiss={() => patchSettings({ showGuide: false })}
-        />
-      )}
+      <PreviewCursorCat />
 
       <input
         ref={bgInputRef}
@@ -672,8 +743,8 @@ function PreviewPage() {
         </button>
 
         <div
-          className={`book-preview-book ${canManipulateBook ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${singlePageMode && isFirst ? "is-cover" : ""} ${singlePageMode && isLast ? "is-back-cover" : ""} ${
-            isFullscreen && useFullscreenSpread && !singlePageMode
+          className={`book-preview-book ${canManipulateBook ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${isCoverView ? "is-cover" : ""} ${isBackCoverView ? "is-back-cover" : ""} ${
+            isFullscreen && useFullscreenSpread
               ? "has-fullscreen-binding"
               : ""
           }`}
@@ -681,7 +752,7 @@ function PreviewPage() {
             {
               "--preview-page-width": `${scaledPageW}px`,
               "--preview-page-height": `${scaledPageH}px`,
-              "--preview-spread-pages": isPortraitBook ? 1 : 2,
+              "--preview-spread-pages": visibleSpreadPages,
               transform: bookTransform,
             } as React.CSSProperties
           }
@@ -705,6 +776,7 @@ function PreviewPage() {
             </div>
           ) : (
             <FlipBook
+              key={`preview-book-${flipbookPageW}x${flipbookPageH}-${visibleSpreadPages}-${isFullscreen ? "full" : "window"}`}
               ref={bookRef}
               width={flipbookPageW}
               height={flipbookPageH}
@@ -716,8 +788,8 @@ function PreviewPage() {
               drawShadow
               flippingTime={isMobilePreview ? 1300 : 1050}
               usePortrait={false}
-              startPage={0}
-              showCover={false}
+              startPage={Math.min(currentPage, totalPages - 1)}
+              showCover
               autoSize={false}
               maxShadowOpacity={0.6}
               mobileScrollSupport={false}
@@ -763,17 +835,6 @@ function PreviewPage() {
         </button>
       </main>
 
-      <nav className="book-preview-dots" aria-label="Preview pages">
-        {previewPages.map((page, index) => (
-          <button
-            key={page.id}
-            type="button"
-            className={index === currentPage ? "is-active" : ""}
-            onClick={() => goToPage(index)}
-            aria-label={`Go to page ${index + 1}`}
-          />
-        ))}
-      </nav>
     </div>
   );
 }

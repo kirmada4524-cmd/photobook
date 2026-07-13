@@ -18,7 +18,7 @@
 - Use the editable project title consistently in editor, preview, export, and `.wanderbook` flows.
 - Automatic filling must not overwrite already-filled frames.
 - Excluded photos must stay excluded from automatic fill flows.
-- Magic Fill fills empty frames across the whole book; Auto Fill fills the current page.
+- Magic Fill fills empty frames across the whole book.
 - Empty locked frames may be unlocked by fill actions only when they are empty.
 
 ## UI Rules

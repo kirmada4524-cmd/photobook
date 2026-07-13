@@ -184,7 +184,7 @@ const withFixedPageSize = (book: Book): Book => ({
   pageSizeId: FIXED_PAGE_SIZE_ID,
 });
 
-export type AutofillResult = {
+export type MagicFillResult = {
   framesFilled: number;
   pagesTouched: number;
   framesUnlocked: number;
@@ -237,9 +237,7 @@ type Actions = {
   initLibrary: () => Promise<void>;
   toggleExclude: (id: string) => void;
   setPageSize: (sizeId: string) => void;
-  shufflePageImages: (pageId: string) => void;
-  autofillLeastUsedImages: (pageId: string) => AutofillResult;
-  autofillAllEmptyFrames: () => AutofillResult;
+  magicFillAllEmptyFrames: () => MagicFillResult;
   clearEmptyPhotoFrames: (pageId?: string) => number;
   toggleLibrarySidebar: () => void;
   toggleDesignSidebar: () => void;
@@ -375,13 +373,8 @@ const adminAssetState = (library: AdminAssetLibrary) => ({
   adminBackgrounds: [...library.backgrounds].sort((a, b) => a.createdAt - b.createdAt),
 });
 
-function fillEmptyFrames(
-  state: State,
-  pageId?: string,
-): { stats: AutofillResult; nextBook?: Book } {
-  const candidatePages = pageId
-    ? state.book.pages.filter((page) => page.id === pageId)
-    : state.book.pages;
+function magicFillEmptyFrames(state: State): { stats: MagicFillResult; nextBook?: Book } {
+  const candidatePages = state.book.pages;
   const hasPhotoFrames = candidatePages.some((page) =>
     page.elements.some((el) => el.type === "photo"),
   );
@@ -414,8 +407,6 @@ function fillEmptyFrames(
   const touchedPageIds = new Set<string>();
 
   const pages = state.book.pages.map((page) => {
-    if (pageId && page.id !== pageId) return page;
-
     let changed = false;
     const elements = page.elements.map((el) => {
       if (el.type !== "photo") return el;
@@ -451,84 +442,6 @@ function fillEmptyFrames(
     stats: {
       framesFilled,
       pagesTouched: touchedPageIds.size,
-      framesUnlocked,
-    },
-    nextBook: { ...state.book, pages },
-  };
-}
-
-function fillPageFrames(state: State, pageId: string): { stats: AutofillResult; nextBook?: Book } {
-  const page = state.book.pages.find((p) => p.id === pageId);
-  if (!page || !page.elements.some((el) => el.type === "photo")) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-photo-frames",
-      },
-    };
-  }
-
-  const availableImages = getLeastUsedImages(state.library, state.book.pages);
-  if (availableImages.length === 0) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-available-images",
-      },
-    };
-  }
-
-  let pickIndex = 0;
-  let framesFilled = 0;
-  let framesUnlocked = 0;
-
-  const pages = state.book.pages.map((p) => {
-    if (p.id !== pageId) return p;
-
-    let changed = false;
-    const elements = p.elements.map((el) => {
-      if (el.type !== "photo") return el;
-
-      const hasImage = el.imageId && state.library.some((img) => img.id === el.imageId);
-      const shouldFill = !el.locked || !hasImage;
-      if (!shouldFill) return el;
-
-      const picked = availableImages[pickIndex % availableImages.length];
-      pickIndex++;
-      framesFilled++;
-      changed = true;
-
-      const keepLocked = Boolean(p.adminTemplateProtected && !useAuthStore.getState().isAdmin);
-      if (el.locked && !hasImage && !keepLocked) framesUnlocked++;
-      return {
-        ...el,
-        imageId: picked.id,
-        locked: keepLocked ? true : hasImage ? el.locked : false,
-      } as PhotoElement;
-    });
-
-    return changed ? { ...p, elements } : p;
-  });
-
-  if (framesFilled === 0) {
-    return {
-      stats: {
-        framesFilled: 0,
-        pagesTouched: 0,
-        framesUnlocked: 0,
-        skippedReason: "no-empty-frames",
-      },
-    };
-  }
-
-  return {
-    stats: {
-      framesFilled,
-      pagesTouched: 1,
       framesUnlocked,
     },
     nextBook: { ...state.book, pages },
@@ -1052,44 +965,8 @@ export const useBookStore = create<State & Actions>()(
           set((s) => ({
             book: withFixedPageSize(s.book),
           })),
-        shufflePageImages: (pageId) =>
-          set((s) => {
-            const page = s.book.pages.find((p) => p.id === pageId);
-            if (!page) return s;
-            const photos = page.elements.filter((e) => e.type === "photo") as PhotoElement[];
-            const unlockedPhotos = photos.filter((p) => !p.locked);
-            if (unlockedPhotos.length <= 1) return s;
-
-            const imageIds = unlockedPhotos.map((p) => p.imageId);
-            const shuffled = [...imageIds].sort(() => Math.random() - 0.5);
-
-            return {
-              book: {
-                ...s.book,
-                pages: s.book.pages.map((p) =>
-                  p.id === pageId
-                    ? {
-                        ...p,
-                        elements: p.elements.map((el) => {
-                          if (el.type === "photo" && !el.locked) {
-                            const idx = unlockedPhotos.findIndex((ph) => ph.id === el.id);
-                            return { ...el, imageId: shuffled[idx] } as PhotoElement;
-                          }
-                          return el;
-                        }),
-                      }
-                    : p,
-                ),
-              },
-            };
-          }),
-        autofillLeastUsedImages: (pageId) => {
-          const result = fillPageFrames(get(), pageId);
-          if (result.nextBook) set({ book: result.nextBook });
-          return result.stats;
-        },
-        autofillAllEmptyFrames: () => {
-          const result = fillEmptyFrames(get());
+        magicFillAllEmptyFrames: () => {
+          const result = magicFillEmptyFrames(get());
           if (result.nextBook) set({ book: result.nextBook });
           return result.stats;
         },
