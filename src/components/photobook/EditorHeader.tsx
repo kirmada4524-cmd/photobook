@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { useAuthStore } from "@/lib/auth";
 import { exportBookPdf } from "@/lib/photobook/exportPdf";
+import { exportBookPdfFromDom } from "@/lib/photobook/exportPdfDom";
 import { Button } from "@/components/ui/button";
 import {
   Download,
@@ -402,13 +403,21 @@ export function EditorHeader() {
   };
 
   const onExport = async () => {
-    toast.message("Preparing PDF…");
+    const toastId = toast.loading("Preparing high-quality PDF…");
     try {
-      await exportBookPdf(displayTitle);
-      toast.success("PDF downloaded");
+      // Primary path: rasterize the real page DOM so the PDF matches the editor exactly
+      // (page borders, decorative frames, gradient themes). Fall back to the vector
+      // renderer if html2canvas can't run for any reason.
+      try {
+        await exportBookPdfFromDom(displayTitle);
+      } catch (domError) {
+        console.error("High-fidelity PDF export failed, falling back to vector renderer", domError);
+        await exportBookPdf(displayTitle);
+      }
+      toast.success("PDF downloaded", { id: toastId });
     } catch (e) {
       console.error(e);
-      toast.error("Export failed");
+      toast.error("Export failed", { id: toastId });
     }
   };
 

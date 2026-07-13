@@ -1,13 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useRouter } from "@tanstack/react-router";
+import gsap from "gsap";
+import { useGsapEntrance, useScrollReveal } from "@/lib/anim";
 import {
   BookOpen,
   Check,
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Download,
   FolderOpen,
   Layers,
+  LayoutGrid,
   Lock,
   LogOut,
   Plus,
@@ -15,6 +19,7 @@ import {
   Shield,
   Sparkles,
   Trash2,
+  WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
@@ -153,7 +158,11 @@ function TemplateCard({
             : "border-black/10 shadow-[0_8px_24px_-18px_rgba(0,0,0,0.45)]"
         }`}
       >
-        <TemplatePreview template={template} showSamplePhotos className="absolute inset-0" />
+        <TemplatePreview
+          template={template}
+          showSamplePhotos
+          className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.06]"
+        />
         <span
           className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border transition ${
             selected
@@ -377,6 +386,60 @@ function HomeTemplatesGrid({
   );
 }
 
+const FEATURES = [
+  {
+    icon: LayoutGrid,
+    title: "Designer templates",
+    body: "Start from dozens of ready-made layouts for every occasion — birthdays, travel, weddings and more.",
+  },
+  {
+    icon: WandSparkles,
+    title: "Magic Fill",
+    body: "Drop in your photos and auto-fill every frame in a single tap. Shuffle until it feels just right.",
+  },
+  {
+    icon: Download,
+    title: "Print-ready PDF",
+    body: "Export a crisp, high-resolution book that looks exactly like your design — ready to print.",
+  },
+];
+
+function FeatureStrip() {
+  const revealRef = useScrollReveal<HTMLDivElement>("[data-feature-card]", { y: 24 });
+  return (
+    <section className="border-b border-black/[0.06]">
+      <div
+        ref={revealRef}
+        className="mx-auto grid max-w-6xl gap-3 px-4 py-8 sm:grid-cols-3 sm:gap-4 sm:px-6 md:py-10"
+      >
+        {FEATURES.map(({ icon: Icon, title, body }) => (
+          <div
+            key={title}
+            data-feature-card
+            className="group flex items-start gap-3 rounded-xl border border-black/[0.08] bg-white/70 p-4 shadow-[0_10px_30px_-24px_rgba(0,0,0,0.5)] transition duration-200 hover:-translate-y-0.5 hover:border-black/[0.14] hover:shadow-[0_16px_40px_-24px_rgba(0,0,0,0.55)] sm:flex-col sm:gap-2.5"
+          >
+            <span
+              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg transition-transform duration-300 group-hover:scale-110"
+              style={{ background: `color-mix(in oklab, ${C.brand} 14%, white)`, color: C.brand }}
+            >
+              <Icon className="h-5 w-5" />
+            </span>
+            <div className="min-w-0">
+              <h3
+                className="text-[15px] font-semibold"
+                style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
+              >
+                {title}
+              </h3>
+              <p className="mt-1 text-[13px] leading-5 text-black/55">{body}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function LandingPage() {
   const router = useRouter();
   const { currentUser, logout, isAdmin } = useAuthStore();
@@ -402,6 +465,40 @@ export function LandingPage() {
   const applyPageTemplate = useBookStore((s) => s.applyPageTemplate);
   const heroRef = useRef<HTMLDivElement>(null);
   const [scrollPct, setScrollPct] = useState(0);
+
+  // Orchestrated hero entrance (reduced-motion safe).
+  // IMPORTANT: GSAP only animates TRANSFORM here, never opacity. `.from()` applies its start
+  // value via immediateRender; if a tween is ever throttled/interrupted the target would be
+  // stranded at that value. By keeping opacity out of GSAP, a stalled tween leaves content a few
+  // px offset but fully VISIBLE. The fade is handled by a pure-CSS keyframe that always completes.
+  const heroAnimRef = useGsapEntrance<HTMLDivElement>(() => {
+    const tl = gsap.timeline({ defaults: { ease: "power3.out", duration: 0.7 } });
+    tl.from("[data-anim='eyebrow']", { y: 16 })
+      .from("[data-anim='title']", { y: 26 }, "-=0.5")
+      .from("[data-anim='subtitle']", { y: 18 }, "-=0.5")
+      .from("[data-anim='cta'] > *", { y: 16, stagger: 0.08 }, "-=0.45")
+      .from("[data-anim='hero-book']", { y: 30, scale: 0.96, duration: 0.9 }, "-=0.65");
+  });
+
+  // Reveal template category rails as they scroll into view (re-runs once templates load).
+  const templatesRevealRef = useScrollReveal<HTMLElement>(
+    "[data-template-category]",
+    { y: 28 },
+    [isLoadingTemplates],
+  );
+
+  // Slow ambient drift on the decorative hero blobs.
+  const decoRef = useGsapEntrance<HTMLDivElement>(() => {
+    gsap.to("[data-anim='blob']", {
+      y: (i: number) => (i % 2 === 0 ? -22 : 20),
+      x: (i: number) => (i % 2 === 0 ? 14 : -12),
+      duration: 7,
+      ease: "sine.inOut",
+      repeat: -1,
+      yoyo: true,
+      stagger: 0.6,
+    });
+  });
 
   useEffect(() => {
     let active = true;
@@ -462,7 +559,13 @@ export function LandingPage() {
           44%, 58% { transform: rotateY(-52deg); filter: brightness(0.96); }
           82%, 100% { transform: rotateY(-2deg); filter: brightness(1); }
         }
-        @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; animation: none !important; } }
+        /* Pure-CSS fade for the hero — always reaches opacity:1, so content can never strand hidden. */
+        @keyframes hero-fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .hero-fade { animation: hero-fade-in 0.9s ease-out both; }
+        @media (prefers-reduced-motion: reduce) {
+          * { scroll-behavior: auto !important; animation: none !important; }
+          .hero-fade { opacity: 1 !important; }
+        }
       `}</style>
 
       <header className="sticky top-0 z-40 border-b" style={{ backdropFilter: "blur(12px)", background: `${C.cream}e8`, borderColor: `${C.ink}0d` }}>
@@ -494,46 +597,92 @@ export function LandingPage() {
       </header>
 
       <section ref={heroRef} className="relative overflow-hidden border-b border-black/5">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.05fr_0.95fr] md:py-12">
+        {/* Decorative animated backdrop */}
+        <div ref={decoRef} className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+          <div
+            data-anim="blob"
+            className="absolute -left-24 -top-16 h-72 w-72 rounded-full blur-3xl sm:h-96 sm:w-96"
+            style={{ background: `radial-gradient(circle, color-mix(in oklab, ${C.brand} 30%, transparent), transparent 70%)` }}
+          />
+          <div
+            data-anim="blob"
+            className="absolute -right-16 top-24 h-72 w-72 rounded-full blur-3xl sm:h-96 sm:w-96"
+            style={{ background: `radial-gradient(circle, color-mix(in oklab, ${C.mint} 55%, transparent), transparent 70%)` }}
+          />
+          <div
+            data-anim="blob"
+            className="absolute bottom-0 left-1/3 h-56 w-56 rounded-full blur-3xl"
+            style={{ background: `radial-gradient(circle, color-mix(in oklab, ${C.brand} 16%, transparent), transparent 70%)` }}
+          />
+        </div>
+
+        <div
+          ref={heroAnimRef}
+          className="hero-fade relative z-10 mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.05fr_0.95fr] md:py-12"
+        >
           <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 text-xs font-semibold" style={{ color: C.brand }}>
+            <div
+              data-anim="eyebrow"
+              className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold"
+              style={{
+                color: C.brand,
+                borderColor: `color-mix(in oklab, ${C.brand} 25%, transparent)`,
+                background: `color-mix(in oklab, ${C.brand} 8%, white)`,
+              }}
+            >
               <Sparkles className="h-3.5 w-3.5" /> Beautiful photobooks, made simply
             </div>
-            <h1 className="mt-4 max-w-xl text-4xl leading-[1.02] md:text-6xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif", fontWeight: 700 }}>
+            <h1 data-anim="title" className="mt-4 max-w-xl text-4xl leading-[1.02] md:text-6xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif", fontWeight: 700 }}>
               Your memories, <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", fontWeight: 400 }}>bound beautifully.</span>
             </h1>
-            <p className="mt-4 max-w-md text-sm leading-6 text-black/60 sm:text-base">
+            <p data-anim="subtitle" className="mt-4 max-w-md text-sm leading-6 text-black/60 sm:text-base">
               Pick a template, add it to your bucket, and start designing in seconds.
             </p>
 
-            <div className="mt-6 grid max-w-lg grid-cols-2 gap-2.5">
-              <button onClick={() => setShowNewProject(true)} className="group col-span-2 flex items-center justify-between rounded-md px-4 py-3 text-sm font-semibold text-white shadow-lg" style={{ background: C.brand }}>
+            <div data-anim="cta" className="mt-6 grid max-w-lg grid-cols-2 gap-2.5">
+              <button onClick={() => setShowNewProject(true)} className="group col-span-2 flex items-center justify-between rounded-md px-4 py-3 text-sm font-semibold text-white shadow-lg transition duration-200 hover:-translate-y-0.5 hover:shadow-xl" style={{ background: C.brand }}>
                 <span className="inline-flex items-center gap-2"><Plus className="h-4 w-4 transition group-hover:rotate-90" />Create New Project</span>
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4 transition group-hover:translate-x-0.5" />
               </button>
-              <button onClick={() => { setTemplateModalCategory(null); setShowTemplates(true); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
+              <button onClick={() => { setTemplateModalCategory(null); setShowTemplates(true); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 hover:shadow-md" style={{ borderColor: `${C.ink}18` }}>
                 <Layers className="h-4 w-4" /> Templates
               </button>
-              <button onClick={() => setShowProjects("recent")} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
+              <button onClick={() => setShowProjects("recent")} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold transition duration-200 hover:-translate-y-0.5 hover:shadow-md" style={{ borderColor: `${C.ink}18` }}>
                 <Clock3 className="h-4 w-4" /> Recent
               </button>
-              <button onClick={() => setShowProjects("open")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60" style={{ borderColor: `${C.ink}2a` }}>
+              <button onClick={() => setShowProjects("open")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60 transition duration-200 hover:-translate-y-0.5 hover:text-black/80" style={{ borderColor: `${C.ink}2a` }}>
                 <FolderOpen className="h-4 w-4" /> Open saved project
               </button>
             </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-black/45">
+              <span className="inline-flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5" style={{ color: C.brand }} /> No account needed
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5" style={{ color: C.brand }} /> Works in your browser
+              </span>
+              <span className="inline-flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5" style={{ color: C.brand }} /> Print-ready export
+              </span>
+            </div>
           </div>
 
-          <AnimatedHeroBook scrollPct={scrollPct} />
+          <div data-anim="hero-book">
+            <AnimatedHeroBook scrollPct={scrollPct} />
+          </div>
         </div>
       </section>
 
-      <section className="bg-white/55 py-7 md:py-9">
+      <FeatureStrip />
+
+      <section ref={templatesRevealRef} className="bg-white/55 py-7 md:py-9">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mb-2 flex items-end justify-between gap-3">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.brand }}>Template buckets</div>
-              <h2 className="mt-1 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>Choose pages for your book</h2>
-              <p className="mt-1 text-sm text-black/50">Tap templates to build your bucket. The number shows page order.</p>
+          <div className="mb-3 flex items-end justify-between gap-3 sm:mb-2">
+            <div className="min-w-0">
+              <div className="text-[11px] font-bold uppercase tracking-[0.18em] sm:text-xs" style={{ color: C.brand }}>Template buckets</div>
+              <h2 className="mt-1 text-xl font-semibold sm:text-2xl md:text-3xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>Choose pages for your book</h2>
+              <p className="mt-1 text-[13px] text-black/50 sm:text-sm">Tap templates to build your bucket. The number shows page order.</p>
             </div>
           </div>
           <HomeTemplatesGrid
@@ -552,8 +701,19 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t py-5 text-center text-xs text-black/45" style={{ borderColor: `${C.ink}0d` }}>
-        (c) 2026 Yaara Photobook Studio
+      {/* Clearance so the fixed template-bucket bar never covers the footer on mobile */}
+      {selectedTemplateIds.length > 0 && <div className="h-24 sm:h-20" aria-hidden="true" />}
+
+      <footer className="border-t" style={{ borderColor: `${C.ink}0d` }}>
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-6 text-center sm:flex-row sm:px-6 sm:text-left">
+          <div className="flex items-center gap-2">
+            <BookOpen className="h-4 w-4" style={{ color: C.brand }} />
+            <span className="text-base" style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>
+              Yaara
+            </span>
+          </div>
+          <p className="text-xs text-black/45">© 2026 Yaara Photobook Studio · Made for your memories</p>
+        </div>
       </footer>
 
       <LoginModal open={showLogin} onOpenChange={setShowLogin} />

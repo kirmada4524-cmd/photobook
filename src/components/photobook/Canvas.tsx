@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { prefersReducedMotion } from "@/lib/anim";
 import { useBookStore, undo, redo } from "@/lib/photobook/store";
 import { Page } from "./Page";
 import { PAGE_SIZES, type PhotoElement } from "@/lib/photobook/types";
@@ -69,8 +71,19 @@ function CanvasWorkspace({
   onFitChange,
 }: WorkspaceProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const pageCardRef = useRef<HTMLDivElement>(null);
 
   const [size, setSize] = useState(() => getAvailableSize());
+
+  // Gentle crossfade when navigating between pages.
+  useEffect(() => {
+    if (!pageCardRef.current || prefersReducedMotion()) return;
+    gsap.fromTo(
+      pageCardRef.current,
+      { opacity: 0.5, scale: 0.985 },
+      { opacity: 1, scale: 1, duration: 0.32, ease: "power2.out" },
+    );
+  }, [currentPageId]);
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -131,7 +144,8 @@ function CanvasWorkspace({
       }
     >
       <div
-        className="shrink-0 overflow-hidden rounded-sm shadow-photo ring-1 ring-black/5 animate-float-in"
+        ref={pageCardRef}
+        className="shrink-0 overflow-hidden rounded-sm shadow-photo ring-1 ring-black/5"
         style={{ width: scaledW, height: scaledH }}
       >
         <div
@@ -442,7 +456,7 @@ export function Canvas() {
           </Button>
 
           {/* Zoom controls (desktop) */}
-          <div className="ml-1 hidden md:flex items-center gap-0.5 rounded-md border bg-background/60 pl-1 pr-0.5">
+          <div className="editor-toolbar-cluster ml-1 hidden md:flex items-center gap-0.5 pl-1 pr-0.5">
             <Button
               size="icon"
               variant="ghost"
