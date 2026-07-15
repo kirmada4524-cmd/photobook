@@ -61,24 +61,46 @@ class SidebarErrorBoundary extends Component<{ children: ReactNode }, { hasError
 
 function EditorPage() {
   const [mounted, setMounted] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const showLibrarySidebar = useBookStore((state) => state.showLibrarySidebar);
   const showDesignSidebar = useBookStore((state) => state.showDesignSidebar);
 
   useEffect(() => {
-    if (window.innerWidth < 768) {
-      const state = useBookStore.getState();
+    const state = useBookStore.getState();
+    const mobile = window.innerWidth < 768;
+    setIsMobile(mobile);
+    if (mobile) {
       if (state.showLibrarySidebar) state.toggleLibrarySidebar();
       if (state.showDesignSidebar) state.toggleDesignSidebar();
+    } else if (state.showLibrarySidebar && state.showDesignSidebar) {
+      state.toggleDesignSidebar();
     }
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
     setMounted(true);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   if (!mounted) {
     return (
-      <div className="flex h-[100dvh] w-full flex-col items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-accent border-t-transparent" />
-          <p className="animate-pulse text-sm font-medium text-muted-foreground">Loading editor...</p>
+      <div
+        className="editor-loading-shell h-[100dvh] w-full bg-background"
+        aria-label="Loading editor"
+      >
+        <div className="editor-loading-header">
+          <div className="editor-loading-block h-9 w-9" />
+          <div className="editor-loading-block h-8 w-24" />
+          <div className="editor-loading-block h-9 min-w-0 flex-1 sm:max-w-72" />
+          <div className="editor-loading-block h-9 w-20" />
+        </div>
+        <div className="editor-loading-body">
+          <div className="editor-loading-rail hidden md:block" />
+          <div className="editor-loading-panel hidden md:block" />
+          <div className="editor-loading-workspace">
+            <div className="editor-loading-toolbar" />
+            <div className="editor-loading-page" />
+          </div>
+          <div className="editor-loading-panel hidden lg:block" />
         </div>
       </div>
     );
@@ -93,24 +115,28 @@ function EditorPage() {
       <div className="editor-body flex min-h-0 flex-1 overflow-hidden flex-col md:flex-row">
         <EditorToolRail />
 
-        <div className="hidden h-full shrink-0 md:flex">
-          {showLibrarySidebar && <LibrarySidebar />}
-        </div>
+        {!isMobile && (
+          <div className="editor-panel-enter-left hidden h-full shrink-0 md:flex">
+            {showLibrarySidebar && <LibrarySidebar />}
+          </div>
+        )}
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <Canvas />
         </div>
 
-        <div className="hidden h-full shrink-0 md:flex">
-          {showDesignSidebar && (
-            <SidebarErrorBoundary>
-              <DesignSidebar />
-            </SidebarErrorBoundary>
-          )}
-        </div>
+        {!isMobile && (
+          <div className="editor-panel-enter-right hidden h-full shrink-0 md:flex">
+            {showDesignSidebar && (
+              <SidebarErrorBoundary>
+                <DesignSidebar />
+              </SidebarErrorBoundary>
+            )}
+          </div>
+        )}
       </div>
 
-      {panelOpen && (
+      {isMobile && panelOpen && (
         <div className="editor-mobile-panel shrink-0 overflow-hidden border-t bg-background md:hidden">
           <div className="editor-mobile-panel-handle" aria-hidden="true" />
           {showLibrarySidebar && (

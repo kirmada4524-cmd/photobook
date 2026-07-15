@@ -9,7 +9,7 @@ import {
   Search,
   ImagePlus,
   Check,
-  LayoutGrid,
+  PanelLeftClose,
   Plus,
   Copy,
   ChevronDown,
@@ -98,15 +98,21 @@ export function LibrarySidebar() {
     document.removeEventListener("mouseup", stopResize);
   };
 
+  const panelTitle = activeSection === "pages" ? "Book pages" : "Photo library";
+  const panelSubtitle =
+    activeSection === "pages"
+      ? `${pages.length} page${pages.length === 1 ? "" : "s"} in this book`
+      : `${library.length} photo${library.length === 1 ? "" : "s"} uploaded`;
+
   return (
     <aside
       style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
       className="editor-sidebar relative flex h-full shrink-0 flex-col md:border-r w-full md:w-auto bg-background"
     >
-      <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
+      <div className="editor-sidebar-header hidden md:flex items-center justify-between px-3.5 py-3">
         <div>
-          <h2 className="font-display text-base font-semibold">Photo Library</h2>
-          <p className="text-[11px] text-muted-foreground">{library.length} images uploaded</p>
+          <h2 className="text-sm font-semibold">{panelTitle}</h2>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{panelSubtitle}</p>
         </div>
         <Button
           variant="ghost"
@@ -115,47 +121,23 @@ export function LibrarySidebar() {
           onClick={useBookStore((s) => s.toggleLibrarySidebar)}
           title="Hide sidebar"
         >
-          <LayoutGrid className="h-4 w-4" />
+          <PanelLeftClose className="h-4 w-4" />
         </Button>
       </div>
 
-      <div className="space-y-3 p-3">
-        <div className="hidden md:grid grid-cols-2 gap-2 rounded-xl border bg-card p-2 shadow-sm">
-          <button
-            type="button"
-            onClick={() => setActiveSection("pages")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-              activeSection === "pages"
-                ? "bg-accent text-accent-foreground"
-                : "bg-muted/50 hover:bg-muted"
-            }`}
-          >
-            Pages
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveSection("photos")}
-            className={`rounded-lg px-3 py-2 text-sm font-semibold transition ${
-              activeSection === "photos"
-                ? "bg-accent text-accent-foreground"
-                : "bg-muted/50 hover:bg-muted"
-            }`}
-          >
-            Photos
-          </button>
-        </div>
-
+      <div
+        className={
+          activeSection === "pages"
+            ? "flex min-h-0 flex-1 flex-col p-3"
+            : "space-y-3 p-3"
+        }
+      >
         {activeSection === "pages" ? (
-          <div className="hidden md:flex max-h-[calc(100vh-185px)] min-h-0 flex-col rounded-xl border bg-card p-4 shadow-sm">
+          <div className="editor-sidebar-section hidden min-h-0 flex-1 flex-col md:flex">
             <div className="mb-2 flex items-center justify-between">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pages
-                </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {pages.length} pages in this book
-                </p>
-              </div>
+              <p className="text-[10px] font-medium text-muted-foreground">
+                Drag thumbnails to reorder
+              </p>
               <Button size="sm" variant="outline" className="h-8 gap-1.5 px-2" onClick={addPage}>
                 <Plus className="h-3.5 w-3.5" />
                 Add
@@ -337,7 +319,13 @@ export function LibrarySidebar() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4">
+      <div
+        className={
+          activeSection === "photos"
+            ? "min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-3 pb-4"
+            : "hidden"
+        }
+      >
         {activeSection === "photos" && (
           <>
             {library.length === 0 && (

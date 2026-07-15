@@ -37,7 +37,9 @@ export async function uploadImageKitFile({
   if (!hasImageKitStorage()) throw missingImageKitStorageError();
 
   const form = new FormData();
-  form.append("file", new Blob([buffer], { type: mime }), filename);
+  const bytes = new Uint8Array(buffer.byteLength);
+  bytes.set(buffer);
+  form.append("file", new Blob([bytes], { type: mime }), filename);
   form.append("fileName", filename);
   form.append("folder", folder.startsWith("/") ? folder : `/${folder}`);
   form.append("useUniqueFileName", "false");

@@ -61,7 +61,8 @@ const MAX_GLOBAL_TEMPLATE_ASSET_DATA_URL_LENGTH = 800_000;
 const isDataUrl = (value: unknown): value is string =>
   typeof value === "string" && value.startsWith("data:");
 
-const shouldUploadTemplateAsset = (value: string) => isDataUrl(value) || value.startsWith("blob:");
+const shouldUploadTemplateAsset = (value: string) =>
+  value.startsWith("data:") || value.startsWith("blob:");
 
 const readBlobAsDataUrl = (blob: Blob) =>
   new Promise<string>((resolve, reject) => {

@@ -154,6 +154,23 @@ export function DesignSidebar() {
   }, [pageStructureLocked]);
 
   const filteredTemplates = TEMPLATES;
+  const panelMeta: Record<string, { title: string; subtitle: string }> = {
+    layouts: { title: "Templates", subtitle: "Apply a layout to this page" },
+    frames: {
+      title:
+        selected?.type === "text" || selected?.type === "quote" ? "Text editor" : "Image tools",
+      subtitle:
+        selected?.type === "text" || selected?.type === "quote"
+          ? "Typography, spacing and effects"
+          : "Frame, crop and image position",
+    },
+    border: { title: "Page border", subtitle: "Finish the edge of this page" },
+    stickers: { title: "Stickers", subtitle: `${editorStickerCount} studio assets available` },
+    quotes: { title: "Text editor", subtitle: "Add and style text on the page" },
+    draw: { title: "Draw", subtitle: "Pens, markers and freehand tools" },
+    bg: { title: "Background", subtitle: "Colors and studio backgrounds" },
+  };
+  const currentPanel = panelMeta[activeTab] ?? panelMeta.layouts;
 
   const safeApplyLayout = (templateId: (typeof TEMPLATES)[number]["id"]) => {
     try {
@@ -171,10 +188,10 @@ export function DesignSidebar() {
       style={typeof window !== "undefined" && window.innerWidth < 768 ? undefined : { width }}
       className="editor-sidebar relative flex h-full shrink-0 flex-col md:border-l w-full md:w-auto bg-background"
     >
-      <div className="editor-sidebar-header hidden md:flex items-center justify-between p-4">
+      <div className="editor-sidebar-header hidden md:flex items-center justify-between px-3.5 py-3">
         <div>
-          <h2 className="font-display text-base font-semibold">Design Studio</h2>
-          <p className="text-[11px] text-muted-foreground">Layouts · frames · backgrounds</p>
+          <h2 className="text-sm font-semibold">{currentPanel.title}</h2>
+          <p className="mt-0.5 text-[10px] text-muted-foreground">{currentPanel.subtitle}</p>
         </div>
         <Button
           variant="ghost"
@@ -475,16 +492,6 @@ export function DesignSidebar() {
                                 frames · {t.category}
                               </div>
                             </button>
-                            <div className="mt-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-7 text-[10px] font-semibold"
-                                onClick={() => safeApplyLayout(t.id)}
-                              >
-                                Apply
-                              </Button>
-                            </div>
                           </div>
                         ))}
                       </div>

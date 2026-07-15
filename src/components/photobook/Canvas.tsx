@@ -9,11 +9,14 @@ import {
   ChevronRight,
   Copy,
   LayoutGrid,
+  Minus,
   Plus,
+  Scan,
   Trash2,
   WandSparkles,
   Scissors,
   Wand2,
+  ZoomIn,
 } from "lucide-react";
 import { AddTemplatesModal } from "./AddTemplatesModal";
 import { MobilePagesStrip } from "./LibrarySidebar";
@@ -91,10 +94,18 @@ function CanvasWorkspace({
 
   // Mobile → auto-fit to available space (8px padding each side)
   // Desktop → use user-controlled zoom from store
-  const PAD = 16;
+  const mobilePad = 16;
+  const desktopPad = 56;
+  const fitZoom = Math.max(
+    0.05,
+    Math.min(1.1, (size.w - desktopPad) / pageW, (size.h - desktopPad) / pageH),
+  );
   const effectiveZoom = size.mobile
-    ? Math.max(0.05, Math.min(1.0, Math.min((size.w - PAD) / pageW, (size.h - PAD) / pageH)))
-    : zoom;
+    ? Math.max(
+        0.05,
+        Math.min(1, (size.w - mobilePad) / pageW, (size.h - mobilePad) / pageH),
+      )
+    : Math.max(0.05, fitZoom * zoom);
 
   const scaledW = pageW * effectiveZoom;
   const scaledH = pageH * effectiveZoom;
@@ -105,7 +116,7 @@ function CanvasWorkspace({
       className={
         "editor-canvas-workspace min-h-0 flex-1 " +
         "flex items-center justify-center overflow-hidden p-2 " +
-        "md:overflow-auto md:p-10"
+        "md:overflow-auto md:p-7"
       }
     >
       <div
@@ -132,6 +143,112 @@ function CanvasWorkspace({
 }
 
 // ─── Prev / Next navigation bar ──────────────────────────────────────────────
+interface DesktopFilmstripProps {
+  pages: { id: string }[];
+  currentPageId: string;
+  zoom: number;
+  onSelect: (id: string) => void;
+  onAdd: () => void;
+  onZoom: (zoom: number) => void;
+}
+
+function DesktopFilmstrip({
+  pages,
+  currentPageId,
+  zoom,
+  onSelect,
+  onAdd,
+  onZoom,
+}: DesktopFilmstripProps) {
+  const preset = PAGE_SIZES[0];
+  const thumbSize = 62;
+  const thumbScale = thumbSize / preset.width;
+  const activeRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [currentPageId]);
+
+  return (
+    <div className="editor-filmstrip hidden shrink-0 items-center border-t md:flex">
+      <div className="editor-filmstrip-label shrink-0">
+        <span>Book pages</span>
+        <strong>{pages.length}</strong>
+      </div>
+
+      <div className="editor-filmstrip-pages flex min-w-0 flex-1 items-center gap-2 overflow-x-auto px-3 py-2">
+        {pages.map((page, index) => {
+          const active = page.id === currentPageId;
+          return (
+            <button
+              key={page.id}
+              ref={active ? activeRef : undefined}
+              type="button"
+              onClick={() => onSelect(page.id)}
+              className={`editor-filmstrip-page group shrink-0 ${active ? "is-active" : ""}`}
+              title={`Open ${pageLabel(index, pages.length)}`}
+            >
+              <span className="editor-filmstrip-thumb" style={{ width: thumbSize, height: thumbSize }}>
+                <span
+                  style={{
+                    display: "block",
+                    width: preset.width,
+                    height: preset.height,
+                    transform: `scale(${thumbScale})`,
+                    transformOrigin: "top left",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <Page pageId={page.id} interactive={false} />
+                </span>
+              </span>
+              <span className="editor-filmstrip-page-label">{pageLabel(index, pages.length)}</span>
+            </button>
+          );
+        })}
+
+        <button type="button" className="editor-filmstrip-add shrink-0" onClick={onAdd}>
+          <Plus className="h-4 w-4" />
+          <span>Add page</span>
+        </button>
+      </div>
+
+      <div className="editor-filmstrip-zoom shrink-0" aria-label="Canvas zoom">
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={() => onZoom(Math.max(0.25, zoom - 0.05))}
+          title="Zoom out"
+        >
+          <Minus className="h-4 w-4" />
+        </Button>
+        <span className="w-11 text-center text-[11px] font-semibold tabular-nums">
+          {Math.round(zoom * 100)}%
+        </span>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={() => onZoom(Math.min(1.5, zoom + 0.05))}
+          title="Zoom in"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="ghost"
+          className="h-8 w-8"
+          onClick={() => onZoom(1)}
+          title="Fit page"
+        >
+          <Scan className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 interface PageNavProps {
   currentIdx: number;
   total: number;
@@ -208,6 +325,7 @@ export function Canvas() {
   const pages = useBookStore((s) => s.book.pages);
   const currentPageId = useBookStore((s) => s.currentPageId);
   const zoom = useBookStore((s) => s.zoom);
+  const setZoom = useBookStore((s) => s.setZoom);
   const selectedId = useBookStore((s) => s.selectedElementId);
   const removeElement = useBookStore((s) => s.removeElement);
   const addPage = useBookStore((s) => s.addPage);
@@ -339,7 +457,7 @@ export function Canvas() {
   return (
     <div className="editor-canvas-root flex h-full w-full min-w-0 min-h-0 flex-col">
       {/* ── Top toolbar ── */}
-      <div className="editor-canvas-toolbar sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur md:px-4">
+      <div className="editor-canvas-toolbar z-20 flex flex-wrap items-center justify-between gap-2 border bg-background/95 px-3 py-2 backdrop-blur md:px-3">
         <div className="flex items-center gap-1.5 md:gap-2">
           {/* Page label pill */}
           <div className="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
@@ -529,6 +647,15 @@ export function Canvas() {
         currentPageId={activePage?.id ?? currentPageId}
         currentIdx={currentIdx}
         totalPages={pages.length}
+      />
+
+      <DesktopFilmstrip
+        pages={pages}
+        currentPageId={currentPageId}
+        zoom={zoom}
+        onSelect={setCurrentPage}
+        onAdd={addPage}
+        onZoom={setZoom}
       />
 
       <AddTemplatesModal open={showAddTemplates} onOpenChange={setShowAddTemplates} />

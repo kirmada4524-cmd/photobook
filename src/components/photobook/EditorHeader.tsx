@@ -10,8 +10,6 @@ import {
   Undo2,
   Redo2,
   BookOpen,
-  Image,
-  Palette,
   FolderOpen,
   FileUp,
   FileDown,
@@ -49,10 +47,6 @@ export function EditorHeader() {
   const { isAdmin, currentUser, logout } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
 
-  const showLibrarySidebar = useBookStore((s) => s.showLibrarySidebar);
-  const showDesignSidebar = useBookStore((s) => s.showDesignSidebar);
-  const toggleLibrarySidebar = useBookStore((s) => s.toggleLibrarySidebar);
-  const toggleDesignSidebar = useBookStore((s) => s.toggleDesignSidebar);
   const projectFilePath = useBookStore((s) => s.projectFilePath);
   const setProjectFilePath = useBookStore((s) => s.setProjectFilePath);
   const currentPageId = useBookStore((s) => s.currentPageId);
@@ -431,8 +425,12 @@ export function EditorHeader() {
 
   return (
     <header className="editor-header flex h-[60px] min-h-[60px] w-full shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-2 sm:gap-2 sm:px-3">
-      <div className="flex shrink-0 items-center gap-2">
-        <Link to="/" className="flex items-center gap-2.5 group">
+      <div className="editor-header-brand-wrap flex shrink-0 items-center gap-2">
+        <Link
+          to="/"
+          aria-label="Yaara home"
+          className="editor-header-brand group flex items-center gap-2.5"
+        >
           <div className="editor-brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-md transition-transform group-hover:scale-105">
             <BookOpen className="h-4 w-4" />
           </div>
@@ -458,7 +456,12 @@ export function EditorHeader() {
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold">
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label="Project menu"
+            className="editor-header-project-menu h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold"
+          >
             <FolderOpen className="h-4 w-4" />
             <span className="hidden xl:inline">Project</span>
           </Button>
@@ -513,26 +516,7 @@ export function EditorHeader() {
         />
       </label>
 
-      <div className="editor-toolbar-cluster hidden shrink-0 items-center md:flex">
-        <Button
-          variant={showLibrarySidebar ? "secondary" : "ghost"}
-          size="icon"
-          onClick={toggleLibrarySidebar}
-          title="Toggle Photos Sidebar"
-          className={showLibrarySidebar ? "bg-accent/15 text-accent" : ""}
-        >
-          <Image className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={showDesignSidebar ? "secondary" : "ghost"}
-          size="icon"
-          onClick={toggleDesignSidebar}
-          title="Toggle Design Sidebar"
-          className={showDesignSidebar ? "bg-accent/15 text-accent" : ""}
-        >
-          <Palette className="h-4 w-4" />
-        </Button>
-        <div className="mx-1 h-5 w-px bg-border" />
+      <div className="editor-toolbar-cluster hidden shrink-0 items-center md:flex" aria-label="History">
         <Button variant="ghost" size="icon" onClick={() => undo()} title="Undo (Ctrl+Z)">
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -586,6 +570,8 @@ export function EditorHeader() {
         <Button
           size="sm"
           onClick={() => exportProject(title)}
+          aria-label="Download project"
+          title="Download project"
           className="h-9 shrink-0 gap-1.5 bg-primary px-2.5 text-primary-foreground shadow-sm hover:bg-primary/90"
         >
           <Download className="h-4 w-4" />
@@ -596,7 +582,12 @@ export function EditorHeader() {
       {currentUser ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="ml-0 h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold">
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Account menu"
+              className="ml-0 h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold"
+            >
               <UserRound className="h-4 w-4" />
               <span className="hidden xl:inline">
                 {isAdmin ? "Admin" : "User"} {currentUser.username}
@@ -613,6 +604,7 @@ export function EditorHeader() {
         <Button
           variant="outline"
           size="sm"
+          aria-label="Sign in"
           className="ml-0 h-9 shrink-0 gap-1.5 px-2"
           onClick={() => setShowLogin(true)}
         >

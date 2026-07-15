@@ -56,18 +56,31 @@ export function EditorToolRail() {
   const toggleDesignSidebar = useBookStore((state) => state.toggleDesignSidebar);
 
   const openTool = (tool: EditorTool) => {
-    setActiveTool(tool);
     if (designTools.has(tool)) {
+      if (activeTool === tool && showDesignSidebar) {
+        toggleDesignSidebar();
+        return;
+      }
+      setActiveTool(tool);
       if (showLibrarySidebar) toggleLibrarySidebar();
       if (!showDesignSidebar) toggleDesignSidebar();
       dispatchPanelEvent("photobook:design-tab", { tab: tool });
       return;
     }
 
+    if (activeTool === tool && showLibrarySidebar) {
+      toggleLibrarySidebar();
+      return;
+    }
+    setActiveTool(tool);
     if (showDesignSidebar) toggleDesignSidebar();
     if (!showLibrarySidebar) toggleLibrarySidebar();
     dispatchPanelEvent("photobook:library-section", { section: tool });
   };
+
+  const isActive = (tool: EditorTool) =>
+    activeTool === tool &&
+    (designTools.has(tool) ? showDesignSidebar : showLibrarySidebar);
 
   const magicFill = () => {
     const result = useBookStore.getState().magicFillAllEmptyFrames();
@@ -90,7 +103,7 @@ export function EditorToolRail() {
             <button
               key={id}
               type="button"
-              className={`editor-rail-button ${activeTool === id ? "is-active" : ""}`}
+              className={`editor-rail-button ${isActive(id) ? "is-active" : ""}`}
               onClick={() => openTool(id)}
               title={label}
             >
@@ -126,15 +139,27 @@ export function EditorToolRail() {
           <Redo2 className="h-[18px] w-[18px]" />
           <span>Redo</span>
         </button>
-        <button type="button" className={`editor-mobile-tool ${activeTool === "layouts" ? "is-active" : ""}`} onClick={() => openTool("layouts")}>
+        <button
+          type="button"
+          className={`editor-mobile-tool ${isActive("layouts") ? "is-active" : ""}`}
+          onClick={() => openTool("layouts")}
+        >
           <LayoutTemplate className="h-[18px] w-[18px]" />
           <span>Templates</span>
         </button>
-        <button type="button" className={`editor-mobile-tool ${activeTool === "photos" ? "is-active" : ""}`} onClick={() => openTool("photos")}>
+        <button
+          type="button"
+          className={`editor-mobile-tool ${isActive("photos") ? "is-active" : ""}`}
+          onClick={() => openTool("photos")}
+        >
           <Image className="h-[18px] w-[18px]" />
           <span>Photos</span>
         </button>
-        <button type="button" className={`editor-mobile-tool ${activeTool === "quotes" ? "is-active" : ""}`} onClick={() => openTool("quotes")}>
+        <button
+          type="button"
+          className={`editor-mobile-tool ${isActive("quotes") ? "is-active" : ""}`}
+          onClick={() => openTool("quotes")}
+        >
           <Type className="h-[18px] w-[18px]" />
           <span>Text</span>
         </button>
