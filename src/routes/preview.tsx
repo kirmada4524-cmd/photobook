@@ -743,7 +743,7 @@ function PreviewPage() {
         </button>
 
         <div
-          className={`book-preview-book ${canManipulateBook ? "is-draggable" : ""} ${isPortraitBook ? "is-single-page" : ""} ${isCoverView ? "is-cover" : ""} ${isBackCoverView ? "is-back-cover" : ""} ${
+          className={`book-preview-book ${canManipulateBook ? "is-draggable" : ""} ${isFlipping ? "is-flipping" : ""} ${isPortraitBook ? "is-single-page" : ""} ${isCoverView ? "is-cover" : ""} ${isBackCoverView ? "is-back-cover" : ""} ${
             isFullscreen && useFullscreenSpread
               ? "has-fullscreen-binding"
               : ""
@@ -776,7 +776,7 @@ function PreviewPage() {
             </div>
           ) : (
             <FlipBook
-              key={`preview-book-${flipbookPageW}x${flipbookPageH}-${visibleSpreadPages}-${isFullscreen ? "full" : "window"}`}
+              key={`preview-book-${flipbookPageW}x${flipbookPageH}-${isFullscreen ? "full" : "window"}`}
               ref={bookRef}
               width={flipbookPageW}
               height={flipbookPageH}
