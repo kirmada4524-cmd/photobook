@@ -1456,6 +1456,7 @@ function PhotoBody({
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
   const naturalSizeRef = useRef({ width: 0, height: 0 });
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureStartRef = useRef<{
     centerX: number;
@@ -1627,6 +1628,16 @@ function PhotoBody({
 
   const scale = el.imageScale ?? 1;
   const minImageScale = el.freePhoto ? 0.1 : 1;
+  const baseFitScale =
+    naturalSize.width > 0 && naturalSize.height > 0
+      ? el.freePhoto
+        ? Math.min(el.w / naturalSize.width, el.h / naturalSize.height)
+        : Math.max(el.w / naturalSize.width, el.h / naturalSize.height)
+      : 1;
+  const baseImageWidth =
+    naturalSize.width > 0 ? naturalSize.width * baseFitScale : el.w;
+  const baseImageHeight =
+    naturalSize.height > 0 ? naturalSize.height * baseFitScale : el.h;
 
   return (
     <div
@@ -1701,16 +1712,19 @@ function PhotoBody({
           <img
             src={img.src}
             alt=""
-            className={`h-full w-full ${el.freePhoto ? "object-contain" : "object-cover"}`}
+            className="max-h-none max-w-none shrink-0 select-none"
             draggable={false}
             onLoad={(event) => {
-              naturalSizeRef.current = {
+              const size = {
                 width: event.currentTarget.naturalWidth,
                 height: event.currentTarget.naturalHeight,
               };
+              naturalSizeRef.current = size;
+              setNaturalSize(size);
             }}
             style={{
-              objectPosition: "50% 50%",
+              width: baseImageWidth,
+              height: baseImageHeight,
               transform: `translate3d(${el.imageX ?? 0}px, ${el.imageY ?? 0}px, 0) scale(${scale}) rotate(${el.imageRotation ?? 0}deg)`,
               transformOrigin: "center",
               filter: photoFilterCss(el),
