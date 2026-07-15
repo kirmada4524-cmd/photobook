@@ -141,6 +141,18 @@ export function DesignSidebar() {
     return () => window.removeEventListener("photobook:open-crop-tools", openCropTools);
   }, []);
 
+  useEffect(() => {
+    const openDesignTab = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
+      if (["layouts", "frames", "border", "stickers", "quotes", "draw", "bg"].includes(tab ?? "")) {
+        const protectedTab = ["border", "stickers", "quotes", "draw", "bg"].includes(tab ?? "");
+        setActiveTab(pageStructureLocked && protectedTab ? "layouts" : (tab as string));
+      }
+    };
+    window.addEventListener("photobook:design-tab", openDesignTab);
+    return () => window.removeEventListener("photobook:design-tab", openDesignTab);
+  }, [pageStructureLocked]);
+
   const filteredTemplates = TEMPLATES;
 
   const safeApplyLayout = (templateId: (typeof TEMPLATES)[number]["id"]) => {
@@ -180,30 +192,30 @@ export function DesignSidebar() {
         onValueChange={setActiveTab}
         className="flex flex-1 flex-col overflow-hidden"
       >
-        <TabsList className="m-3 grid grid-cols-7">
-          <TabsTrigger value="layouts" className="text-[11px]">
+        <TabsList className="editor-design-tabs mx-3 my-2 flex h-auto justify-start gap-1 overflow-x-auto p-1">
+          <TabsTrigger value="layouts" className="min-w-fit px-2.5 text-[11px]">
             Layout
           </TabsTrigger>
-          <TabsTrigger value="frames" className="text-[11px]">
+          <TabsTrigger value="frames" className="min-w-fit px-2.5 text-[11px]">
             {selected?.type === "photo"
               ? "Frame"
               : selected?.type === "text" || selected?.type === "quote"
                 ? "Text"
                 : "Frame"}
           </TabsTrigger>
-          <TabsTrigger value="border" disabled={pageStructureLocked} className="text-[11px]">
+          <TabsTrigger value="border" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
             Border
           </TabsTrigger>
-          <TabsTrigger value="stickers" disabled={pageStructureLocked} className="text-[11px]">
+          <TabsTrigger value="stickers" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
             Stick
           </TabsTrigger>
-          <TabsTrigger value="quotes" disabled={pageStructureLocked} className="text-[11px]">
+          <TabsTrigger value="quotes" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
             Text
           </TabsTrigger>
-          <TabsTrigger value="draw" disabled={pageStructureLocked} className="text-[11px]">
+          <TabsTrigger value="draw" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
             Draw
           </TabsTrigger>
-          <TabsTrigger value="bg" disabled={pageStructureLocked} className="text-[11px]">
+          <TabsTrigger value="bg" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
             BG
           </TabsTrigger>
         </TabsList>

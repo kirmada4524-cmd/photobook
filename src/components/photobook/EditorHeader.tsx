@@ -430,7 +430,7 @@ export function EditorHeader() {
   };
 
   return (
-    <header className="editor-header flex h-14 min-h-14 w-full shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-2 sm:gap-2 sm:px-3">
+    <header className="editor-header flex h-[60px] min-h-[60px] w-full shrink-0 flex-nowrap items-center gap-1.5 overflow-hidden border-b px-2 sm:gap-2 sm:px-3">
       <div className="flex shrink-0 items-center gap-2">
         <Link to="/" className="flex items-center gap-2.5 group">
           <div className="editor-brand-mark grid h-9 w-9 shrink-0 place-items-center rounded-md transition-transform group-hover:scale-105">
@@ -501,7 +501,7 @@ export function EditorHeader() {
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <label className="group min-w-[82px] max-w-[300px] flex-1 rounded-md border border-transparent bg-muted/50 px-2.5 py-1 transition focus-within:border-accent/40 focus-within:bg-card focus-within:shadow-sm hover:bg-muted/70 sm:min-w-[140px]">
+      <label className="editor-project-title group min-w-[82px] max-w-[320px] flex-1 rounded-md border px-2.5 py-1 transition sm:min-w-[140px]">
         <span className="hidden text-[9px] font-bold uppercase text-muted-foreground sm:block">
           Project title
         </span>

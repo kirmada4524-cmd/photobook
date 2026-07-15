@@ -109,7 +109,7 @@ function CanvasWorkspace({
       }
     >
       <div
-        className="shrink-0 overflow-hidden rounded-sm shadow-photo ring-1 ring-black/5 animate-float-in"
+        className="editor-page-stage shrink-0 overflow-hidden rounded-sm shadow-photo ring-1 ring-black/5 animate-float-in"
         style={{ width: scaledW, height: scaledH }}
       >
         <div
@@ -337,9 +337,9 @@ export function Canvas() {
   const currentLabel = pageLabel(currentIdx, pages.length);
 
   return (
-    <div className="flex h-full w-full min-w-0 min-h-0 flex-col">
+    <div className="editor-canvas-root flex h-full w-full min-w-0 min-h-0 flex-col">
       {/* ── Top toolbar ── */}
-      <div className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur md:px-4">
+      <div className="editor-canvas-toolbar sticky top-0 z-20 flex flex-wrap items-center justify-between gap-2 border-b bg-background/95 px-3 py-2 backdrop-blur md:px-4">
         <div className="flex items-center gap-1.5 md:gap-2">
           {/* Page label pill */}
           <div className="rounded-md bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">

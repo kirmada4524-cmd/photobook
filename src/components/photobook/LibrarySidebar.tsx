@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +48,15 @@ export function LibrarySidebar() {
     dropped: false,
   });
   const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const openSection = (event: Event) => {
+      const section = (event as CustomEvent<{ section?: "pages" | "photos" }>).detail?.section;
+      if (section === "pages" || section === "photos") setActiveSection(section);
+    };
+    window.addEventListener("photobook:library-section", openSection);
+    return () => window.removeEventListener("photobook:library-section", openSection);
+  }, []);
 
   const handleFiles = async (files: FileList | File[]) => {
     const arr = Array.from(files).filter((f) => f.type.startsWith("image/"));
