@@ -10,6 +10,7 @@ import {
   type FrameStyle,
 } from "./types";
 import { useBookStore } from "./store";
+import { photoFilterCss } from "./photo-filters";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -152,6 +153,7 @@ const drawImageCover = (
   imageX = 0,
   imageY = 0,
   imageScale = 1,
+  imageRotation = 0,
 ) => {
   const natW = img.naturalWidth;
   const natH = img.naturalHeight;
@@ -164,12 +166,11 @@ const drawImageCover = (
   const scaledW = natW * totalScale;
   const scaledH = natH * totalScale;
 
-  // 3. Center the scaled image in the destination box, then apply offset
-  //    imageX / imageY are destination-space pixel offsets from center
-  const drawX = destX + (destW - scaledW) / 2 + imageX;
-  const drawY = destY + (destH - scaledH) / 2 + imageY;
-
-  ctx.drawImage(img, drawX, drawY, scaledW, scaledH);
+  ctx.save();
+  ctx.translate(destX + destW / 2 + imageX, destY + destH / 2 + imageY);
+  ctx.rotate((imageRotation * Math.PI) / 180);
+  ctx.drawImage(img, -scaledW / 2, -scaledH / 2, scaledW, scaledH);
+  ctx.restore();
 };
 
 const drawImageContain = (
@@ -182,6 +183,7 @@ const drawImageContain = (
   imageX = 0,
   imageY = 0,
   imageScale = 1,
+  imageRotation = 0,
 ) => {
   const natW = img.naturalWidth;
   const natH = img.naturalHeight;
@@ -189,9 +191,11 @@ const drawImageContain = (
   const scale = Math.min(destW / natW, destH / natH) * imageScale;
   const w = natW * scale;
   const h = natH * scale;
-  const x = destX + (destW - w) / 2 + imageX;
-  const y = destY + (destH - h) / 2 + imageY;
-  ctx.drawImage(img, x, y, w, h);
+  ctx.save();
+  ctx.translate(destX + destW / 2 + imageX, destY + destH / 2 + imageY);
+  ctx.rotate((imageRotation * Math.PI) / 180);
+  ctx.drawImage(img, -w / 2, -h / 2, w, h);
+  ctx.restore();
 };
 
 const drawImageCoverWithMasks = async (
@@ -202,6 +206,7 @@ const drawImageCoverWithMasks = async (
 ) => {
   const masks = [photo.magicMask, photo.eraseMask].filter((src): src is string => Boolean(src));
   if (masks.length === 0) {
+    ctx.filter = photoFilterCss(photo);
     const drawPhoto = photo.freePhoto ? drawImageContain : drawImageCover;
     drawPhoto(
       ctx,
@@ -213,6 +218,7 @@ const drawImageCoverWithMasks = async (
       photo.imageX ?? 0,
       photo.imageY ?? 0,
       photo.imageScale ?? 1,
+      photo.imageRotation ?? 0,
     );
     return;
   }
@@ -222,6 +228,7 @@ const drawImageCoverWithMasks = async (
   canvas.height = Math.max(1, Math.round(photo.h * scale));
   const maskedCtx = canvas.getContext("2d");
   if (!maskedCtx) return;
+  maskedCtx.filter = photoFilterCss(photo);
 
   const drawPhoto = photo.freePhoto ? drawImageContain : drawImageCover;
   drawPhoto(
@@ -234,6 +241,7 @@ const drawImageCoverWithMasks = async (
     (photo.imageX ?? 0) * scale,
     (photo.imageY ?? 0) * scale,
     photo.imageScale ?? 1,
+    photo.imageRotation ?? 0,
   );
 
   for (const maskSrc of masks) {
@@ -695,10 +703,9 @@ export async function exportBookPdf(title: string) {
           ctx.globalAlpha = photo.opacity ?? 1;
 
           // Determine clip radius
-          const clipRadius =
-            photo.freePhoto
-              ? 0
-              : photo.frame !== "none"
+          const clipRadius = photo.freePhoto
+            ? 0
+            : photo.frame !== "none"
               ? 4
               : photo.shape && photo.shape !== "none"
                 ? 0
@@ -790,9 +797,7 @@ export async function exportBookPdf(title: string) {
         } catch {
           /* skip invalid drawing path */
         }
-      }
-
-      else if (el.type === "quote" || el.type === "text") {
+      } else if (el.type === "quote" || el.type === "text") {
         const txt = el as QuoteElement | TextElement;
         const isQ = el.type === "quote";
 

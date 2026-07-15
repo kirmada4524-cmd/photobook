@@ -8,6 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import type { PhotoElement, QuoteElement, TextElement, PageElement } from "@/lib/photobook/types";
 import {
+  PHOTO_FILTER_DEFAULTS,
+  PHOTO_FILTER_PRESETS,
+  resetPhotoEditsPatch,
+} from "@/lib/photobook/photo-filters";
+import {
   BringToFront,
   SendToBack,
   ArrowUp,
@@ -30,6 +35,8 @@ import {
   Brush,
   Highlighter,
   Zap,
+  Scissors,
+  SlidersHorizontal,
 } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -220,19 +227,39 @@ export function DesignSidebar() {
                 ? "Text"
                 : "Frame"}
           </TabsTrigger>
-          <TabsTrigger value="border" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
+          <TabsTrigger
+            value="border"
+            disabled={pageStructureLocked}
+            className="min-w-fit px-2.5 text-[11px]"
+          >
             Border
           </TabsTrigger>
-          <TabsTrigger value="stickers" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
+          <TabsTrigger
+            value="stickers"
+            disabled={pageStructureLocked}
+            className="min-w-fit px-2.5 text-[11px]"
+          >
             Stick
           </TabsTrigger>
-          <TabsTrigger value="quotes" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
+          <TabsTrigger
+            value="quotes"
+            disabled={pageStructureLocked}
+            className="min-w-fit px-2.5 text-[11px]"
+          >
             Text
           </TabsTrigger>
-          <TabsTrigger value="draw" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
+          <TabsTrigger
+            value="draw"
+            disabled={pageStructureLocked}
+            className="min-w-fit px-2.5 text-[11px]"
+          >
             Draw
           </TabsTrigger>
-          <TabsTrigger value="bg" disabled={pageStructureLocked} className="min-w-fit px-2.5 text-[11px]">
+          <TabsTrigger
+            value="bg"
+            disabled={pageStructureLocked}
+            className="min-w-fit px-2.5 text-[11px]"
+          >
             BG
           </TabsTrigger>
         </TabsList>
@@ -727,7 +754,8 @@ export function DesignSidebar() {
                 setOpacity={setDrawBrushOpacity}
                 onClear={() => {
                   const removed = clearCurrentPageDrawings();
-                  if (removed > 0) toast.success(`Removed ${removed} drawing stroke${removed === 1 ? "" : "s"}`);
+                  if (removed > 0)
+                    toast.success(`Removed ${removed} drawing stroke${removed === 1 ? "" : "s"}`);
                   else toast.message("No drawing strokes on this page.");
                 }}
               />
@@ -1278,9 +1306,46 @@ function PhotoControls({
   const setIsEraserMode = useBookStore((s) => s.setIsEraserMode);
   const eraserBrushSize = useBookStore((s) => s.eraserBrushSize);
   const setEraserBrushSize = useBookStore((s) => s.setEraserBrushSize);
+  const setFilterValue = (patch: Partial<PhotoElement>) =>
+    updateElement(selected.id, { ...patch, imageFilterPreset: "custom" });
+  const openCrop = () =>
+    window.dispatchEvent(
+      new CustomEvent("photobook:open-crop-tools", {
+        detail: { elementId: selected.id, active: true },
+      }),
+    );
 
   return (
     <div className="space-y-3 rounded-xl border bg-card p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <Button
+          type="button"
+          variant="default"
+          className="h-9 gap-1.5 text-xs font-semibold"
+          disabled={!selected.imageId}
+          onClick={openCrop}
+        >
+          <Scissors className="h-3.5 w-3.5" />
+          Crop Image
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 gap-1.5 text-xs font-semibold"
+          disabled={!selected.imageId}
+          onClick={() =>
+            updateElement(selected.id, {
+              imageX: 0,
+              imageY: 0,
+              imageScale: 1,
+              imageRotation: 0,
+            })
+          }
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          Reset Crop
+        </Button>
+      </div>
       <div>
         <label className="mb-1.5 block text-xs font-medium">Layer</label>
         <div className="grid grid-cols-4 gap-1.5">
@@ -1413,7 +1478,7 @@ function PhotoControls({
           <Slider
             value={[selected.imageScale ?? 1]}
             max={4}
-            min={0.1}
+            min={selected.freePhoto ? 0.1 : 1}
             step={0.05}
             onValueChange={([v]) => updateElement(selected.id, { imageScale: v })}
           />
@@ -1459,6 +1524,119 @@ function PhotoControls({
             onValueChange={([v]) => updateElement(selected.id, { imageY: v })}
           />
         </div>
+      </div>
+
+      <div className="space-y-3 border-t pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Photo Filters
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 px-2 text-[10px] font-semibold"
+            onClick={() => updateElement(selected.id, resetPhotoEditsPatch())}
+          >
+            Reset all
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-1.5">
+          {PHOTO_FILTER_PRESETS.map((preset) => (
+            <button
+              key={preset.id}
+              type="button"
+              className={`h-9 rounded-md border px-1 text-[10px] font-semibold transition hover:border-accent hover:bg-accent/5 ${
+                (selected.imageFilterPreset ?? "original") === preset.id
+                  ? "border-accent bg-accent/10 text-accent-foreground"
+                  : "border-border"
+              }`}
+              onClick={() =>
+                updateElement(selected.id, {
+                  ...preset.patch,
+                  imageFilterPreset: preset.id,
+                })
+              }
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+
+        {[
+          {
+            label: "Brightness",
+            value: selected.imageBrightness ?? PHOTO_FILTER_DEFAULTS.imageBrightness,
+            min: 0.4,
+            max: 1.6,
+            step: 0.02,
+            key: "imageBrightness" as const,
+            display: (value: number) => `${Math.round(value * 100)}%`,
+          },
+          {
+            label: "Contrast",
+            value: selected.imageContrast ?? PHOTO_FILTER_DEFAULTS.imageContrast,
+            min: 0.4,
+            max: 1.8,
+            step: 0.02,
+            key: "imageContrast" as const,
+            display: (value: number) => `${Math.round(value * 100)}%`,
+          },
+          {
+            label: "Saturation",
+            value: selected.imageSaturation ?? PHOTO_FILTER_DEFAULTS.imageSaturation,
+            min: 0,
+            max: 2,
+            step: 0.02,
+            key: "imageSaturation" as const,
+            display: (value: number) => `${Math.round(value * 100)}%`,
+          },
+          {
+            label: "Grayscale",
+            value: selected.imageGrayscale ?? PHOTO_FILTER_DEFAULTS.imageGrayscale,
+            min: 0,
+            max: 1,
+            step: 0.02,
+            key: "imageGrayscale" as const,
+            display: (value: number) => `${Math.round(value * 100)}%`,
+          },
+          {
+            label: "Warmth",
+            value: selected.imageSepia ?? PHOTO_FILTER_DEFAULTS.imageSepia,
+            min: 0,
+            max: 0.7,
+            step: 0.01,
+            key: "imageSepia" as const,
+            display: (value: number) => `${Math.round(value * 100)}%`,
+          },
+          {
+            label: "Soft blur",
+            value: selected.imageBlur ?? PHOTO_FILTER_DEFAULTS.imageBlur,
+            min: 0,
+            max: 6,
+            step: 0.1,
+            key: "imageBlur" as const,
+            display: (value: number) => `${value.toFixed(1)}px`,
+          },
+        ].map((control) => (
+          <div key={control.key}>
+            <div className="mb-1 flex items-center justify-between text-[11px]">
+              <span className="font-medium text-muted-foreground">{control.label}</span>
+              <span className="tabular-nums text-[10px] font-semibold">
+                {control.display(control.value)}
+              </span>
+            </div>
+            <Slider
+              value={[control.value]}
+              min={control.min}
+              max={control.max}
+              step={control.step}
+              onValueChange={([value]) => setFilterValue({ [control.key]: value })}
+            />
+          </div>
+        ))}
       </div>
 
       <div className="flex flex-col items-center border-t pt-3 mt-3">

@@ -6,10 +6,13 @@ import { createMagicLayoutSelection, type MagicLayoutSelection } from "@/lib/pho
 import {
   PAGE_SIZES,
   type DrawingElement,
+  type LibraryImage,
+  type Page as PhotobookPage,
   type PageElement,
   type PhotoElement,
   type BackgroundTheme,
 } from "@/lib/photobook/types";
+import { photoFilterCss } from "@/lib/photobook/photo-filters";
 import {
   Image as ImageIcon,
   ImageMinus,
@@ -87,11 +90,7 @@ const getSmoothPathFromPoints = (points: DrawPoint[]) => {
   return path;
 };
 
-const textPathForCurve = (
-  curve: "arcUp" | "arcDown" | "wave",
-  width: number,
-  height: number,
-) => {
+const textPathForCurve = (curve: "arcUp" | "arcDown" | "wave", width: number, height: number) => {
   const y = height / 2;
   if (curve === "arcUp") {
     return `M ${width * 0.08} ${y} Q ${width / 2} ${height * 0.08} ${width * 0.92} ${y}`;
@@ -102,10 +101,7 @@ const textPathForCurve = (
   return `M ${width * 0.06} ${y} C ${width * 0.22} ${height * 0.12} ${width * 0.34} ${height * 0.88} ${width * 0.5} ${y} S ${width * 0.78} ${height * 0.12} ${width * 0.94} ${y}`;
 };
 
-const removeImageBackground = async (
-  src: string,
-  onProgress?: (progress: number) => void,
-) => {
+const removeImageBackground = async (src: string, onProgress?: (progress: number) => void) => {
   const { removeBackground } = await import("@imgly/background-removal");
   const blob = await removeBackground(src, {
     model: "isnet_fp16",
@@ -137,15 +133,21 @@ export function Page({
   interactive = true,
   pageNumber,
   canvasScale = 1,
+  pageOverride,
+  libraryOverride,
 }: {
   pageId: string;
   interactive?: boolean;
   pageNumber?: number | string;
   canvasScale?: number;
+  pageOverride?: PhotobookPage;
+  libraryOverride?: LibraryImage[];
 }) {
-  const page = useBookStore((s) => s.book.pages.find((p) => p.id === pageId));
+  const storedPage = useBookStore((s) => s.book.pages.find((p) => p.id === pageId));
   const isAdmin = useAuthStore((s) => s.isAdmin);
-  const library = useBookStore((s) => s.library);
+  const storedLibrary = useBookStore((s) => s.library);
+  const page = pageOverride ?? storedPage;
+  const library = libraryOverride ?? storedLibrary;
   const updateElement = useBookStore((s) => s.updateElement);
   const removeElement = useBookStore((s) => s.removeElement);
   const replacePhotoImage = useBookStore((s) => s.replacePhotoImage);
@@ -627,8 +629,8 @@ function ElementRenderer({
 
   useEffect(() => {
     const openCropMode = (event: Event) => {
-      const detail = (event as CustomEvent<{ elementId?: string }>).detail;
-      setIsCroppingPhoto(detail?.elementId === el.id);
+      const detail = (event as CustomEvent<{ elementId?: string; active?: boolean }>).detail;
+      setIsCroppingPhoto(detail?.elementId === el.id && detail?.active !== false);
     };
     window.addEventListener("photobook:open-crop-tools", openCropMode);
     return () => window.removeEventListener("photobook:open-crop-tools", openCropMode);
@@ -1453,6 +1455,7 @@ function PhotoBody({
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
+  const naturalSizeRef = useRef({ width: 0, height: 0 });
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureStartRef = useRef<{
     centerX: number;
@@ -1475,13 +1478,38 @@ function PhotoBody({
     };
   };
 
+  const clampPan = (x: number, y: number, imageScale = el.imageScale ?? 1) => {
+    if (el.freePhoto) return { imageX: x, imageY: y };
+    const { width: naturalWidth, height: naturalHeight } = naturalSizeRef.current;
+    if (!naturalWidth || !naturalHeight) return { imageX: x, imageY: y };
+
+    const coverScale = Math.max(el.w / naturalWidth, el.h / naturalHeight);
+    const scaledWidth = naturalWidth * coverScale * imageScale;
+    const scaledHeight = naturalHeight * coverScale * imageScale;
+    const radians = ((el.imageRotation ?? 0) * Math.PI) / 180;
+    const rotatedWidth =
+      Math.abs(scaledWidth * Math.cos(radians)) + Math.abs(scaledHeight * Math.sin(radians));
+    const rotatedHeight =
+      Math.abs(scaledWidth * Math.sin(radians)) + Math.abs(scaledHeight * Math.cos(radians));
+    const maxX = Math.max(0, (rotatedWidth - el.w) / 2);
+    const maxY = Math.max(0, (rotatedHeight - el.h) / 2);
+
+    return {
+      imageX: Math.max(-maxX, Math.min(maxX, x)),
+      imageY: Math.max(-maxY, Math.min(maxY, y)),
+    };
+  };
+
   const updatePan = (clientX: number, clientY: number) => {
     const start = panStartRef.current;
     if (!start) return;
-    updateElement(el.id, {
-      imageX: start.imageX + (clientX - start.x) / coordinateScale,
-      imageY: start.imageY + (clientY - start.y) / coordinateScale,
-    });
+    updateElement(
+      el.id,
+      clampPan(
+        start.imageX + (clientX - start.x) / coordinateScale,
+        start.imageY + (clientY - start.y) / coordinateScale,
+      ),
+    );
   };
 
   const endPan = () => {
@@ -1513,7 +1541,10 @@ function PhotoBody({
     const distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
     const angle = Math.atan2(b.y - a.y, b.x - a.x);
     const patch: Partial<PhotoElement> = {
-      imageScale: Math.max(0.1, Math.min(4, start.imageScale * (distance / start.distance))),
+      imageScale: Math.max(
+        el.freePhoto ? 0.1 : 1,
+        Math.min(4, start.imageScale * (distance / start.distance)),
+      ),
       imageRotation: start.imageRotation + ((angle - start.angle) * 180) / Math.PI,
     };
     if (canMoveFrame) {
@@ -1595,6 +1626,7 @@ function PhotoBody({
   }
 
   const scale = el.imageScale ?? 1;
+  const minImageScale = el.freePhoto ? 0.1 : 1;
 
   return (
     <div
@@ -1620,10 +1652,13 @@ function PhotoBody({
           e.preventDefault();
           e.stopPropagation();
           const nextScale = Math.max(
-            0.1,
+            minImageScale,
             Math.min(4, (el.imageScale ?? 1) + (e.deltaY < 0 ? 0.08 : -0.08)),
           );
-          updateElement(el.id, { imageScale: nextScale });
+          updateElement(el.id, {
+            imageScale: nextScale,
+            ...clampPan(el.imageX ?? 0, el.imageY ?? 0, nextScale),
+          });
         }}
         onPointerDown={(e) => {
           const isTouchGesture = e.pointerType === "touch";
@@ -1668,10 +1703,17 @@ function PhotoBody({
             alt=""
             className={`h-full w-full ${el.freePhoto ? "object-contain" : "object-cover"}`}
             draggable={false}
+            onLoad={(event) => {
+              naturalSizeRef.current = {
+                width: event.currentTarget.naturalWidth,
+                height: event.currentTarget.naturalHeight,
+              };
+            }}
             style={{
-              objectPosition: `calc(50% + ${el.imageX ?? 0}px) calc(50% + ${el.imageY ?? 0}px)`,
-              transform: `scale(${scale}) rotate(${el.imageRotation ?? 0}deg)`,
+              objectPosition: "50% 50%",
+              transform: `translate3d(${el.imageX ?? 0}px, ${el.imageY ?? 0}px, 0) scale(${scale}) rotate(${el.imageRotation ?? 0}deg)`,
               transformOrigin: "center",
+              filter: photoFilterCss(el),
             }}
           />
         </div>
@@ -1684,22 +1726,29 @@ function PhotoBody({
           />
         )}
         {isCropMode && !isFrameEraserActive && (
-          <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex items-center justify-center gap-2">
-            <span className="rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg">
-              Drag to position · wheel or pinch to zoom
-            </span>
-            <button
-              type="button"
-              className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-900 shadow-lg hover:bg-slate-100"
-              onPointerDown={(event) => event.stopPropagation()}
-              onClick={(event) => {
-                event.stopPropagation();
-                onCropDone();
-              }}
-            >
-              Done
-            </button>
-          </div>
+          <>
+            <div className="pointer-events-none absolute inset-0 z-10 grid grid-cols-3 grid-rows-3 opacity-55">
+              {Array.from({ length: 9 }).map((_, index) => (
+                <span key={index} className="border border-white/45" />
+              ))}
+            </div>
+            <div className="pointer-events-none absolute inset-x-0 top-2 z-20 flex items-center justify-center gap-2">
+              <span className="rounded-full bg-black/75 px-2.5 py-1 text-[10px] font-semibold text-white shadow-lg">
+                Drag to position · wheel or pinch to zoom
+              </span>
+              <button
+                type="button"
+                className="pointer-events-auto rounded-full bg-white px-2.5 py-1 text-[10px] font-bold text-slate-900 shadow-lg hover:bg-slate-100"
+                onPointerDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCropDone();
+                }}
+              >
+                Done
+              </button>
+            </div>
+          </>
         )}
       </div>
       {el.caption && (

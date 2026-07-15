@@ -90,6 +90,13 @@ export type PhotoElement = ElementBase & {
   imageX?: number;
   imageY?: number;
   imageRotation?: number;
+  imageBrightness?: number;
+  imageContrast?: number;
+  imageSaturation?: number;
+  imageGrayscale?: number;
+  imageSepia?: number;
+  imageBlur?: number;
+  imageFilterPreset?: "original" | "vivid" | "warm" | "cool" | "mono" | "film" | "custom";
   opacity?: number;
   frameColor?: string;
   eraseMask?: string;
@@ -170,7 +177,12 @@ export type DrawingElement = ElementBase & {
   brush?: "pen" | "marker" | "highlighter" | "neon" | "pressure";
 };
 
-export type PageElement = PhotoElement | StickerElement | QuoteElement | TextElement | DrawingElement;
+export type PageElement =
+  | PhotoElement
+  | StickerElement
+  | QuoteElement
+  | TextElement
+  | DrawingElement;
 
 export type BackgroundTheme =
   | "cream"

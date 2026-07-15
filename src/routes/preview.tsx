@@ -4,9 +4,11 @@ import HTMLFlipBook from "react-pageflip";
 import {
   ArrowLeft,
   BookOpen,
+  Check,
   ChevronLeft,
   ChevronRight,
   ImagePlus,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   Move,
@@ -14,11 +16,15 @@ import {
   Rotate3D,
   RotateCcw,
   Settings2,
+  Share2,
   X,
 } from "lucide-react";
 import { Page } from "@/components/photobook/Page";
-import { PAGE_SIZES } from "@/lib/photobook/types";
+import { PAGE_SIZES, type LibraryImage, type Page as PhotobookPage } from "@/lib/photobook/types";
 import { useBookStore } from "@/lib/photobook/store";
+import { createShareablePreview } from "@/lib/photobook/share-preview";
+import { getSharedPreview, type SharedPreviewPayload } from "@/lib/api/shared-previews.functions";
+import { z } from "zod";
 import {
   DEFAULT_PREVIEW_SETTINGS,
   loadPreviewSettings,
@@ -28,6 +34,7 @@ import {
 } from "@/lib/photobook/preview-atmosphere";
 
 export const Route = createFileRoute("/preview")({
+  validateSearch: z.object({ share: z.string().optional() }),
   head: () => ({
     meta: [
       { title: "Preview - Yaara" },
@@ -176,12 +183,16 @@ function PreviewCursorCat() {
 }
 
 function PreviewPage() {
+  const { share: sharedPreviewId } = Route.useSearch();
   const [mounted, setMounted] = useState(false);
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  const pages = useBookStore((s) => s.book.pages);
+  const localBook = useBookStore((s) => s.book);
+  const localLibrary = useBookStore((s) => s.library);
+  const customBackgrounds = useBookStore((s) => s.customBackgroundsList ?? []);
+  const customStickers = useBookStore((s) => s.customStickersList ?? []);
   const initLibrary = useBookStore((s) => s.initLibrary);
   const initCustomAssets = useBookStore((s) => s.initCustomAssets);
   const { width: viewportW, height: viewportH } = useViewportSize();
@@ -197,6 +208,12 @@ function PreviewPage() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSceneControls, setShowSceneControls] = useState(false);
   const [showToolsMenu, setShowToolsMenu] = useState(false);
+  const [sharedPayload, setSharedPayload] = useState<SharedPreviewPayload | null>(null);
+  const [sharedPreviewError, setSharedPreviewError] = useState("");
+  const [isLoadingSharedPreview, setIsLoadingSharedPreview] = useState(Boolean(sharedPreviewId));
+  const [isSharingPreview, setIsSharingPreview] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [shareError, setShareError] = useState("");
   const orbitStartRef = useRef({ x: 0, y: 0, rotX: 0, rotY: 0 });
   const bookMoveStartRef = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
   const activeDragToolRef = useRef<"move" | "orbit" | null>(null);
@@ -221,10 +238,76 @@ function PreviewPage() {
     reader.readAsDataURL(file);
   };
 
+  const sharePreview = async () => {
+    if (isSharingPreview) return;
+    setIsSharingPreview(true);
+    setShareError("");
+    try {
+      let url = window.location.href;
+      if (!sharedPreviewId) {
+        const shared = await createShareablePreview({
+          book,
+          library,
+          customBackgrounds,
+          customStickers,
+        });
+        url = shared.url;
+      }
+
+      if (navigator.share) {
+        await navigator.share({
+          title: book.title?.trim() || "My Yaara photobook",
+          text: "Flip through this photobook preview.",
+          url,
+        });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareCopied(true);
+        window.setTimeout(() => setShareCopied(false), 2400);
+      }
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      console.error("Could not share preview", error);
+      setShareError(error instanceof Error ? error.message : "Could not create the share link.");
+    } finally {
+      setIsSharingPreview(false);
+    }
+  };
+
   useEffect(() => {
-    initLibrary();
-    initCustomAssets();
-  }, [initCustomAssets, initLibrary]);
+    if (!sharedPreviewId) {
+      initLibrary();
+      initCustomAssets();
+      setIsLoadingSharedPreview(false);
+      return;
+    }
+
+    let active = true;
+    setIsLoadingSharedPreview(true);
+    getSharedPreview({ data: { id: sharedPreviewId } })
+      .then((result) => {
+        if (!active) return;
+        if (!result.success || !result.payload) {
+          setSharedPreviewError(result.error || "This preview could not be loaded.");
+          return;
+        }
+        setSharedPayload(result.payload);
+        setCurrentPage(0);
+      })
+      .catch((error) => {
+        if (active) setSharedPreviewError(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => {
+        if (active) setIsLoadingSharedPreview(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [initCustomAssets, initLibrary, sharedPreviewId]);
+
+  const book = sharedPayload?.book ?? localBook;
+  const pages = book.pages;
+  const library = sharedPayload?.library ?? localLibrary;
 
   useEffect(() => {
     const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement));
@@ -291,11 +374,8 @@ function PreviewPage() {
             : 64
           : 0
       : 0;
-    const controlsWidth = showToolsMenu && useVerticalControls
-      ? showSceneControls
-        ? 250
-        : 205
-      : 0;
+    const controlsWidth =
+      showToolsMenu && useVerticalControls ? (showSceneControls ? 250 : 205) : 0;
     const chromeW = isFullscreen
       ? fullscreenMarginW + controlsWidth
       : isMobilePreview
@@ -408,11 +488,7 @@ function PreviewPage() {
   }, [goNext, goPrev]);
 
   const handleStagePointerDown = (e: React.PointerEvent) => {
-    if (
-      (e.target as HTMLElement).closest(
-        "button, a, input, label, .preview-controller",
-      )
-    ) {
+    if ((e.target as HTMLElement).closest("button, a, input, label, .preview-controller")) {
       return;
     }
 
@@ -505,12 +581,25 @@ function PreviewPage() {
         : "grab"
       : "default";
 
-  if (!mounted) {
+  if (!mounted || isLoadingSharedPreview) {
     return (
       <div className="min-h-screen bg-slate-900 flex items-center justify-center text-white">
         <div className="flex flex-col items-center gap-3">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-white/30 border-t-white" />
           <p className="text-sm text-slate-400 animate-pulse font-medium">Loading preview...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (sharedPreviewError) {
+    return (
+      <div className={`book-preview-shell ${shellClass}`}>
+        <PreviewAtmosphere customBg={settings.customBackground} />
+        <div className="book-preview-empty">
+          <BookOpen className="h-8 w-8" />
+          <span>{sharedPreviewError}</span>
+          <Link to="/">Open Yaara</Link>
         </div>
       </div>
     );
@@ -635,6 +724,23 @@ function PreviewPage() {
 
               <button
                 type="button"
+                title={shareError || "Create a read-only preview link"}
+                onClick={sharePreview}
+                disabled={isSharingPreview}
+                className={`book-preview-tool-btn ${shareCopied ? "is-active" : ""}`}
+              >
+                {isSharingPreview ? (
+                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                ) : shareCopied ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : (
+                  <Share2 className="h-3.5 w-3.5" />
+                )}
+                {isSharingPreview ? "Preparing" : shareCopied ? "Copied" : "Share"}
+              </button>
+
+              <button
+                type="button"
                 title={isFullscreen ? "Exit fullscreen" : "Open fullscreen preview"}
                 onClick={toggleFullscreen}
                 className="book-preview-tool-btn"
@@ -744,9 +850,7 @@ function PreviewPage() {
 
         <div
           className={`book-preview-book ${canManipulateBook ? "is-draggable" : ""} ${isFlipping ? "is-flipping" : ""} ${isPortraitBook ? "is-single-page" : ""} ${isCoverView ? "is-cover" : ""} ${isBackCoverView ? "is-back-cover" : ""} ${
-            isFullscreen && useFullscreenSpread
-              ? "has-fullscreen-binding"
-              : ""
+            isFullscreen && useFullscreenSpread ? "has-fullscreen-binding" : ""
           }`}
           style={
             {
@@ -765,6 +869,8 @@ function PreviewPage() {
             <div className="book-preview-static-page">
               <BookPage
                 pageId={previewPages[0].id}
+                pageData={previewPages[0]}
+                library={library}
                 pageNumber={1}
                 isCover
                 isBackCover={false}
@@ -810,6 +916,8 @@ function PreviewPage() {
                 <BookPage
                   key={page.id}
                   pageId={page.id}
+                  pageData={page}
+                  library={library}
                   pageNumber={pages.findIndex((p) => p.id === page.id) + 1}
                   isCover={index === 0}
                   isBackCover={index === totalPages - 1}
@@ -834,7 +942,6 @@ function PreviewPage() {
           <ChevronRight className="h-7 w-7" />
         </button>
       </main>
-
     </div>
   );
 }
@@ -857,6 +964,8 @@ const BookPage = forwardRef<
   HTMLDivElement,
   {
     pageId: string;
+    pageData: PhotobookPage;
+    library: LibraryImage[];
     pageNumber: number;
     isCover: boolean;
     isBackCover: boolean;
@@ -868,7 +977,19 @@ const BookPage = forwardRef<
   }
 >(
   (
-    { pageId, pageNumber, isCover, isBackCover, fit, renderFit, pageW, pageH, isBlankPlaceholder },
+    {
+      pageId,
+      pageData,
+      library,
+      pageNumber,
+      isCover,
+      isBackCover,
+      fit,
+      renderFit,
+      pageW,
+      pageH,
+      isBlankPlaceholder,
+    },
     ref,
   ) => {
     const pageFit = renderFit ?? fit;
@@ -931,7 +1052,13 @@ const BookPage = forwardRef<
           {isBlankPlaceholder ? (
             <div className="h-full w-full bg-[#fbf7ed]" />
           ) : (
-            <Page pageId={pageId} interactive={false} pageNumber={pageNumber} />
+            <Page
+              pageId={pageId}
+              pageOverride={pageData}
+              libraryOverride={library}
+              interactive={false}
+              pageNumber={pageNumber}
+            />
           )}
         </div>
         {(isCover || isBackCover) && <div className="book-preview-cover-finish" />}

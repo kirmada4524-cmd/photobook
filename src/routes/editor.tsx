@@ -64,6 +64,13 @@ function EditorPage() {
   const [isMobile, setIsMobile] = useState(false);
   const showLibrarySidebar = useBookStore((state) => state.showLibrarySidebar);
   const showDesignSidebar = useBookStore((state) => state.showDesignSidebar);
+  const selectedPhotoId = useBookStore((state) => {
+    if (!state.selectedElementId) return null;
+    const selected = state.book.pages
+      .flatMap((page) => page.elements)
+      .find((element) => element.id === state.selectedElementId);
+    return selected?.type === "photo" ? selected.id : null;
+  });
 
   useEffect(() => {
     const state = useBookStore.getState();
@@ -80,6 +87,20 @@ function EditorPage() {
     setMounted(true);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  useEffect(() => {
+    if (!selectedPhotoId) return;
+    const state = useBookStore.getState();
+    if (state.showLibrarySidebar) state.toggleLibrarySidebar();
+    if (!state.showDesignSidebar) state.toggleDesignSidebar();
+    window.setTimeout(
+      () =>
+        window.dispatchEvent(
+          new CustomEvent("photobook:design-tab", { detail: { tab: "frames" } }),
+        ),
+      0,
+    );
+  }, [selectedPhotoId]);
 
   if (!mounted) {
     return (

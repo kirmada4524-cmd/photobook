@@ -177,7 +177,19 @@ const pageMutationAllowed = (page?: Page) =>
 
 const isPhotoCropPatch = (patch: Partial<PageElement>) =>
   Object.keys(patch).every((key) =>
-    ["imageX", "imageY", "imageScale", "imageRotation"].includes(key),
+    [
+      "imageX",
+      "imageY",
+      "imageScale",
+      "imageRotation",
+      "imageBrightness",
+      "imageContrast",
+      "imageSaturation",
+      "imageGrayscale",
+      "imageSepia",
+      "imageBlur",
+      "imageFilterPreset",
+    ].includes(key),
   );
 
 const withFixedPageSize = (book: Book): Book => ({
