@@ -75,6 +75,7 @@ export type ElementBase = {
   h: number;
   rotation: number;
   z: number;
+  userAdded?: boolean;
 };
 
 export type PhotoElement = ElementBase & {

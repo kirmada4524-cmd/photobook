@@ -101,10 +101,7 @@ function CanvasWorkspace({
     Math.min(1.1, (size.w - desktopPad) / pageW, (size.h - desktopPad) / pageH),
   );
   const effectiveZoom = size.mobile
-    ? Math.max(
-        0.05,
-        Math.min(1, (size.w - mobilePad) / pageW, (size.h - mobilePad) / pageH),
-      )
+    ? Math.max(0.05, Math.min(1, (size.w - mobilePad) / pageW, (size.h - mobilePad) / pageH))
     : Math.max(0.05, fitZoom * zoom);
 
   const scaledW = pageW * effectiveZoom;
@@ -188,7 +185,10 @@ function DesktopFilmstrip({
               className={`editor-filmstrip-page group shrink-0 ${active ? "is-active" : ""}`}
               title={`Open ${pageLabel(index, pages.length)}`}
             >
-              <span className="editor-filmstrip-thumb" style={{ width: thumbSize, height: thumbSize }}>
+              <span
+                className="editor-filmstrip-thumb"
+                style={{ width: thumbSize, height: thumbSize }}
+              >
                 <span
                   style={{
                     display: "block",
@@ -561,10 +561,13 @@ export function Canvas() {
           <Button
             size="sm"
             variant="outline"
-            className="gap-1.5 shadow-sm hidden md:flex px-2 md:px-3"
+            className="flex gap-1.5 px-2 shadow-sm md:px-3"
             onClick={() => setShowAddTemplates(true)}
+            title="Add multiple template pages"
+            aria-label="Add multiple templates"
           >
             <LayoutGrid className="h-4 w-4" />
+            <span className="text-[11px] md:hidden">Templates</span>
             <span className="hidden lg:inline">Multiple Templates</span>
           </Button>
         </div>

@@ -152,7 +152,7 @@ export function DesignSidebar() {
     const openDesignTab = (event: Event) => {
       const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
       if (["layouts", "frames", "border", "stickers", "quotes", "draw", "bg"].includes(tab ?? "")) {
-        const protectedTab = ["border", "stickers", "quotes", "draw", "bg"].includes(tab ?? "");
+        const protectedTab = ["border", "quotes", "bg"].includes(tab ?? "");
         setActiveTab(pageStructureLocked && protectedTab ? "layouts" : (tab as string));
       }
     };
@@ -234,11 +234,7 @@ export function DesignSidebar() {
           >
             Border
           </TabsTrigger>
-          <TabsTrigger
-            value="stickers"
-            disabled={pageStructureLocked}
-            className="min-w-fit px-2.5 text-[11px]"
-          >
+          <TabsTrigger value="stickers" className="min-w-fit px-2.5 text-[11px]">
             Stick
           </TabsTrigger>
           <TabsTrigger
@@ -248,11 +244,7 @@ export function DesignSidebar() {
           >
             Text
           </TabsTrigger>
-          <TabsTrigger
-            value="draw"
-            disabled={pageStructureLocked}
-            className="min-w-fit px-2.5 text-[11px]"
-          >
+          <TabsTrigger value="draw" className="min-w-fit px-2.5 text-[11px]">
             Draw
           </TabsTrigger>
           <TabsTrigger
@@ -538,6 +530,7 @@ export function DesignSidebar() {
                       selected={selected as PhotoElement}
                       updateElement={updateElement}
                       moveElementLayer={moveElementLayer}
+                      structureLocked={pageStructureLocked}
                     />
                     <ReplaceImagePicker
                       library={library}
@@ -1297,10 +1290,12 @@ function PhotoControls({
   selected,
   updateElement,
   moveElementLayer,
+  structureLocked = false,
 }: {
   selected: PhotoElement;
   updateElement: (id: string, p: Partial<PhotoElement>) => void;
   moveElementLayer: (id: string, direction: "front" | "back" | "forward" | "backward") => void;
+  structureLocked?: boolean;
 }) {
   const isEraserMode = useBookStore((s) => s.isEraserMode);
   const setIsEraserMode = useBookStore((s) => s.setIsEraserMode);
@@ -1347,13 +1342,19 @@ function PhotoControls({
         </Button>
       </div>
       <div>
-        <label className="mb-1.5 block text-xs font-medium">Layer</label>
+        <div className="mb-1.5 flex items-center justify-between gap-2">
+          <label className="block text-xs font-medium">Layer</label>
+          {structureLocked && (
+            <span className="text-[10px] font-medium text-muted-foreground">Template locked</span>
+          )}
+        </div>
         <div className="grid grid-cols-4 gap-1.5">
           <Button
             size="icon"
             variant="outline"
             className="h-8 w-full"
             title="Bring to front"
+            disabled={structureLocked}
             onClick={() => moveElementLayer(selected.id, "front")}
           >
             <BringToFront className="h-3.5 w-3.5" />
@@ -1363,6 +1364,7 @@ function PhotoControls({
             variant="outline"
             className="h-8 w-full"
             title="Move forward"
+            disabled={structureLocked}
             onClick={() => moveElementLayer(selected.id, "forward")}
           >
             <ArrowUp className="h-3.5 w-3.5" />
@@ -1372,6 +1374,7 @@ function PhotoControls({
             variant="outline"
             className="h-8 w-full"
             title="Move backward"
+            disabled={structureLocked}
             onClick={() => moveElementLayer(selected.id, "backward")}
           >
             <ArrowDown className="h-3.5 w-3.5" />
@@ -1381,6 +1384,7 @@ function PhotoControls({
             variant="outline"
             className="h-8 w-full"
             title="Send to back"
+            disabled={structureLocked}
             onClick={() => moveElementLayer(selected.id, "back")}
           >
             <SendToBack className="h-3.5 w-3.5" />

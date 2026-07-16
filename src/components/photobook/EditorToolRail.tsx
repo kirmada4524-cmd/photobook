@@ -7,7 +7,9 @@ import {
   Frame,
   Image,
   Images,
+  LayoutGrid,
   LayoutTemplate,
+  MoreHorizontal,
   Palette,
   Redo2,
   ShieldCheck,
@@ -19,16 +21,15 @@ import {
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
 import { redo, undo, useBookStore } from "@/lib/photobook/store";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-type EditorTool =
-  | "pages"
-  | "photos"
-  | "layouts"
-  | "quotes"
-  | "stickers"
-  | "draw"
-  | "frames"
-  | "bg";
+type EditorTool = "pages" | "photos" | "layouts" | "quotes" | "stickers" | "draw" | "frames" | "bg";
 
 const designTools = new Set<EditorTool>(["layouts", "quotes", "stickers", "draw", "frames", "bg"]);
 
@@ -79,13 +80,14 @@ export function EditorToolRail() {
   };
 
   const isActive = (tool: EditorTool) =>
-    activeTool === tool &&
-    (designTools.has(tool) ? showDesignSidebar : showLibrarySidebar);
+    activeTool === tool && (designTools.has(tool) ? showDesignSidebar : showLibrarySidebar);
 
   const magicFill = () => {
     const result = useBookStore.getState().magicFillAllEmptyFrames();
     if (result.framesFilled > 0) {
-      toast.success(`Filled ${result.framesFilled} frame(s) across ${result.pagesTouched} page(s).`);
+      toast.success(
+        `Filled ${result.framesFilled} frame(s) across ${result.pagesTouched} page(s).`,
+      );
     } else if (result.skippedReason === "no-available-images") {
       toast.warning("Upload or include photos before using Magic Fill.");
     } else if (result.skippedReason === "no-photo-frames") {
@@ -163,10 +165,51 @@ export function EditorToolRail() {
           <Type className="h-[18px] w-[18px]" />
           <span>Text</span>
         </button>
-        <button type="button" className="editor-mobile-tool editor-mobile-magic" onClick={magicFill}>
-          <Sparkles className="h-[18px] w-[18px]" />
-          <span>Magic</span>
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className={`editor-mobile-tool ${
+                ["frames", "stickers", "draw", "bg"].some((tool) => isActive(tool as EditorTool))
+                  ? "is-active"
+                  : ""
+              }`}
+              aria-label="More editor tools"
+            >
+              <MoreHorizontal className="h-[18px] w-[18px]" />
+              <span>More</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="end" className="w-52">
+            <DropdownMenuItem onSelect={() => openTool("frames")}>
+              <Frame className="h-4 w-4" />
+              Frames and crop
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openTool("stickers")}>
+              <Sticker className="h-4 w-4" />
+              Stickers
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openTool("draw")}>
+              <Brush className="h-4 w-4" />
+              Draw
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openTool("bg")}>
+              <Palette className="h-4 w-4" />
+              Background
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => window.dispatchEvent(new Event("photobook:open-templates"))}
+            >
+              <LayoutGrid className="h-4 w-4" />
+              Add multiple templates
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={magicFill}>
+              <Sparkles className="h-4 w-4" />
+              Magic Fill
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </nav>
     </>
   );

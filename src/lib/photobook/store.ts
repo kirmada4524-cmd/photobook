@@ -175,9 +175,18 @@ const blankPage = (theme: BackgroundTheme = "cream"): Page => ({
 const pageMutationAllowed = (page?: Page) =>
   !page?.adminTemplateProtected || useAuthStore.getState().isAdmin;
 
-const isPhotoCropPatch = (patch: Partial<PageElement>) =>
+const isUserOverlayElement = (element?: PageElement) =>
+  Boolean(element?.userAdded && (element.type === "sticker" || element.type === "drawing"));
+
+const isProtectedPhotoEditPatch = (patch: Partial<PageElement>) =>
   Object.keys(patch).every((key) =>
     [
+      "frame",
+      "frameColor",
+      "radius",
+      "caption",
+      "opacity",
+      "eraseMask",
       "imageX",
       "imageY",
       "imageScale",
@@ -308,7 +317,7 @@ type Actions = {
   clearCurrentPageDrawings: () => number;
 
   setZoom: (z: number) => void;
-  resetBook: () => void;
+  resetBook: () => Promise<void>;
   copyElement: (id: string) => void;
   pasteElement: () => void;
   setLibrarySidebarWidth: (w: number) => void;
@@ -681,26 +690,27 @@ export const useBookStore = create<State & Actions>()(
           })),
 
         addElement: (el) =>
-          set((s) =>
-            pageMutationAllowed(s.book.pages.find((p) => p.id === s.currentPageId))
-              ? {
-                  book: {
-                    ...s.book,
-                    pages: s.book.pages.map((p) =>
-                      p.id === s.currentPageId ? { ...p, elements: [...p.elements, el] } : p,
-                    ),
-                  },
-                  selectedElementId: el.id,
-                }
-              : s,
-          ),
+          set((s) => {
+            const page = s.book.pages.find((p) => p.id === s.currentPageId);
+            if (!pageMutationAllowed(page) && !isUserOverlayElement(el)) return s;
+            return {
+              book: {
+                ...s.book,
+                pages: s.book.pages.map((p) =>
+                  p.id === s.currentPageId ? { ...p, elements: [...p.elements, el] } : p,
+                ),
+              },
+              selectedElementId: el.id,
+            };
+          }),
         updateElement: (id, patch) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.elements.some((e) => e.id === id));
             const element = page?.elements.find((e) => e.id === id);
             if (
               !pageMutationAllowed(page) &&
-              !(element?.type === "photo" && isPhotoCropPatch(patch))
+              !isUserOverlayElement(element) &&
+              !(element?.type === "photo" && isProtectedPhotoEditPatch(patch))
             ) {
               return s;
             }
@@ -721,21 +731,22 @@ export const useBookStore = create<State & Actions>()(
             };
           }),
         removeElement: (id) =>
-          set((s) =>
-            pageMutationAllowed(s.book.pages.find((p) => p.elements.some((e) => e.id === id)))
-              ? {
-                  book: {
-                    ...s.book,
-                    pages: s.book.pages.map((p) =>
-                      p.elements.some((e) => e.id === id)
-                        ? { ...p, elements: p.elements.filter((e) => e.id !== id) }
-                        : p,
-                    ),
-                  },
-                  selectedElementId: null,
-                }
-              : s,
-          ),
+          set((s) => {
+            const page = s.book.pages.find((p) => p.elements.some((e) => e.id === id));
+            const element = page?.elements.find((e) => e.id === id);
+            if (!pageMutationAllowed(page) && !isUserOverlayElement(element)) return s;
+            return {
+              book: {
+                ...s.book,
+                pages: s.book.pages.map((p) =>
+                  p.elements.some((e) => e.id === id)
+                    ? { ...p, elements: p.elements.filter((e) => e.id !== id) }
+                    : p,
+                ),
+              },
+              selectedElementId: null,
+            };
+          }),
         replacePhotoImage: (elementId, imageId) =>
           set((s) => ({
             book: {
@@ -796,7 +807,8 @@ export const useBookStore = create<State & Actions>()(
         moveElementLayer: (id, direction) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.elements.some((e) => e.id === id));
-            if (!page || !pageMutationAllowed(page)) return s;
+            const element = page?.elements.find((e) => e.id === id);
+            if (!page || (!pageMutationAllowed(page) && !isUserOverlayElement(element))) return s;
             const sorted = [...page.elements].sort((a, b) => a.z - b.z);
             const index = sorted.findIndex((e) => e.id === id);
             if (index < 0) return s;
@@ -942,6 +954,7 @@ export const useBookStore = create<State & Actions>()(
             h: 120,
             rotation: 0,
             z: 50,
+            userAdded: true,
           });
         },
         addQuoteToCurrentPage: (text) => {
@@ -978,7 +991,7 @@ export const useBookStore = create<State & Actions>()(
         addDrawingToCurrentPage: (path, opts) => {
           const state = get();
           const page = state.book.pages.find((p) => p.id === state.currentPageId);
-          if (!page || !pageMutationAllowed(page) || !path.trim()) return;
+          if (!page || !path.trim()) return;
           const maxZ = Math.max(0, ...page.elements.map((e) => e.z));
           state.addElement({
             id: nid("draw"),
@@ -994,21 +1007,25 @@ export const useBookStore = create<State & Actions>()(
             h: PAGE_SIZES[0].height,
             rotation: 0,
             z: maxZ + 1,
+            userAdded: true,
           });
         },
         clearCurrentPageDrawings: () => {
           let removed = 0;
           set((s) => {
             const page = s.book.pages.find((p) => p.id === s.currentPageId);
-            if (!page || !pageMutationAllowed(page)) return s;
-            removed = page.elements.filter((e) => e.type === "drawing").length;
+            if (!page) return s;
+            const canClearAll = pageMutationAllowed(page);
+            const canRemoveDrawing = (element: PageElement) =>
+              element.type === "drawing" && (canClearAll || element.userAdded);
+            removed = page.elements.filter(canRemoveDrawing).length;
             if (removed === 0) return s;
             return {
               book: {
                 ...s.book,
                 pages: s.book.pages.map((p) =>
                   p.id === page.id
-                    ? { ...p, elements: p.elements.filter((e) => e.type !== "drawing") }
+                    ? { ...p, elements: p.elements.filter((e) => !canRemoveDrawing(e)) }
                     : p,
                 ),
               },
@@ -1128,14 +1145,14 @@ export const useBookStore = create<State & Actions>()(
             console.error("Failed to load images from IndexedDB", error);
           }
         },
-        resetBook: () => {
+        resetBook: async () => {
           const p = blankPage("cream");
           get().library.forEach((img) => {
             if (img.src.startsWith("blob:")) {
               URL.revokeObjectURL(img.src);
             }
           });
-          clearAllImagesFromDB();
+          const clearImages = clearAllImagesFromDB();
           set({
             book: {
               title: "",
@@ -1149,6 +1166,7 @@ export const useBookStore = create<State & Actions>()(
             selectedElementId: null,
             projectFilePath: null,
           });
+          await clearImages;
         },
         savePageAsTemplate: async (pageId, label, thumbnail, opts) => {
           const s = get();
@@ -1383,7 +1401,7 @@ export const useBookStore = create<State & Actions>()(
 
             let imgIdx = 0;
             const newElements = template.elements.map((el) => {
-              const newEl = { ...el, id: nid("el") } as PageElement;
+              const newEl = { ...el, id: nid("el"), userAdded: undefined } as PageElement;
               if (newEl.type === "photo") {
                 newEl.locked = true;
                 if (imgIdx < existingImages.length) {

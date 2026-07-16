@@ -21,6 +21,7 @@ software/
 # Local admin uploads/storage. Production uses Supabase + ImageKit.
 admin-assets.json
 admin-templates.json
+template-likes.json
 public/admin-assets/
 
 # Wrangler / Cloudflare

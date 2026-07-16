@@ -1,8 +1,6 @@
 const supabaseUrl = () => process.env.SUPABASE_URL?.trim().replace(/\/$/, "") || "";
 const supabaseServiceKey = () =>
-  process.env.SUPABASE_SECRET_KEY?.trim() ||
-  process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ||
-  "";
+  process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
 
 export const hasSupabaseStorage = () => Boolean(supabaseUrl() && supabaseServiceKey());
 
@@ -49,6 +47,36 @@ export async function supabaseTableRequest<T>(
   }
 
   if (response.status === 204) return undefined as T;
+  const text = await response.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+export async function supabaseRpcRequest<T>(
+  functionName: string,
+  body: Record<string, unknown> = {},
+): Promise<T> {
+  const url = supabaseUrl();
+  const key = supabaseServiceKey();
+  if (!url || !key) throw missingSupabaseStorageError();
+
+  const response = await fetch(`${url}/rest/v1/rpc/${encodeURIComponent(functionName)}`, {
+    method: "POST",
+    headers: {
+      apikey: key,
+      authorization: `Bearer ${key}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const details = await response.text().catch(() => "");
+    throw new Error(
+      `Supabase RPC ${functionName} failed: ${response.status} ${response.statusText} - ${details}`,
+    );
+  }
+
   const text = await response.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }

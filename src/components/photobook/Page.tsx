@@ -190,8 +190,7 @@ export function Page({
 
   const isEditingBg = editingBackgroundPageId === page.id && interactive;
   const isStructureProtected = Boolean(page.adminTemplateProtected && !isAdmin);
-  const isPageDrawMode =
-    interactive && !isStructureProtected && !isMagicLayoutMode && drawMode !== "off";
+  const isPageDrawMode = interactive && !isMagicLayoutMode && drawMode !== "off";
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
 
   const handleBgMouseDown = (e: React.MouseEvent) => {
@@ -621,8 +620,9 @@ function ElementRenderer({
     !isStructureProtected &&
     editingTextId === el.id &&
     (el.type === "text" || el.type === "quote");
+  const isProtectedTemplateElement = Boolean(isStructureProtected && !el.userAdded);
   const isElementLocked = Boolean(
-    isStructureProtected ||
+    isProtectedTemplateElement ||
     (el.type === "photo" && el.locked) ||
     (el.type === "sticker" && el.locked),
   );
@@ -1454,7 +1454,13 @@ function PhotoBody({
     interactive && (isCropMode || el.locked || el.magicFrame) && img && !isFrameEraserActive,
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
-  const panStartRef = useRef<{ x: number; y: number; imageX: number; imageY: number } | null>(null);
+  const panStartRef = useRef<{
+    x: number;
+    y: number;
+    imageX: number;
+    imageY: number;
+    imageScale: number;
+  } | null>(null);
   const naturalSizeRef = useRef({ width: 0, height: 0 });
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
@@ -1476,28 +1482,40 @@ function PhotoBody({
       y: clientY,
       imageX: el.imageX ?? 0,
       imageY: el.imageY ?? 0,
+      imageScale: el.imageScale ?? 1,
     };
   };
 
-  const clampPan = (x: number, y: number, imageScale = el.imageScale ?? 1) => {
+  const clampPan = (x: number, y: number, imageScale = el.imageScale ?? 1, expandToFit = false) => {
     if (el.freePhoto) return { imageX: x, imageY: y };
     const { width: naturalWidth, height: naturalHeight } = naturalSizeRef.current;
     if (!naturalWidth || !naturalHeight) return { imageX: x, imageY: y };
 
     const coverScale = Math.max(el.w / naturalWidth, el.h / naturalHeight);
-    const scaledWidth = naturalWidth * coverScale * imageScale;
-    const scaledHeight = naturalHeight * coverScale * imageScale;
+    const baseWidth = naturalWidth * coverScale;
+    const baseHeight = naturalHeight * coverScale;
     const radians = ((el.imageRotation ?? 0) * Math.PI) / 180;
-    const rotatedWidth =
-      Math.abs(scaledWidth * Math.cos(radians)) + Math.abs(scaledHeight * Math.sin(radians));
-    const rotatedHeight =
-      Math.abs(scaledWidth * Math.sin(radians)) + Math.abs(scaledHeight * Math.cos(radians));
+    const baseRotatedWidth =
+      Math.abs(baseWidth * Math.cos(radians)) + Math.abs(baseHeight * Math.sin(radians));
+    const baseRotatedHeight =
+      Math.abs(baseWidth * Math.sin(radians)) + Math.abs(baseHeight * Math.cos(radians));
+    let fittedScale = Math.max(1, imageScale);
+
+    if (expandToFit) {
+      const scaleForX = (el.w + Math.abs(x) * 2) / Math.max(1, baseRotatedWidth);
+      const scaleForY = (el.h + Math.abs(y) * 2) / Math.max(1, baseRotatedHeight);
+      fittedScale = Math.min(4, Math.max(fittedScale, scaleForX, scaleForY));
+    }
+
+    const rotatedWidth = baseRotatedWidth * fittedScale;
+    const rotatedHeight = baseRotatedHeight * fittedScale;
     const maxX = Math.max(0, (rotatedWidth - el.w) / 2);
     const maxY = Math.max(0, (rotatedHeight - el.h) / 2);
 
     return {
       imageX: Math.max(-maxX, Math.min(maxX, x)),
       imageY: Math.max(-maxY, Math.min(maxY, y)),
+      ...(Math.abs(fittedScale - imageScale) > 0.001 ? { imageScale: fittedScale } : {}),
     };
   };
 
@@ -1509,6 +1527,8 @@ function PhotoBody({
       clampPan(
         start.imageX + (clientX - start.x) / coordinateScale,
         start.imageY + (clientY - start.y) / coordinateScale,
+        start.imageScale,
+        true,
       ),
     );
   };
@@ -1634,10 +1654,8 @@ function PhotoBody({
         ? Math.min(el.w / naturalSize.width, el.h / naturalSize.height)
         : Math.max(el.w / naturalSize.width, el.h / naturalSize.height)
       : 1;
-  const baseImageWidth =
-    naturalSize.width > 0 ? naturalSize.width * baseFitScale : el.w;
-  const baseImageHeight =
-    naturalSize.height > 0 ? naturalSize.height * baseFitScale : el.h;
+  const baseImageWidth = naturalSize.width > 0 ? naturalSize.width * baseFitScale : el.w;
+  const baseImageHeight = naturalSize.height > 0 ? naturalSize.height * baseFitScale : el.h;
 
   return (
     <div

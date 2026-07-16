@@ -1,7 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "@tanstack/react-router";
-import { LayoutGrid, Sparkles, Square } from "lucide-react";
-import { toast } from "sonner";
+import { ArrowRight, Heart, ImagePlus, LayoutGrid, Sparkles, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -23,20 +21,23 @@ export function TemplateStartModal({
   onOpenChange,
   templates,
   initialCategory,
+  onProceed,
+  likeCounts = {},
+  likedTemplateIds = [],
+  onToggleLike,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: SavedPageTemplate[];
   initialCategory?: string | null;
+  onProceed: (templates: SavedPageTemplate[]) => void;
+  likeCounts?: Record<string, number>;
+  likedTemplateIds?: string[];
+  onToggleLike?: (templateId: string) => void;
 }) {
-  const router = useRouter();
   const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
-  const addPage = useBookStore((s) => s.addPage);
-  const resetBook = useBookStore((s) => s.resetBook);
-  const applyPageTemplate = useBookStore((s) => s.applyPageTemplate);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [isStarting, setIsStarting] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
 
   useEffect(() => {
@@ -61,37 +62,29 @@ export function TemplateStartModal({
       ),
     [templates],
   );
-  const filteredTemplates = useMemo(
-    () =>
+  const filteredTemplates = useMemo(() => {
+    const filtered =
       activeCategory === "All"
         ? templates
         : templates.filter(
             (template) => normalizeTemplateCategory(template.category) === activeCategory,
-          ),
-    [activeCategory, templates],
-  );
+          );
+    return filtered
+      .slice()
+      .sort(
+        (a, b) =>
+          (likeCounts[b.id] ?? 0) - (likeCounts[a.id] ?? 0) ||
+          (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+      );
+  }, [activeCategory, likeCounts, templates]);
 
-  const startWithTemplate = async () => {
+  const continueWithTemplates = () => {
     if (selectedTemplateIds.length === 0) return;
-    setIsStarting(true);
-    try {
-      resetBook();
-      const selectedTemplates = selectedTemplateIds
-        .map((id) => templates.find((template) => template.id === id))
-        .filter((template): template is SavedPageTemplate => Boolean(template));
-      for (let index = 0; index < selectedTemplates.length; index += 1) {
-        const template = selectedTemplates[index];
-        if (index > 0) addPage();
-        await applyPageTemplate(template);
-      }
-      onOpenChange(false);
-      await router.navigate({ to: "/editor" });
-    } catch (error) {
-      console.error(error);
-      toast.error("Could not start with this template");
-    } finally {
-      setIsStarting(false);
-    }
+    const selectedTemplates = selectedTemplateIds
+      .map((id) => templates.find((template) => template.id === id))
+      .filter((template): template is SavedPageTemplate => Boolean(template));
+    onProceed(selectedTemplates);
+    onOpenChange(false);
   };
 
   return (
@@ -103,7 +96,7 @@ export function TemplateStartModal({
             Choose Template Bucket
           </DialogTitle>
           <DialogDescription>
-            Pick one or more templates from a category, then open them in the editor.
+            Pick one or more templates from a category, then add your photos.
           </DialogDescription>
         </DialogHeader>
 
@@ -128,7 +121,8 @@ export function TemplateStartModal({
                     onClick={() => setActiveCategory(category)}
                     className="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
                     style={{
-                      borderColor: activeCategory === category ? "rgb(59 130 246)" : "rgb(226 232 240)",
+                      borderColor:
+                        activeCategory === category ? "rgb(59 130 246)" : "rgb(226 232 240)",
                       background: activeCategory === category ? "rgb(59 130 246)" : "white",
                       color: activeCategory === category ? "white" : "rgb(51 65 85)",
                     }}
@@ -142,29 +136,58 @@ export function TemplateStartModal({
                 {filteredTemplates.map((template) => {
                   const selectedIndex = selectedTemplateIds.indexOf(template.id);
                   const isSelected = selectedIndex >= 0;
+                  const liked = likedTemplateIds.includes(template.id);
+                  const likeCount = likeCounts[template.id] ?? 0;
                   return (
-                    <button
+                    <div
                       key={template.id}
-                      type="button"
-                      onClick={() => {
-                        setSelectedTemplateIds((current) =>
-                          current.includes(template.id)
-                            ? current.filter((id) => id !== template.id)
-                            : [...current, template.id],
-                        );
-                      }}
-                      className={`group relative aspect-square overflow-hidden rounded-lg border-2 bg-slate-100 transition ${
-                        isSelected ? "border-blue-500 shadow-md" : "border-transparent hover:border-blue-300"
+                      className={`group relative aspect-square overflow-hidden border-2 bg-slate-100 transition duration-300 hover:z-10 hover:-translate-y-1 hover:scale-[1.03] ${
+                        isSelected
+                          ? "border-emerald-500 shadow-[0_16px_34px_-20px_rgba(5,150,105,.85)]"
+                          : "border-transparent shadow-sm hover:border-slate-300 hover:shadow-xl"
                       }`}
                     >
-                      <TemplatePreview template={template} className="opacity-90" />
-                      <span className="absolute right-2 top-2 rounded-md bg-black/40 p-1 text-white backdrop-blur-sm">
-                        {isSelected ? <span className="text-xs font-bold">{selectedIndex + 1}</span> : <Square className="h-4 w-4" />}
-                      </span>
-                      <span className="absolute inset-x-0 bottom-0 truncate bg-slate-950/65 px-2 py-2 text-left text-[11px] font-semibold text-white backdrop-blur-sm">
-                        {template.label}
-                      </span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedTemplateIds((current) =>
+                            current.includes(template.id)
+                              ? current.filter((id) => id !== template.id)
+                              : [...current, template.id],
+                          );
+                        }}
+                        className="absolute inset-0 h-full w-full"
+                        aria-label={`${isSelected ? "Remove" : "Add"} ${template.label}`}
+                      >
+                        <TemplatePreview
+                          template={template}
+                          showSamplePhotos
+                          className="transition duration-500 group-hover:scale-[1.04]"
+                        />
+                        <span className="absolute left-2 top-2 grid h-7 min-w-7 place-items-center rounded-full border border-white/70 bg-black/45 px-1 text-white shadow backdrop-blur-sm">
+                          {isSelected ? (
+                            <span className="text-xs font-bold">{selectedIndex + 1}</span>
+                          ) : (
+                            <Square className="h-3.5 w-3.5" />
+                          )}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        title={liked ? "Unlike template" : "Like template"}
+                        aria-pressed={liked}
+                        aria-label={`${liked ? "Unlike" : "Like"} ${template.label || "template"}; ${likeCount} likes`}
+                        onClick={() => onToggleLike?.(template.id)}
+                        className={`absolute bottom-2 right-2 z-10 inline-flex h-8 items-center gap-1 rounded-full border px-2 text-[10px] font-bold shadow-lg backdrop-blur-md transition hover:scale-105 ${
+                          liked
+                            ? "border-rose-300 bg-rose-500 text-white"
+                            : "border-white/70 bg-white/90 text-slate-700"
+                        }`}
+                      >
+                        <Heart className={`h-3.5 w-3.5 ${liked ? "fill-current" : ""}`} />
+                        {likeCount}
+                      </button>
+                    </div>
                   );
                 })}
               </div>
@@ -183,12 +206,13 @@ export function TemplateStartModal({
               Cancel
             </Button>
             <Button
-              onClick={startWithTemplate}
-              disabled={selectedTemplateIds.length === 0 || isStarting}
+              onClick={continueWithTemplates}
+              disabled={selectedTemplateIds.length === 0}
               className="gap-2"
             >
-              <LayoutGrid className="h-4 w-4" />
-              {isStarting ? "Starting..." : "Start in Editor"}
+              <ImagePlus className="h-4 w-4" />
+              Add photos
+              <ArrowRight className="h-4 w-4" />
             </Button>
           </div>
         </div>

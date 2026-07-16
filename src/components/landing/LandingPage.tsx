@@ -1,17 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useRouter } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import {
+  ArrowRight,
   BookOpen,
-  Check,
   ChevronLeft,
   ChevronRight,
   Clock3,
   FolderOpen,
+  Heart,
+  ImagePlus,
   Layers,
   Lock,
   LogOut,
   Plus,
-  Rocket,
   Shield,
   Sparkles,
   Trash2,
@@ -19,37 +20,27 @@ import {
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
 import { useBookStore } from "@/lib/photobook/store";
-import { applyTemplate, TEMPLATES } from "@/lib/photobook/templates";
 import {
   normalizeTemplateCategory,
   TEMPLATE_CATEGORIES,
 } from "@/lib/photobook/template-categories";
-import { FIXED_PAGE_SIZE, FIXED_PAGE_SIZE_ID, type SavedPageTemplate } from "@/lib/photobook/types";
+import type { SavedPageTemplate } from "@/lib/photobook/types";
+import { getTemplateLikeSummary, toggleTemplateLike } from "@/lib/api/template-likes.functions";
 import { TemplatePreview } from "@/components/photobook/TemplatePreview";
 import { LoginModal } from "./LoginModal";
 import { NewProjectModal } from "./NewProjectModal";
 import { ProjectSelectionModal } from "./ProjectSelectionModal";
 import { TemplateStartModal } from "./TemplateStartModal";
+import { BucketPhotoUploadModal } from "./BucketPhotoUploadModal";
 
 const C = {
   brand: "oklch(0.55 0.14 35)",
   brandDark: "oklch(0.39 0.11 30)",
   ink: "oklch(0.18 0.02 60)",
-  cream: "oklch(0.983 0.012 85)",
+  catalog: "#FEF5DA",
+  paper: "#FFFCF4",
   mint: "oklch(0.9 0.05 160)",
 };
-
-const BUILT_IN_TEMPLATES: SavedPageTemplate[] = TEMPLATES.map((template, index) => ({
-  id: `built-in-${template.id}`,
-  label: template.label,
-  background: "#f8f4ea",
-  elements: applyTemplate(template.id, [], FIXED_PAGE_SIZE.width, FIXED_PAGE_SIZE.height),
-  sizeId: FIXED_PAGE_SIZE_ID,
-  category: TEMPLATE_CATEGORIES[index % TEMPLATE_CATEGORIES.length],
-  frameLocked: false,
-  backgroundLocked: true,
-  sortOrder: index,
-}));
 
 function AnimatedHeroBook({ scrollPct }: { scrollPct: number }) {
   return (
@@ -63,7 +54,8 @@ function AnimatedHeroBook({ scrollPct }: { scrollPct: number }) {
         <div
           className="absolute inset-0 rounded-md shadow-[0_26px_60px_-28px_rgba(51,35,22,0.9)]"
           style={{
-            background: "linear-gradient(90deg, oklch(0.39 0.11 30), oklch(0.55 0.14 35) 48%, oklch(0.31 0.09 30))",
+            background:
+              "linear-gradient(90deg, oklch(0.39 0.11 30), oklch(0.55 0.14 35) 48%, oklch(0.31 0.09 30))",
             transform: "rotateX(8deg) rotateZ(-2deg)",
           }}
         />
@@ -80,8 +72,20 @@ function AnimatedHeroBook({ scrollPct }: { scrollPct: number }) {
           </div>
         </div>
         <div className="absolute inset-y-6 right-7 w-[43%] overflow-hidden rounded-r-md border border-black/5 bg-[#fffaf1] p-4 shadow-[inset_18px_0_25px_-30px_rgba(0,0,0,0.9)]">
-          <div className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: C.brand }}>Yaara</div>
-          <div className="mt-3 text-3xl leading-none" style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", color: C.brandDark }}>
+          <div
+            className="text-[10px] font-bold uppercase tracking-[0.18em]"
+            style={{ color: C.brand }}
+          >
+            Yaara
+          </div>
+          <div
+            className="mt-3 text-3xl leading-none"
+            style={{
+              fontFamily: "'Instrument Serif', serif",
+              fontStyle: "italic",
+              color: C.brandDark,
+            }}
+          >
             Your Story
           </div>
           <div className="mt-3 h-2 w-24 rounded-full bg-black/12" />
@@ -94,7 +98,9 @@ function AnimatedHeroBook({ scrollPct }: { scrollPct: number }) {
             <div className="h-24 rounded-sm bg-[url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=500&q=80')] bg-cover bg-center shadow-sm" />
             <div className="mt-4 h-2 w-20 rounded-full bg-black/12" />
             <div className="mt-2 h-2 w-28 rounded-full bg-black/10" />
-            <div className="absolute bottom-5 right-5 text-[10px] font-semibold text-black/25">01</div>
+            <div className="absolute bottom-5 right-5 text-[10px] font-semibold text-black/25">
+              01
+            </div>
           </div>
         </div>
       </div>
@@ -106,46 +112,74 @@ function TemplateCard({
   template,
   selected,
   order,
+  liked,
+  likeCount,
+  likePending,
   onToggle,
+  onToggleLike,
 }: {
   template: SavedPageTemplate;
   selected: boolean;
   order?: number;
+  liked: boolean;
+  likeCount: number;
+  likePending: boolean;
   onToggle: () => void;
+  onToggleLike: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
+    <div
       data-testid={`home-template-${template.id}`}
-      aria-pressed={selected}
-      aria-label={`${selected ? "Remove" : "Add"} ${template.label} template`}
-      className="group block w-full min-w-0 text-left focus-visible:outline-none"
+      className={`template-cinema-card group relative aspect-square w-full min-w-0 overflow-hidden rounded-md border-2 bg-[#fffdf7] shadow-[0_12px_30px_-20px_rgba(76,45,31,.5)] transition duration-300 ease-out focus-within:ring-2 focus-within:ring-[#bd5b49] ${
+        selected ? "border-emerald-500" : "border-[#ddcfaa]"
+      }`}
     >
-      <div
-        className={`relative aspect-square overflow-hidden rounded-md border-2 bg-white transition duration-200 group-hover:-translate-y-1 group-focus-visible:ring-2 group-focus-visible:ring-offset-2 ${
-          selected
-            ? "border-emerald-600 shadow-[0_12px_28px_-16px_rgba(5,150,105,0.8)]"
-            : "border-black/10 shadow-[0_8px_24px_-18px_rgba(0,0,0,0.45)]"
-        }`}
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={selected}
+        aria-label={`${selected ? "Remove" : "Add"} ${template.label} template`}
+        className="absolute inset-0 h-full w-full overflow-hidden focus-visible:outline-none"
       >
-        <TemplatePreview template={template} showSamplePhotos className="absolute inset-0" />
+        <TemplatePreview
+          template={template}
+          showSamplePhotos
+          className="absolute inset-0 transition duration-500 ease-out group-hover:scale-[1.055]"
+        />
+        <span className="template-card-shine pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-white/25 blur-md" />
         <span
-          className={`absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full border transition ${
+          className={`absolute left-2 top-2 grid h-7 min-w-7 place-items-center rounded-full border px-1 shadow-lg backdrop-blur-md transition ${
             selected
-              ? "scale-100 border-emerald-500 bg-emerald-600 text-white"
-              : "scale-90 border-white/80 bg-white/85 text-transparent group-hover:text-black/30"
+              ? "scale-100 border-emerald-300 bg-emerald-500 text-white"
+              : "scale-90 border-white/80 bg-[#57342e]/85 text-white/85 group-hover:scale-100"
           }`}
           aria-hidden="true"
         >
           {selected && order ? (
             <span className="text-[11px] font-bold">{order}</span>
           ) : (
-            <Check className="h-3.5 w-3.5" />
+            <Plus className="h-3.5 w-3.5" />
           )}
         </span>
-      </div>
-    </button>
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleLike}
+        disabled={likePending}
+        aria-pressed={liked}
+        aria-label={`${liked ? "Unlike" : "Like"} ${template.label || "template"}; ${likeCount} likes`}
+        title={liked ? "Unlike template" : "Like template"}
+        className={`absolute bottom-2 right-2 z-10 inline-flex h-8 min-w-12 items-center justify-center gap-1 rounded-full border px-2 text-[10px] font-extrabold shadow-lg backdrop-blur-md transition hover:scale-105 disabled:opacity-60 ${
+          liked
+            ? "border-rose-300 bg-rose-500 text-white"
+            : "border-[#e0d2ac] bg-[#fffdf7]/95 text-[#4d372f]"
+        }`}
+      >
+        <Heart className={`h-3.5 w-3.5 ${liked ? "fill-current" : ""}`} />
+        <span>{likeCount}</span>
+      </button>
+    </div>
   );
 }
 
@@ -153,13 +187,21 @@ function TemplateCategorySection({
   category,
   templates,
   selectedIds,
+  likeCounts,
+  likedTemplateIds,
+  pendingLikeIds,
   onToggle,
+  onToggleLike,
   onShowMore,
 }: {
   category: string;
   templates: SavedPageTemplate[];
   selectedIds: string[];
+  likeCounts: Record<string, number>;
+  likedTemplateIds: string[];
+  pendingLikeIds: Set<string>;
   onToggle: (id: string) => void;
+  onToggleLike: (id: string) => void;
   onShowMore: (category: string) => void;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
@@ -172,20 +214,25 @@ function TemplateCategorySection({
   return (
     <section
       data-template-category={category}
-      className="border-b border-black/[0.07] py-4 last:border-b-0 sm:py-5"
+      className="border-b border-[#daceaa] py-4 last:border-b-0 sm:py-5"
     >
       <div className="mb-2.5 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="truncate text-lg font-semibold sm:text-xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>
+          <h3
+            className="truncate text-lg font-semibold sm:text-xl"
+            style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
+          >
             {category}
           </h3>
-          <p className="text-xs text-black/45">{templates.length} template{templates.length === 1 ? "" : "s"}</p>
+          <p className="text-xs text-[#7b6d5e]">
+            {templates.length} design{templates.length === 1 ? "" : "s"}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
           <button
             type="button"
             onClick={() => scrollRail(-1)}
-            className="grid h-8 w-8 place-items-center rounded-md border border-black/10 text-black/55 transition hover:bg-black/[0.04] hover:text-black"
+            className="grid h-8 w-8 place-items-center rounded-md border border-[#cfc19b] bg-[#fffaf0]/70 text-[#70584c] transition hover:border-[#b99d78] hover:bg-[#fffdf7] hover:text-[#442c27]"
             title="Scroll left"
             aria-label={`Scroll ${category} left`}
           >
@@ -194,7 +241,7 @@ function TemplateCategorySection({
           <button
             type="button"
             onClick={() => scrollRail(1)}
-            className="grid h-8 w-8 place-items-center rounded-md border border-black/10 text-black/55 transition hover:bg-black/[0.04] hover:text-black"
+            className="grid h-8 w-8 place-items-center rounded-md border border-[#cfc19b] bg-[#fffaf0]/70 text-[#70584c] transition hover:border-[#b99d78] hover:bg-[#fffdf7] hover:text-[#442c27]"
             title="Scroll right"
             aria-label={`Scroll ${category} right`}
           >
@@ -203,27 +250,31 @@ function TemplateCategorySection({
           <button
             type="button"
             onClick={() => onShowMore(category)}
-            className="ml-1 h-8 rounded-md px-2.5 text-xs font-bold transition hover:bg-black/[0.04]"
-            style={{ color: C.brand }}
+            className="ml-1 inline-flex h-8 items-center gap-1 rounded-md px-2.5 text-xs font-bold text-[#963f36] transition hover:bg-[#fffaf0] hover:text-[#652b27]"
           >
             See all
+            <ArrowRight className="h-3.5 w-3.5" />
           </button>
         </div>
       </div>
 
       <div
         ref={railRef}
-        className="flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1.5 [scrollbar-color:rgba(0,0,0,.22)_transparent] [scrollbar-width:thin] sm:gap-3"
+        className="template-rail -mx-1 flex snap-x snap-mandatory gap-2.5 overflow-x-auto px-1 py-2 [scrollbar-color:rgba(111,82,65,.3)_transparent] [scrollbar-width:thin] sm:gap-3"
       >
         {templates.map((template) => {
           const selectedIndex = selectedIds.indexOf(template.id);
           return (
-            <div key={template.id} className="w-[132px] shrink-0 snap-start sm:w-40">
+            <div key={template.id} className="w-[136px] shrink-0 snap-start sm:w-40 lg:w-[172px]">
               <TemplateCard
                 template={template}
                 selected={selectedIndex >= 0}
                 order={selectedIndex >= 0 ? selectedIndex + 1 : undefined}
+                liked={likedTemplateIds.includes(template.id)}
+                likeCount={likeCounts[template.id] ?? 0}
+                likePending={pendingLikeIds.has(template.id)}
                 onToggle={() => onToggle(template.id)}
+                onToggleLike={() => onToggleLike(template.id)}
               />
             </div>
           );
@@ -236,18 +287,24 @@ function TemplateCategorySection({
 function HomeTemplatesGrid({
   templates,
   selectedIds,
+  likeCounts,
+  likedTemplateIds,
+  pendingLikeIds,
   isLoading,
-  isStarting,
   onToggle,
+  onToggleLike,
   onClear,
   onStart,
   onShowMore,
 }: {
   templates: SavedPageTemplate[];
   selectedIds: string[];
+  likeCounts: Record<string, number>;
+  likedTemplateIds: string[];
+  pendingLikeIds: Set<string>;
   isLoading: boolean;
-  isStarting: boolean;
   onToggle: (id: string) => void;
+  onToggleLike: (id: string) => void;
   onClear: () => void;
   onStart: () => void;
   onShowMore: (category: string) => void;
@@ -264,26 +321,37 @@ function HomeTemplatesGrid({
         category,
         items
           .slice()
-          .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label)),
+          .sort(
+            (a, b) =>
+              (likeCounts[b.id] ?? 0) - (likeCounts[a.id] ?? 0) ||
+              (a.sortOrder ?? 0) - (b.sortOrder ?? 0) ||
+              a.label.localeCompare(b.label),
+          ),
       );
     });
     return grouped;
-  }, [templates]);
+  }, [likeCounts, templates]);
 
   const populatedCategories = TEMPLATE_CATEGORIES.filter(
     (category) => (templatesByCategory.get(category)?.length ?? 0) > 0,
   );
+  const selectedTemplates = selectedIds
+    .map((id) => templates.find((template) => template.id === id))
+    .filter((template): template is SavedPageTemplate => Boolean(template));
 
   return (
     <div>
       {isLoading ? (
         <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, index) => (
-            <div key={index} className="border-b border-black/5 py-4">
-              <div className="mb-3 h-6 w-40 animate-pulse rounded bg-black/5" />
+            <div key={index} className="border-b border-[#daceaa] py-4">
+              <div className="mb-3 h-6 w-40 animate-pulse rounded bg-[#e7d9b5]" />
               <div className="flex gap-3 overflow-hidden">
                 {Array.from({ length: 5 }).map((__, itemIndex) => (
-                  <div key={itemIndex} className="aspect-square w-[132px] shrink-0 animate-pulse rounded-md bg-black/5 sm:w-40" />
+                  <div
+                    key={itemIndex}
+                    className="aspect-square w-[136px] shrink-0 animate-pulse rounded-md border border-[#dfd1ad] bg-[#fffaf0]/70 sm:w-40"
+                  />
                 ))}
               </div>
             </div>
@@ -299,13 +367,17 @@ function HomeTemplatesGrid({
                 category={category}
                 templates={categoryTemplates}
                 selectedIds={selectedIds}
+                likeCounts={likeCounts}
+                likedTemplateIds={likedTemplateIds}
+                pendingLikeIds={pendingLikeIds}
                 onToggle={onToggle}
+                onToggleLike={onToggleLike}
                 onShowMore={onShowMore}
               />
             );
           })}
           {populatedCategories.length === 0 && (
-            <div className="rounded-md border border-dashed border-black/15 bg-white px-4 py-12 text-center text-sm font-semibold text-black/45">
+            <div className="border border-dashed border-[#cdbd95] bg-white/35 px-4 py-12 text-center text-sm font-semibold text-[#75675a]">
               No templates are available yet.
             </div>
           )}
@@ -315,9 +387,28 @@ function HomeTemplatesGrid({
       {selectedIds.length > 0 && (
         <div
           data-testid="template-bucket"
-          className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-3xl items-center gap-3 rounded-lg border border-black/10 bg-white/95 p-2.5 shadow-2xl backdrop-blur-xl motion-safe:animate-in motion-safe:slide-in-from-bottom-4 sm:bottom-5 sm:p-3"
+          className="fixed inset-x-3 bottom-3 z-50 mx-auto flex max-w-3xl items-center gap-2 border border-black/10 bg-white/95 p-2.5 shadow-[0_24px_70px_-24px_rgba(0,0,0,.65)] backdrop-blur-xl motion-safe:animate-in motion-safe:slide-in-from-bottom-4 sm:bottom-5 sm:gap-3 sm:p-3"
         >
-          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-emerald-800" style={{ background: C.mint }}>
+          <div className="hidden h-11 shrink-0 items-center -space-x-2 sm:flex">
+            {selectedTemplates.slice(0, 4).map((template, index) => (
+              <div
+                key={template.id}
+                className="relative h-11 w-11 overflow-hidden border-2 border-white bg-slate-100 shadow-sm"
+                style={{ zIndex: 4 - index }}
+              >
+                <TemplatePreview template={template} showSamplePhotos />
+              </div>
+            ))}
+            {selectedTemplates.length > 4 && (
+              <span className="relative grid h-11 w-11 place-items-center rounded-full border-2 border-white bg-slate-900 text-[10px] font-bold text-white">
+                +{selectedTemplates.length - 4}
+              </span>
+            )}
+          </div>
+          <div
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-md text-emerald-800 sm:hidden"
+            style={{ background: C.mint }}
+          >
             <Layers className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1">
@@ -338,14 +429,14 @@ function HomeTemplatesGrid({
           <button
             type="button"
             onClick={onStart}
-            disabled={isStarting}
+            aria-label="Add photos to selected templates"
             data-testid="open-bucket-editor"
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5 disabled:opacity-60"
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-md px-3.5 text-sm font-bold text-white transition hover:-translate-y-0.5"
             style={{ background: C.brand }}
           >
-            <Rocket className="h-4 w-4" />
-            <span className="hidden sm:inline">{isStarting ? "Opening..." : "Open in Editor"}</span>
-            <span className="sm:hidden">Open</span>
+            <ImagePlus className="h-4 w-4" />
+            <span className="hidden sm:inline">Add photos</span>
+            <ArrowRight className="h-4 w-4" />
           </button>
         </div>
       )}
@@ -354,7 +445,6 @@ function HomeTemplatesGrid({
 }
 
 export function LandingPage() {
-  const router = useRouter();
   const { currentUser, logout, isAdmin } = useAuthStore();
   const [showLogin, setShowLogin] = useState(false);
   const [showNewProject, setShowNewProject] = useState(false);
@@ -362,20 +452,22 @@ export function LandingPage() {
   const [templateModalCategory, setTemplateModalCategory] = useState<string | null>(null);
   const [showProjects, setShowProjects] = useState<"recent" | "open" | null>(null);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
+  const [photoSetupTemplates, setPhotoSetupTemplates] = useState<SavedPageTemplate[]>([]);
+  const [showPhotoSetup, setShowPhotoSetup] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
-  const [isStarting, setIsStarting] = useState(false);
+  const [likeCounts, setLikeCounts] = useState<Record<string, number>>({});
+  const [likedTemplateIds, setLikedTemplateIds] = useState<string[]>([]);
+  const [pendingLikeIds, setPendingLikeIds] = useState<Set<string>>(new Set());
+  const voterKeyRef = useRef("");
   const adminTemplates = useBookStore((s) => s.adminTemplates ?? []);
-  const availableTemplates = useMemo(() => {
-    const adminIds = new Set(adminTemplates.map((template) => template.id));
-    return [
-      ...adminTemplates,
-      ...BUILT_IN_TEMPLATES.filter((template) => !adminIds.has(template.id)),
-    ];
-  }, [adminTemplates]);
+  const availableTemplates = useMemo(
+    () =>
+      adminTemplates
+        .slice()
+        .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.label.localeCompare(b.label)),
+    [adminTemplates],
+  );
   const initAdminTemplates = useBookStore((s) => s.initAdminTemplates);
-  const resetBook = useBookStore((s) => s.resetBook);
-  const addPage = useBookStore((s) => s.addPage);
-  const applyPageTemplate = useBookStore((s) => s.applyPageTemplate);
   const heroRef = useRef<HTMLDivElement>(null);
   const [scrollPct, setScrollPct] = useState(0);
 
@@ -388,6 +480,27 @@ export function LandingPage() {
       active = false;
     };
   }, [initAdminTemplates]);
+
+  useEffect(() => {
+    let active = true;
+    const stored = window.localStorage.getItem("yaara-template-voter");
+    const voterKey =
+      stored ||
+      (window.crypto?.randomUUID
+        ? window.crypto.randomUUID()
+        : `visitor-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    if (!stored) window.localStorage.setItem("yaara-template-voter", voterKey);
+    voterKeyRef.current = voterKey;
+
+    getTemplateLikeSummary({ data: { voterKey } }).then((summary) => {
+      if (!active) return;
+      setLikeCounts(summary.counts);
+      setLikedTemplateIds(summary.likedTemplateIds);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     const onScroll = () => {
@@ -405,63 +518,146 @@ export function LandingPage() {
     );
   };
 
-  const startSelectedTemplates = async () => {
-    const selectedTemplates = selectedTemplateIds
-      .map((id) => availableTemplates.find((template) => template.id === id))
-      .filter((template): template is SavedPageTemplate => Boolean(template));
-    if (selectedTemplates.length === 0) {
+  const openPhotoSetup = (templates: SavedPageTemplate[]) => {
+    if (templates.length === 0) {
       toast.error("Select at least one template");
       return;
     }
+    setPhotoSetupTemplates(templates);
+    setShowPhotoSetup(true);
+  };
 
-    setIsStarting(true);
+  const startSelectedTemplates = () => {
+    const selectedTemplates = selectedTemplateIds
+      .map((id) => availableTemplates.find((template) => template.id === id))
+      .filter((template): template is SavedPageTemplate => Boolean(template));
+    openPhotoSetup(selectedTemplates);
+  };
+
+  const handleToggleLike = async (templateId: string) => {
+    const voterKey = voterKeyRef.current;
+    if (!voterKey || pendingLikeIds.has(templateId)) return;
+    const wasLiked = likedTemplateIds.includes(templateId);
+    const previousCount = likeCounts[templateId] ?? 0;
+
+    setPendingLikeIds((current) => new Set(current).add(templateId));
+    setLikedTemplateIds((current) =>
+      wasLiked ? current.filter((id) => id !== templateId) : [...current, templateId],
+    );
+    setLikeCounts((current) => ({
+      ...current,
+      [templateId]: Math.max(0, previousCount + (wasLiked ? -1 : 1)),
+    }));
+
     try {
-      resetBook();
-      for (let index = 0; index < selectedTemplates.length; index += 1) {
-        if (index > 0) addPage();
-        await applyPageTemplate(selectedTemplates[index]);
-      }
-      toast.success(`${selectedTemplates.length} template page${selectedTemplates.length === 1 ? "" : "s"} ready`);
-      await router.navigate({ to: "/editor" });
+      const result = await toggleTemplateLike({ data: { templateId, voterKey } });
+      setLikeCounts((current) => ({ ...current, [templateId]: result.likeCount }));
+      setLikedTemplateIds((current) => {
+        const without = current.filter((id) => id !== templateId);
+        return result.liked ? [...without, templateId] : without;
+      });
     } catch (error) {
       console.error(error);
-      toast.error("Could not open these templates");
-      setIsStarting(false);
+      setLikeCounts((current) => ({ ...current, [templateId]: previousCount }));
+      setLikedTemplateIds((current) => {
+        const without = current.filter((id) => id !== templateId);
+        return wasLiked ? [...without, templateId] : without;
+      });
+      toast.error("Could not update this like yet.");
+    } finally {
+      setPendingLikeIds((current) => {
+        const next = new Set(current);
+        next.delete(templateId);
+        return next;
+      });
     }
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden" style={{ background: C.cream, color: C.ink, fontFamily: "'Inter', sans-serif" }}>
+    <div
+      className="min-h-screen overflow-x-hidden"
+      style={{ background: C.paper, color: C.ink, fontFamily: "'Inter', sans-serif" }}
+    >
       <style>{`
         @keyframes book-page-turn {
           0%, 18% { transform: rotateY(-2deg); filter: brightness(1); }
           44%, 58% { transform: rotateY(-52deg); filter: brightness(0.96); }
           82%, 100% { transform: rotateY(-2deg); filter: brightness(1); }
         }
+        @keyframes template-card-shine {
+          from { transform: translateX(-220%) skewX(-12deg); opacity: 0; }
+          35% { opacity: .65; }
+          to { transform: translateX(620%) skewX(-12deg); opacity: 0; }
+        }
+        @media (hover: hover) {
+          .template-cinema-card:hover {
+            z-index: 20;
+            transform: translateY(-6px) scale(1.035);
+            border-color: rgba(145,82,65,.68);
+            box-shadow: 0 24px 44px -25px rgba(83,48,35,.72);
+          }
+          .template-rail:has(.template-cinema-card:hover) .template-cinema-card:not(:hover) {
+            transform: scale(.985);
+            opacity: .82;
+          }
+          .template-cinema-card:hover .template-card-shine {
+            animation: template-card-shine .85s ease-out both;
+          }
+        }
+        .template-rail {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .template-rail::-webkit-scrollbar { display: none; }
         @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; animation: none !important; } }
       `}</style>
 
-      <header className="sticky top-0 z-40 border-b" style={{ backdropFilter: "blur(12px)", background: `${C.cream}e8`, borderColor: `${C.ink}0d` }}>
+      <header
+        className="sticky top-0 z-40 border-b"
+        style={{
+          backdropFilter: "blur(12px)",
+          background: "rgba(255,252,244,.9)",
+          borderColor: `${C.ink}0d`,
+        }}
+      >
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3 sm:px-6">
           <div className="flex items-center gap-2">
             <BookOpen className="h-5 w-5" style={{ color: C.brand }} />
-            <span className="text-xl" style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>Yaara</span>
+            <span
+              className="text-xl"
+              style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}
+            >
+              Yaara
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {currentUser ? (
               <>
                 <span className="hidden text-sm font-medium sm:block">{currentUser.username}</span>
                 {isAdmin && (
-                  <Link to="/admin" className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: `${C.ink}22`, color: C.brand }}>
+                  <Link
+                    to="/admin"
+                    className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold"
+                    style={{ borderColor: `${C.ink}22`, color: C.brand }}
+                  >
                     <Shield className="h-3.5 w-3.5" /> Admin
                   </Link>
                 )}
-                <button onClick={logout} title="Logout" className="grid h-8 w-8 place-items-center rounded-md border" style={{ borderColor: `${C.ink}22` }}>
+                <button
+                  onClick={logout}
+                  title="Logout"
+                  className="grid h-8 w-8 place-items-center rounded-md border"
+                  style={{ borderColor: `${C.ink}22` }}
+                >
                   <LogOut className="h-3.5 w-3.5" />
                 </button>
               </>
             ) : (
-              <button onClick={() => setShowLogin(true)} className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: `${C.ink}22` }}>
+              <button
+                onClick={() => setShowLogin(true)}
+                className="flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold"
+                style={{ borderColor: `${C.ink}22` }}
+              >
                 <Lock className="h-3.5 w-3.5" /> Admin Login
               </button>
             )}
@@ -469,32 +665,74 @@ export function LandingPage() {
         </div>
       </header>
 
-      <section ref={heroRef} className="relative overflow-hidden border-b border-black/5">
+      <section
+        ref={heroRef}
+        className="relative overflow-hidden border-b border-black/5"
+        style={{ background: C.paper }}
+      >
         <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1.05fr_0.95fr] md:py-12">
           <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 text-xs font-semibold" style={{ color: C.brand }}>
-              <Sparkles className="h-3.5 w-3.5" /> Beautiful photobooks, made simply
+            <div
+              className="inline-flex items-center gap-2 text-xs font-semibold"
+              style={{ color: C.brand }}
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Create a photobook in minutes
             </div>
-            <h1 className="mt-4 max-w-xl text-4xl leading-[1.02] md:text-6xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif", fontWeight: 700 }}>
-              Your memories, <span style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic", fontWeight: 400 }}>bound beautifully.</span>
+            <h1
+              className="mt-4 max-w-xl text-4xl leading-[1.02] md:text-[44px] lg:text-6xl"
+              style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif", fontWeight: 700 }}
+            >
+              Your memories,{" "}
+              <span
+                style={{
+                  fontFamily: "'Instrument Serif', serif",
+                  fontStyle: "italic",
+                  fontWeight: 400,
+                }}
+              >
+                bound beautifully.
+              </span>
             </h1>
             <p className="mt-4 max-w-md text-sm leading-6 text-black/60 sm:text-base">
-              Pick a template, add it to your bucket, and start designing in seconds.
+              Choose your pages, add your photos, and make a book that feels completely yours.
             </p>
 
             <div className="mt-6 grid max-w-lg grid-cols-2 gap-2.5">
-              <button onClick={() => setShowNewProject(true)} className="group col-span-2 flex items-center justify-between rounded-md px-4 py-3 text-sm font-semibold text-white shadow-lg" style={{ background: C.brand }}>
-                <span className="inline-flex items-center gap-2"><Plus className="h-4 w-4 transition group-hover:rotate-90" />Create New Project</span>
+              <button
+                onClick={() => setShowNewProject(true)}
+                className="group col-span-2 flex items-center justify-between rounded-md px-4 py-3 text-sm font-semibold text-white shadow-lg"
+                style={{ background: C.brand }}
+              >
+                <span className="inline-flex items-center gap-2">
+                  <Plus className="h-4 w-4 transition group-hover:rotate-90" />
+                  Create New Project
+                </span>
                 <ChevronRight className="h-4 w-4" />
               </button>
-              <button onClick={() => { setTemplateModalCategory(null); setShowTemplates(true); }} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
-                <Layers className="h-4 w-4" /> Templates
+              <button
+                onClick={() =>
+                  document
+                    .getElementById("template-catalog")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-md border bg-white px-2.5 py-2.5 text-xs font-semibold sm:px-3 sm:text-sm"
+                style={{ borderColor: `${C.ink}18` }}
+              >
+                <Layers className="h-4 w-4 shrink-0" /> Browse Templates
               </button>
-              <button onClick={() => setShowProjects("recent")} className="inline-flex items-center justify-center gap-2 rounded-md border bg-white px-3 py-2.5 text-sm font-semibold" style={{ borderColor: `${C.ink}18` }}>
-                <Clock3 className="h-4 w-4" /> Recent
+              <button
+                onClick={() => setShowProjects("recent")}
+                className="inline-flex min-w-0 items-center justify-center gap-2 rounded-md border bg-white px-2.5 py-2.5 text-xs font-semibold sm:px-3 sm:text-sm"
+                style={{ borderColor: `${C.ink}18` }}
+              >
+                <Clock3 className="h-4 w-4 shrink-0" /> Recent Projects
               </button>
-              <button onClick={() => setShowProjects("open")} className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60" style={{ borderColor: `${C.ink}2a` }}>
-                <FolderOpen className="h-4 w-4" /> Open .wanderbook project
+              <button
+                onClick={() => setShowProjects("open")}
+                className="col-span-2 inline-flex items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2.5 text-sm font-semibold text-black/60"
+                style={{ borderColor: `${C.ink}2a` }}
+              >
+                <FolderOpen className="h-4 w-4" /> Open Project File (.wanderbook)
               </button>
             </div>
           </div>
@@ -503,21 +741,63 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="bg-white/55 py-7 md:py-9">
+      <section
+        id="template-catalog"
+        className="border-y py-7 md:py-10"
+        style={{ background: C.catalog, borderColor: "#dfd1ad" }}
+      >
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="mb-2 flex items-end justify-between gap-3">
+          <div className="mb-1 grid gap-5 border-b border-[#daceaa] pb-5 md:grid-cols-[1fr_auto] md:items-end">
             <div>
-              <div className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.brand }}>Template buckets</div>
-              <h2 className="mt-1 text-2xl font-semibold md:text-3xl" style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}>Choose pages for your book</h2>
-              <p className="mt-1 text-sm text-black/50">Tap templates to build your bucket. The number shows page order.</p>
+              <div className="text-xs font-bold uppercase tracking-[0.18em] text-[#a44639]">
+                Start with your pages
+              </div>
+              <h2
+                className="mt-1 text-2xl font-semibold md:text-3xl"
+                style={{ fontFamily: "'Bricolage Grotesque', 'Inter', sans-serif" }}
+              >
+                Choose templates for your book
+              </h2>
+              <p className="mt-1 text-sm text-[#746558]">
+                {availableTemplates.length} admin designs - most-loved templates appear first
+              </p>
+            </div>
+
+            <div
+              className="flex items-center gap-2 text-[11px] font-bold text-[#766357] sm:gap-3 sm:text-xs"
+              aria-label="Create a book in three stages"
+            >
+              <div className="flex items-center gap-1.5 text-[#8f3f35]">
+                <span className="grid h-7 w-7 place-items-center rounded-full bg-[#9e4639] text-white">
+                  <Layers className="h-3.5 w-3.5" />
+                </span>
+                <span>Templates</span>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-[#ae9a78]" />
+              <div className="flex items-center gap-1.5">
+                <span className="grid h-7 w-7 place-items-center rounded-full border border-[#cfbe96] bg-[#fffaf0]">
+                  <ImagePlus className="h-3.5 w-3.5" />
+                </span>
+                <span>Photos</span>
+              </div>
+              <ArrowRight className="h-3.5 w-3.5 text-[#ae9a78]" />
+              <div className="flex items-center gap-1.5">
+                <span className="grid h-7 w-7 place-items-center rounded-full border border-[#cfbe96] bg-[#fffaf0]">
+                  <BookOpen className="h-3.5 w-3.5" />
+                </span>
+                <span>Editor</span>
+              </div>
             </div>
           </div>
           <HomeTemplatesGrid
             templates={availableTemplates}
             selectedIds={selectedTemplateIds}
+            likeCounts={likeCounts}
+            likedTemplateIds={likedTemplateIds}
+            pendingLikeIds={pendingLikeIds}
             isLoading={isLoadingTemplates}
-            isStarting={isStarting}
             onToggle={toggleTemplate}
+            onToggleLike={handleToggleLike}
             onClear={() => setSelectedTemplateIds([])}
             onStart={startSelectedTemplates}
             onShowMore={(category) => {
@@ -528,7 +808,10 @@ export function LandingPage() {
         </div>
       </section>
 
-      <footer className="border-t py-5 text-center text-xs text-black/45" style={{ borderColor: `${C.ink}0d` }}>
+      <footer
+        className="border-t py-5 text-center text-xs text-black/45"
+        style={{ background: C.catalog, borderColor: "#dfd1ad" }}
+      >
         (c) 2026 Yaara Photobook Studio
       </footer>
 
@@ -539,6 +822,16 @@ export function LandingPage() {
         onOpenChange={setShowTemplates}
         templates={availableTemplates}
         initialCategory={templateModalCategory}
+        onProceed={openPhotoSetup}
+        likeCounts={likeCounts}
+        likedTemplateIds={likedTemplateIds}
+        onToggleLike={handleToggleLike}
+      />
+      <BucketPhotoUploadModal
+        open={showPhotoSetup}
+        onOpenChange={setShowPhotoSetup}
+        templates={photoSetupTemplates}
+        onFinished={() => setSelectedTemplateIds([])}
       />
       {showProjects && (
         <ProjectSelectionModal
