@@ -102,6 +102,7 @@ export type PhotoElement = ElementBase & {
   frameColor?: string;
   eraseMask?: string;
   magicMask?: string;
+  backgroundRemovalMask?: string;
   magicFrame?: boolean;
 };
 

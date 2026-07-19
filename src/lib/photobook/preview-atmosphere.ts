@@ -83,6 +83,7 @@ export type PreviewSettings = {
   bookOffsetX: number;
   bookOffsetY: number;
   showGuide: boolean;
+  showCursorCat: boolean;
 };
 
 export const DEFAULT_PREVIEW_SETTINGS: PreviewSettings = {
@@ -94,6 +95,7 @@ export const DEFAULT_PREVIEW_SETTINGS: PreviewSettings = {
   bookOffsetX: 0,
   bookOffsetY: 0,
   showGuide: true,
+  showCursorCat: true,
 };
 
 export function loadPreviewSettings(): PreviewSettings {

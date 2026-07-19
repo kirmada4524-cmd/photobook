@@ -176,7 +176,13 @@ const pageMutationAllowed = (page?: Page) =>
   !page?.adminTemplateProtected || useAuthStore.getState().isAdmin;
 
 const isUserOverlayElement = (element?: PageElement) =>
-  Boolean(element?.userAdded && (element.type === "sticker" || element.type === "drawing"));
+  Boolean(
+    element?.userAdded &&
+      (element.type === "sticker" ||
+        element.type === "drawing" ||
+        element.type === "text" ||
+        element.type === "quote"),
+  );
 
 const isProtectedPhotoEditPatch = (patch: Partial<PageElement>) =>
   Object.keys(patch).every((key) =>
@@ -187,6 +193,7 @@ const isProtectedPhotoEditPatch = (patch: Partial<PageElement>) =>
       "caption",
       "opacity",
       "eraseMask",
+      "backgroundRemovalMask",
       "imageX",
       "imageY",
       "imageScale",
@@ -222,6 +229,7 @@ export type SavedProjectMetadata = {
 };
 
 export type DrawMode = "off" | "pen" | "marker" | "highlighter" | "neon" | "pressure";
+export type ImageMaskBrushMode = "erase" | "restore";
 
 type State = {
   book: Book;
@@ -241,6 +249,7 @@ type State = {
   projectFilePath: string | null;
   isEraserMode: boolean;
   eraserBrushSize: number;
+  imageMaskBrushMode: ImageMaskBrushMode;
   drawMode: DrawMode;
   drawBrushSize: number;
   drawBrushColor: string;
@@ -348,6 +357,7 @@ type Actions = {
   setProjectFilePath: (path: string | null) => void;
   setIsEraserMode: (b: boolean) => void;
   setEraserBrushSize: (size: number) => void;
+  setImageMaskBrushMode: (mode: ImageMaskBrushMode) => void;
   setDrawMode: (mode: DrawMode) => void;
   setDrawBrushSize: (size: number) => void;
   setDrawBrushColor: (color: string) => void;
@@ -511,6 +521,7 @@ export const useBookStore = create<State & Actions>()(
         projectFilePath: null,
         isEraserMode: false,
         eraserBrushSize: 30,
+        imageMaskBrushMode: "erase",
         drawMode: "off",
         drawBrushSize: 12,
         drawBrushColor: "#1f2937",
@@ -607,12 +618,7 @@ export const useBookStore = create<State & Actions>()(
         setPageBackground: (id, bg) =>
           set((s) => {
             const page = s.book.pages.find((p) => p.id === id);
-            if (page?.adminTemplateProtected && !useAuthStore.getState().isAdmin) return s;
-            const isUserBackground =
-              bg.startsWith("bg_") || bg.startsWith("data:") || bg.startsWith("blob:");
-            if (page?.backgroundLocked && !isUserBackground && !useAuthStore.getState().isAdmin) {
-              return s;
-            }
+            if (!page) return s;
             return {
               book: {
                 ...s.book,
@@ -631,55 +637,37 @@ export const useBookStore = create<State & Actions>()(
             };
           }),
         setPageBorder: (id, border) =>
-          set((s) =>
-            pageMutationAllowed(s.book.pages.find((p) => p.id === id))
-              ? {
-                  book: {
-                    ...s.book,
-                    pages: s.book.pages.map((p) => (p.id === id ? { ...p, border } : p)),
-                  },
-                }
-              : s,
-          ),
+          set((s) => ({
+            book: {
+              ...s.book,
+              pages: s.book.pages.map((p) => (p.id === id ? { ...p, border } : p)),
+            },
+          })),
         updatePageBackgroundMode: (id, mode) =>
-          set((s) =>
-            pageMutationAllowed(s.book.pages.find((p) => p.id === id))
-              ? {
-                  book: {
-                    ...s.book,
-                    pages: s.book.pages.map((p) =>
-                      p.id === id ? { ...p, backgroundMode: mode } : p,
-                    ),
-                  },
-                }
-              : s,
-          ),
+          set((s) => ({
+            book: {
+              ...s.book,
+              pages: s.book.pages.map((p) => (p.id === id ? { ...p, backgroundMode: mode } : p)),
+            },
+          })),
         updatePageBackgroundPosition: (pageId, x, y) =>
-          set((s) =>
-            pageMutationAllowed(s.book.pages.find((p) => p.id === pageId))
-              ? {
-                  book: {
-                    ...s.book,
-                    pages: s.book.pages.map((p) =>
-                      p.id === pageId ? { ...p, backgroundX: x, backgroundY: y } : p,
-                    ),
-                  },
-                }
-              : s,
-          ),
+          set((s) => ({
+            book: {
+              ...s.book,
+              pages: s.book.pages.map((p) =>
+                p.id === pageId ? { ...p, backgroundX: x, backgroundY: y } : p,
+              ),
+            },
+          })),
         updatePageBackgroundScale: (pageId, scale) =>
-          set((s) =>
-            pageMutationAllowed(s.book.pages.find((p) => p.id === pageId))
-              ? {
-                  book: {
-                    ...s.book,
-                    pages: s.book.pages.map((p) =>
-                      p.id === pageId ? { ...p, backgroundScale: Math.max(1, scale) } : p,
-                    ),
-                  },
-                }
-              : s,
-          ),
+          set((s) => ({
+            book: {
+              ...s.book,
+              pages: s.book.pages.map((p) =>
+                p.id === pageId ? { ...p, backgroundScale: Math.max(1, scale) } : p,
+              ),
+            },
+          })),
         setEditingBackgroundPageId: (pageId) => set({ editingBackgroundPageId: pageId }),
         reorderPages: (ids) =>
           set((s) => ({
@@ -757,7 +745,12 @@ export const useBookStore = create<State & Actions>()(
                       ...p,
                       elements: p.elements.map((e) =>
                         e.id === elementId && e.type === "photo"
-                          ? { ...e, imageId, eraseMask: undefined }
+                          ? {
+                              ...e,
+                              imageId,
+                              eraseMask: undefined,
+                              backgroundRemovalMask: undefined,
+                            }
                           : e,
                       ),
                     }
@@ -776,7 +769,12 @@ export const useBookStore = create<State & Actions>()(
                       ...p,
                       elements: p.elements.map((e) =>
                         e.id === elementId && e.type === "photo"
-                          ? { ...e, imageId: "", eraseMask: undefined }
+                          ? {
+                              ...e,
+                              imageId: "",
+                              eraseMask: undefined,
+                              backgroundRemovalMask: undefined,
+                            }
                           : e,
                       ),
                     }
@@ -969,6 +967,7 @@ export const useBookStore = create<State & Actions>()(
             h: 180,
             rotation: 0,
             z: 50,
+            userAdded: true,
           });
         },
         addTextToCurrentPage: (text = "Your Text Here") => {
@@ -986,6 +985,7 @@ export const useBookStore = create<State & Actions>()(
             color: "oklch(0.22 0.012 50)",
             fontFamily: "var(--font-sans)",
             align: "center",
+            userAdded: true,
           });
         },
         addDrawingToCurrentPage: (path, opts) => {
@@ -1502,6 +1502,7 @@ export const useBookStore = create<State & Actions>()(
         setProjectFilePath: (path) => set({ projectFilePath: path }),
         setIsEraserMode: (b) => set({ isEraserMode: b, drawMode: b ? "off" : get().drawMode }),
         setEraserBrushSize: (size) => set({ eraserBrushSize: size }),
+        setImageMaskBrushMode: (mode) => set({ imageMaskBrushMode: mode }),
         setDrawMode: (mode) =>
           set({
             drawMode: mode,
@@ -1579,6 +1580,7 @@ export const useBookStore = create<State & Actions>()(
                               imageX: 0,
                               imageY: 0,
                               eraseMask: undefined,
+                              backgroundRemovalMask: undefined,
                             }
                           : e,
                       ),

@@ -14,7 +14,7 @@ import { photoFilterCss } from "./photo-filters";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
-const loadImg = (src: string, timeoutMs = 15000): Promise<HTMLImageElement> =>
+const loadImg = (src: string, timeoutMs = 10000): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new window.Image();
     img.crossOrigin = "anonymous";
@@ -204,8 +204,10 @@ const drawImageCoverWithMasks = async (
   photo: PhotoElement,
   scale: number,
 ) => {
-  const masks = [photo.magicMask, photo.eraseMask].filter((src): src is string => Boolean(src));
-  if (masks.length === 0) {
+  const frameMasks = [photo.magicMask, photo.eraseMask].filter((src): src is string =>
+    Boolean(src),
+  );
+  if (frameMasks.length === 0 && !photo.backgroundRemovalMask) {
     ctx.filter = photoFilterCss(photo);
     const drawPhoto = photo.freePhoto ? drawImageContain : drawImageCover;
     drawPhoto(
@@ -243,8 +245,38 @@ const drawImageCoverWithMasks = async (
     photo.imageScale ?? 1,
     photo.imageRotation ?? 0,
   );
+  maskedCtx.filter = "none";
 
-  for (const maskSrc of masks) {
+  if (photo.backgroundRemovalMask) {
+    try {
+      const subjectMask = await loadImg(photo.backgroundRemovalMask);
+      const transformedMask = document.createElement("canvas");
+      transformedMask.width = canvas.width;
+      transformedMask.height = canvas.height;
+      const transformedMaskCtx = transformedMask.getContext("2d");
+      if (transformedMaskCtx) {
+        drawPhoto(
+          transformedMaskCtx,
+          subjectMask,
+          0,
+          0,
+          canvas.width,
+          canvas.height,
+          (photo.imageX ?? 0) * scale,
+          (photo.imageY ?? 0) * scale,
+          photo.imageScale ?? 1,
+          photo.imageRotation ?? 0,
+        );
+        maskedCtx.globalCompositeOperation = "destination-in";
+        maskedCtx.drawImage(transformedMask, 0, 0);
+        maskedCtx.globalCompositeOperation = "source-over";
+      }
+    } catch {
+      // Keep the original image if the subject mask cannot be decoded.
+    }
+  }
+
+  for (const maskSrc of frameMasks) {
     try {
       const maskImg = await loadImg(maskSrc);
       maskedCtx.globalCompositeOperation = "destination-in";
@@ -593,32 +625,61 @@ export async function exportBookPdf(title: string) {
   const SCALE = 2;
 
   // ── Pre-load all images once ──────────────────────────────────────────────
+  const usedPhotoIds = new Set(
+    pages.flatMap((page) =>
+      page.elements.flatMap((element) =>
+        element.type === "photo" && element.imageId ? [element.imageId] : [],
+      ),
+    ),
+  );
+  const usedStickerIds = new Set(
+    pages.flatMap((page) =>
+      page.elements.flatMap((element) =>
+        element.type === "sticker" && element.stickerId ? [element.stickerId] : [],
+      ),
+    ),
+  );
+  const usedBackgroundIds = new Set(
+    pages.flatMap((page) =>
+      typeof page.background === "string" && page.background.startsWith("bg_")
+        ? [page.background]
+        : [],
+    ),
+  );
+
   const libMap = new Map<string, HTMLImageElement>();
-  for (const img of state.library) {
-    try {
-      libMap.set(img.id, await loadImg(img.src));
-    } catch {
-      /* skip broken images */
-    }
-  }
-
   const stkMap = new Map<string, HTMLImageElement>();
-  for (const stk of state.customStickersList ?? []) {
-    try {
-      stkMap.set(stk.id, await loadImg(stk.src));
-    } catch {
-      /* skip */
-    }
-  }
-
   const bgMap = new Map<string, HTMLImageElement>();
-  for (const bg of state.customBackgroundsList ?? []) {
-    try {
-      bgMap.set(bg.id, await loadImg(bg.src));
-    } catch {
-      /* skip */
-    }
-  }
+
+  await Promise.all([
+    ...state.library
+      .filter((image) => usedPhotoIds.has(image.id))
+      .map(async (image) => {
+        try {
+          libMap.set(image.id, await loadImg(image.src));
+        } catch {
+          /* skip broken images */
+        }
+      }),
+    ...(state.customStickersList ?? [])
+      .filter((sticker) => usedStickerIds.has(sticker.id))
+      .map(async (sticker) => {
+        try {
+          stkMap.set(sticker.id, await loadImg(sticker.src));
+        } catch {
+          /* skip broken stickers */
+        }
+      }),
+    ...(state.customBackgroundsList ?? [])
+      .filter((background) => usedBackgroundIds.has(background.id))
+      .map(async (background) => {
+        try {
+          bgMap.set(background.id, await loadImg(background.src));
+        } catch {
+          /* skip broken backgrounds */
+        }
+      }),
+  ]);
 
   const pdf = new jsPDF({ orientation, unit: "px", format: [W, H] });
 

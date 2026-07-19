@@ -134,6 +134,14 @@ export async function createShareablePreview({
         if (element.magicMask && !isPortableSource(element.magicMask)) {
           element.magicMask = await uploadSource(element.magicMask, "Photo mask", "mask", true);
         }
+        if (element.backgroundRemovalMask && !isPortableSource(element.backgroundRemovalMask)) {
+          element.backgroundRemovalMask = await uploadSource(
+            element.backgroundRemovalMask,
+            "Background removal mask",
+            "mask",
+            true,
+          );
+        }
         if (element.eraseMask && !isPortableSource(element.eraseMask)) {
           element.eraseMask = await uploadSource(
             element.eraseMask,

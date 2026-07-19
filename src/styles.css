@@ -1882,7 +1882,7 @@
   position: fixed;
   top: 0;
   left: 0;
-  z-index: 10000;
+  z-index: 150;
   width: 32px;
   height: 32px;
   pointer-events: none;

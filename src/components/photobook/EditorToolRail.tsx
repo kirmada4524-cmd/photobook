@@ -9,11 +9,13 @@ import {
   Images,
   LayoutGrid,
   LayoutTemplate,
+  Layers3,
   MoreHorizontal,
   Palette,
   Redo2,
   ShieldCheck,
   Sparkles,
+  Square,
   Sticker,
   Type,
   Undo2,
@@ -26,12 +28,32 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-type EditorTool = "pages" | "photos" | "layouts" | "quotes" | "stickers" | "draw" | "frames" | "bg";
+type EditorTool =
+  | "pages"
+  | "photos"
+  | "layouts"
+  | "quotes"
+  | "stickers"
+  | "draw"
+  | "frames"
+  | "border"
+  | "bg";
 
-const designTools = new Set<EditorTool>(["layouts", "quotes", "stickers", "draw", "frames", "bg"]);
+const designTools = new Set<EditorTool>([
+  "layouts",
+  "quotes",
+  "stickers",
+  "draw",
+  "frames",
+  "border",
+  "bg",
+]);
 
 const tools: Array<{ id: EditorTool; label: string; icon: typeof Image }> = [
   { id: "pages", label: "Pages", icon: Images },
@@ -41,6 +63,7 @@ const tools: Array<{ id: EditorTool; label: string; icon: typeof Image }> = [
   { id: "stickers", label: "Stickers", icon: Sticker },
   { id: "draw", label: "Draw", icon: Brush },
   { id: "frames", label: "Frames", icon: Frame },
+  { id: "border", label: "Border", icon: Square },
   { id: "bg", label: "Background", icon: Palette },
 ];
 
@@ -55,6 +78,12 @@ export function EditorToolRail() {
   const showDesignSidebar = useBookStore((state) => state.showDesignSidebar);
   const toggleLibrarySidebar = useBookStore((state) => state.toggleLibrarySidebar);
   const toggleDesignSidebar = useBookStore((state) => state.toggleDesignSidebar);
+  const currentPage = useBookStore((state) =>
+    state.book.pages.find((page) => page.id === state.currentPageId),
+  );
+  const library = useBookStore((state) => state.library);
+  const selectElement = useBookStore((state) => state.selectElement);
+  const pagePhotos = currentPage?.elements.filter((element) => element.type === "photo") ?? [];
 
   const openTool = (tool: EditorTool) => {
     if (designTools.has(tool)) {
@@ -85,9 +114,7 @@ export function EditorToolRail() {
   const magicFill = () => {
     const result = useBookStore.getState().magicFillAllEmptyFrames();
     if (result.framesFilled > 0) {
-      toast.success(
-        `Filled ${result.framesFilled} frame(s) across ${result.pagesTouched} page(s).`,
-      );
+      return;
     } else if (result.skippedReason === "no-available-images") {
       toast.warning("Upload or include photos before using Magic Fill.");
     } else if (result.skippedReason === "no-photo-frames") {
@@ -170,7 +197,9 @@ export function EditorToolRail() {
             <button
               type="button"
               className={`editor-mobile-tool ${
-                ["frames", "stickers", "draw", "bg"].some((tool) => isActive(tool as EditorTool))
+                ["frames", "border", "stickers", "draw", "bg"].some((tool) =>
+                  isActive(tool as EditorTool),
+                )
                   ? "is-active"
                   : ""
               }`}
@@ -185,6 +214,10 @@ export function EditorToolRail() {
               <Frame className="h-4 w-4" />
               Frames and crop
             </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openTool("border")}>
+              <Square className="h-4 w-4" />
+              Border
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => openTool("stickers")}>
               <Sticker className="h-4 w-4" />
               Stickers
@@ -197,6 +230,38 @@ export function EditorToolRail() {
               <Palette className="h-4 w-4" />
               Background
             </DropdownMenuItem>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Layers3 className="h-4 w-4" />
+                Select photo layer
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="max-h-72 w-56 overflow-y-auto">
+                {pagePhotos.length === 0 ? (
+                  <DropdownMenuItem disabled>No photos on this page</DropdownMenuItem>
+                ) : (
+                  pagePhotos
+                    .slice()
+                    .sort((a, b) => b.z - a.z)
+                    .map((photo, index) => {
+                      const imageName = library.find((image) => image.id === photo.imageId)?.name;
+                      return (
+                        <DropdownMenuItem
+                          key={photo.id}
+                          onSelect={() => {
+                            selectElement(photo.id);
+                            openTool("frames");
+                          }}
+                        >
+                          <Image className="h-4 w-4" />
+                          <span className="truncate">
+                            {imageName || `Photo layer ${pagePhotos.length - index}`}
+                          </span>
+                        </DropdownMenuItem>
+                      );
+                    })
+                )}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => window.dispatchEvent(new Event("photobook:open-templates"))}

@@ -9,6 +9,7 @@ import {
 import {
   encodeFilterValue,
   hasSupabaseStorage,
+  isMissingSupabaseSchemaError,
   missingSupabaseStorageError,
   supabaseTableRequest,
 } from "./supabase.server";
@@ -161,11 +162,24 @@ export const createSharedPreview = createServerFn({ method: "POST" })
 
       const row: SharedPreviewRow = { id: data.id, data: payload, expires_at: expiresAt };
       if (hasSupabaseStorage()) {
-        await supabaseTableRequest("shared_previews", {
-          method: "POST",
-          body: row,
-          prefer: "resolution=merge-duplicates,return=minimal",
-        });
+        try {
+          await supabaseTableRequest("shared_previews", {
+            method: "POST",
+            body: row,
+            prefer: "resolution=merge-duplicates,return=minimal",
+          });
+        } catch (error) {
+          if (!isVercelRuntime() && isMissingSupabaseSchemaError(error)) {
+            const rows = await readLocalShares();
+            await writeLocalShares([...rows.filter((item) => item.id !== data.id), row]);
+          } else if (isMissingSupabaseSchemaError(error)) {
+            throw new Error(
+              "Preview sharing needs the latest Supabase migration before it can be used.",
+            );
+          } else {
+            throw error;
+          }
+        }
       } else {
         const rows = await readLocalShares();
         await writeLocalShares([...rows.filter((item) => item.id !== data.id), row]);
@@ -185,11 +199,22 @@ export const getSharedPreview = createServerFn({ method: "GET" })
   .validator(z.object({ id: shareIdSchema }))
   .handler(async ({ data }) => {
     try {
-      const rows = hasSupabaseStorage()
-        ? await supabaseTableRequest<SharedPreviewRow[]>("shared_previews", {
+      let rows: SharedPreviewRow[];
+      if (hasSupabaseStorage()) {
+        try {
+          rows = await supabaseTableRequest<SharedPreviewRow[]>("shared_previews", {
             query: `select=id,data,expires_at&id=eq.${encodeFilterValue(data.id)}&limit=1`,
-          })
-        : (await readLocalShares()).filter((item) => item.id === data.id);
+          });
+        } catch (error) {
+          if (!isVercelRuntime() && isMissingSupabaseSchemaError(error)) {
+            rows = (await readLocalShares()).filter((item) => item.id === data.id);
+          } else {
+            throw error;
+          }
+        }
+      } else {
+        rows = (await readLocalShares()).filter((item) => item.id === data.id);
+      }
       const row = rows[0];
       if (!row || Date.parse(row.expires_at) <= Date.now()) {
         return {

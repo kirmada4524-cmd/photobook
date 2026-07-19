@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useBookStore } from "@/lib/photobook/store";
 import { TemplatePreview } from "./TemplatePreview";
 import { SavedPageTemplate } from "@/lib/photobook/types";
@@ -10,8 +10,8 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Checkbox } from "@/components/ui/checkbox";
-import { LayoutGrid, CheckSquare, Square } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { LayoutGrid, CheckSquare, Search, Square } from "lucide-react";
 import { toast } from "sonner";
 
 export function AddTemplatesModal({
@@ -28,18 +28,39 @@ export function AddTemplatesModal({
   // Allow user to access all templates, regardless of current page size.
   const availableTemplates = adminTemplates;
 
-  const templatesByCategory = availableTemplates.reduce(
-    (acc, t) => {
-      const cat = t.category || "General";
-      if (!acc[cat]) acc[cat] = [];
-      acc[cat].push(t);
-      return acc;
-    },
-    {} as Record<string, typeof availableTemplates>,
-  );
-
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isAdding, setIsAdding] = useState(false);
+  const [query, setQuery] = useState("");
+  const [activeCategory, setActiveCategory] = useState("All");
+  const categories = useMemo(
+    () => ["All", ...new Set(availableTemplates.map((template) => template.category || "General"))],
+    [availableTemplates],
+  );
+  const filteredTemplates = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    return availableTemplates.filter((template) => {
+      const category = template.category || "General";
+      return (
+        (activeCategory === "All" || category === activeCategory) &&
+        (!normalizedQuery ||
+          template.label.toLowerCase().includes(normalizedQuery) ||
+          category.toLowerCase().includes(normalizedQuery))
+      );
+    });
+  }, [activeCategory, availableTemplates, query]);
+  const templatesByCategory = useMemo(
+    () =>
+      filteredTemplates.reduce(
+        (acc, template) => {
+          const category = template.category || "General";
+          if (!acc[category]) acc[category] = [];
+          acc[category].push(template);
+          return acc;
+        },
+        {} as Record<string, typeof availableTemplates>,
+      ),
+    [filteredTemplates],
+  );
 
   const handleToggle = (id: string) => {
     const next = new Set(selectedIds);
@@ -82,11 +103,45 @@ export function AddTemplatesModal({
           </DialogDescription>
         </DialogHeader>
 
+        <div className="space-y-2 border-y py-3">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search templates or categories"
+              className="pl-9"
+            />
+          </div>
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {categories.map((category) => (
+              <button
+                key={category}
+                type="button"
+                className={`shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                  activeCategory === category
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted text-muted-foreground hover:text-foreground"
+                }`}
+                onClick={() => setActiveCategory(category)}
+              >
+                {category}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="flex-1 min-h-0 overflow-y-auto -mx-6 px-6">
           {availableTemplates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
               <LayoutGrid className="h-12 w-12 mb-4 opacity-20" />
               <p>No templates available.</p>
+            </div>
+          ) : filteredTemplates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+              <Search className="mb-3 h-10 w-10 opacity-20" />
+              <p className="text-sm font-semibold">No matching templates</p>
+              <p className="mt-1 text-xs">Try another search or category.</p>
             </div>
           ) : (
             <div className="space-y-8 pb-4">

@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   encodeFilterValue,
   hasSupabaseStorage,
+  isMissingSupabaseSchemaError,
   supabaseRpcRequest,
   supabaseTableRequest,
 } from "./supabase.server";
@@ -16,6 +17,7 @@ type TemplateLikeRow = { template_id: string };
 type TemplateCountRow = { id: string; like_count: number | string | null };
 type ToggleLikeRow = { liked: boolean; like_count: number | string };
 type LocalLikes = Record<string, string[]>;
+const isVercelRuntime = () => Boolean(process.env.VERCEL);
 
 const likeInput = z.object({
   templateId: z.string().min(1).max(200),
@@ -52,20 +54,35 @@ async function writeLocalLikes(likes: LocalLikes) {
   await fs.promises.writeFile(filename, JSON.stringify(likes, null, 2));
 }
 
+async function getLocalLikeSummary(voterKey: string): Promise<TemplateLikeSummary> {
+  const likes = await readLocalLikes();
+  return {
+    counts: Object.fromEntries(
+      Object.entries(likes).map(([templateId, voters]) => [templateId, voters.length]),
+    ),
+    likedTemplateIds: Object.entries(likes)
+      .filter(([, voters]) => voters.includes(voterKey))
+      .map(([templateId]) => templateId),
+  };
+}
+
+async function toggleLocalLike(templateId: string, voterKey: string) {
+  const likes = await readLocalLikes();
+  const voters = new Set(likes[templateId] ?? []);
+  const liked = !voters.has(voterKey);
+  if (liked) voters.add(voterKey);
+  else voters.delete(voterKey);
+  likes[templateId] = [...voters];
+  await writeLocalLikes(likes);
+  return { liked, likeCount: voters.size };
+}
+
 export const getTemplateLikeSummary = createServerFn({ method: "GET" })
   .validator(z.object({ voterKey: z.string().min(8).max(100) }))
   .handler(async ({ data }): Promise<TemplateLikeSummary> => {
     try {
       if (!hasSupabaseStorage()) {
-        const likes = await readLocalLikes();
-        return {
-          counts: Object.fromEntries(
-            Object.entries(likes).map(([templateId, voters]) => [templateId, voters.length]),
-          ),
-          likedTemplateIds: Object.entries(likes)
-            .filter(([, voters]) => voters.includes(data.voterKey))
-            .map(([templateId]) => templateId),
-        };
+        return getLocalLikeSummary(data.voterKey);
       }
 
       const [countRows, likedRows] = await Promise.all([
@@ -85,6 +102,9 @@ export const getTemplateLikeSummary = createServerFn({ method: "GET" })
       };
     } catch (error) {
       console.error("Could not load template likes:", error);
+      if (!isVercelRuntime() && isMissingSupabaseSchemaError(error)) {
+        return getLocalLikeSummary(data.voterKey);
+      }
       return { counts: {}, likedTemplateIds: [] };
     }
   });
@@ -93,21 +113,26 @@ export const toggleTemplateLike = createServerFn({ method: "POST" })
   .validator(likeInput)
   .handler(async ({ data }) => {
     if (!hasSupabaseStorage()) {
-      const likes = await readLocalLikes();
-      const voters = new Set(likes[data.templateId] ?? []);
-      const liked = !voters.has(data.voterKey);
-      if (liked) voters.add(data.voterKey);
-      else voters.delete(data.voterKey);
-
-      likes[data.templateId] = [...voters];
-      await writeLocalLikes(likes);
-      return { liked, likeCount: voters.size };
+      return toggleLocalLike(data.templateId, data.voterKey);
     }
 
-    const rows = await supabaseRpcRequest<ToggleLikeRow[]>("toggle_photobook_template_like", {
-      p_template_id: data.templateId,
-      p_voter_key: data.voterKey,
-    });
+    let rows: ToggleLikeRow[];
+    try {
+      rows = await supabaseRpcRequest<ToggleLikeRow[]>("toggle_photobook_template_like", {
+        p_template_id: data.templateId,
+        p_voter_key: data.voterKey,
+      });
+    } catch (error) {
+      if (!isVercelRuntime() && isMissingSupabaseSchemaError(error)) {
+        return toggleLocalLike(data.templateId, data.voterKey);
+      }
+      if (isMissingSupabaseSchemaError(error)) {
+        throw new Error(
+          "Template Likes need the latest Supabase migration before they can be used.",
+        );
+      }
+      throw error;
+    }
     const result = rows[0];
     if (!result) throw new Error("Supabase did not return the updated like state.");
 

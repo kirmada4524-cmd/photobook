@@ -759,7 +759,9 @@ export function LandingPage() {
                 Choose templates for your book
               </h2>
               <p className="mt-1 text-sm text-[#746558]">
-                {availableTemplates.length} admin designs - most-loved templates appear first
+                {isLoadingTemplates
+                  ? "Loading admin designs..."
+                  : `${availableTemplates.length} admin designs - most-loved templates appear first`}
               </p>
             </div>
 

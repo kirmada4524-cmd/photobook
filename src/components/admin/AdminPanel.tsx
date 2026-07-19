@@ -36,6 +36,8 @@ import {
   RefreshCw,
   Loader2,
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1177,12 +1179,14 @@ export function AdminPanel() {
   const addAdminTemplate = useBookStore((s) => s.addAdminTemplate);
   const savePageAsTemplate = useBookStore((s) => s.savePageAsTemplate);
   const currentPageId = useBookStore((s) => s.currentPageId);
+  const assetsLoaded = useBookStore((s) => s.adminAssetsLoaded);
 
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [showConvert, setShowConvert] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<SavedPageTemplate | null>(null);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
   const [isDeletingTemplates, setIsDeletingTemplates] = useState(false);
+  const [templatePage, setTemplatePage] = useState(0);
 
   if (!isAdmin) {
     return (
@@ -1190,6 +1194,22 @@ export function AdminPanel() {
         <div className="text-center">
           <Shield className="mx-auto h-12 w-12 text-muted-foreground/30 mb-4" />
           <p className="text-muted-foreground">Admin access required.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!assetsLoaded) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-background px-6">
+        <div className="flex max-w-sm flex-col items-center text-center">
+          <span className="grid h-12 w-12 place-items-center rounded-md border bg-card shadow-sm">
+            <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          </span>
+          <p className="mt-4 text-sm font-semibold">Loading admin workspace</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Preparing templates, stickers, and backgrounds...
+          </p>
         </div>
       </div>
     );
@@ -1205,7 +1225,14 @@ export function AdminPanel() {
   const sortedTemplates = [...filteredTemplates].sort(
     (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
   );
-  const visibleTemplateIds = sortedTemplates.map((template) => template.id);
+  const templatesPerPage = 24;
+  const templatePageCount = Math.max(1, Math.ceil(sortedTemplates.length / templatesPerPage));
+  const safeTemplatePage = Math.min(templatePage, templatePageCount - 1);
+  const pagedTemplates = sortedTemplates.slice(
+    safeTemplatePage * templatesPerPage,
+    (safeTemplatePage + 1) * templatesPerPage,
+  );
+  const visibleTemplateIds = pagedTemplates.map((template) => template.id);
   const selectedVisibleCount = visibleTemplateIds.filter((id) =>
     selectedTemplateIds.has(id),
   ).length;
@@ -1306,7 +1333,9 @@ export function AdminPanel() {
           </div>
           <div className="min-w-0">
             <h1 className="truncate text-base font-bold sm:text-lg">Admin workspace</h1>
-            <p className="hidden text-xs text-muted-foreground sm:block">Templates, stickers, and backgrounds</p>
+            <p className="hidden text-xs text-muted-foreground sm:block">
+              Templates, stickers, and backgrounds
+            </p>
           </div>
         </div>
         <Button size="sm" className="shrink-0 gap-1.5" onClick={() => setShowConvert(true)}>
@@ -1344,13 +1373,20 @@ export function AdminPanel() {
             color: "text-green-600",
           },
         ].map((stat) => (
-          <div key={stat.label} className="flex min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-2">
-            <div className={`grid h-8 w-8 shrink-0 place-items-center rounded-md bg-background ${stat.color}`}>
+          <div
+            key={stat.label}
+            className="flex min-w-0 items-center gap-2 rounded-md border bg-muted/20 px-2.5 py-2"
+          >
+            <div
+              className={`grid h-8 w-8 shrink-0 place-items-center rounded-md bg-background ${stat.color}`}
+            >
               {stat.icon}
             </div>
             <div className="min-w-0">
               <p className="text-lg font-bold leading-none">{stat.value}</p>
-              <span className="block truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">{stat.label}</span>
+              <span className="block truncate text-[10px] font-semibold text-muted-foreground sm:text-xs">
+                {stat.label}
+              </span>
             </div>
           </div>
         ))}
@@ -1372,7 +1408,10 @@ export function AdminPanel() {
             {allCategories.map((cat) => (
               <button
                 key={cat}
-                onClick={() => setActiveCategory(cat)}
+                onClick={() => {
+                  setActiveCategory(cat);
+                  setTemplatePage(0);
+                }}
                 className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
                   activeCategory === cat
                     ? "bg-primary text-primary-foreground"
@@ -1382,7 +1421,12 @@ export function AdminPanel() {
                 {cat}
                 {cat !== "All" && (
                   <span className="ml-1.5 opacity-60">
-                    ({adminTemplates.filter((t) => normalizeTemplateCategory(t.category) === cat).length})
+                    (
+                    {
+                      adminTemplates.filter((t) => normalizeTemplateCategory(t.category) === cat)
+                        .length
+                    }
+                    )
                   </span>
                 )}
               </button>
@@ -1442,108 +1486,159 @@ export function AdminPanel() {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
-                {sortedTemplates.map((tmpl, idx) => (
-                  <div
-                    key={tmpl.id}
-                    className={`group relative flex min-w-0 flex-col gap-2 rounded-md border bg-card p-2 transition-all hover:-translate-y-0.5 hover:shadow-md ${
-                      selectedTemplateIds.has(tmpl.id)
-                        ? "border-primary ring-2 ring-primary/20"
-                        : "hover:border-primary/50"
-                    }`}
-                  >
-                    <label className="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4"
-                        checked={selectedTemplateIds.has(tmpl.id)}
-                        onChange={() => toggleTemplateSelection(tmpl.id)}
-                        aria-label={`Select ${tmpl.label}`}
-                      />
-                    </label>
-                    {/* Thumbnail or placeholder */}
-                    <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-md border bg-muted">
-                      <TemplatePreview template={tmpl} />
-                    </div>
+              <>
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
+                  {pagedTemplates.map((tmpl, idx) => {
+                    const globalIndex = safeTemplatePage * templatesPerPage + idx;
+                    return (
+                      <div
+                        key={tmpl.id}
+                        className={`group relative flex min-w-0 flex-col gap-2 rounded-md border bg-card p-2 transition-all hover:-translate-y-0.5 hover:shadow-md ${
+                          selectedTemplateIds.has(tmpl.id)
+                            ? "border-primary ring-2 ring-primary/20"
+                            : "hover:border-primary/50"
+                        }`}
+                      >
+                        <label className="absolute left-3 top-3 z-10 flex h-7 w-7 items-center justify-center rounded-md border bg-background/95 shadow-sm">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4"
+                            checked={selectedTemplateIds.has(tmpl.id)}
+                            onChange={() => toggleTemplateSelection(tmpl.id)}
+                            aria-label={`Select ${tmpl.label || "untitled template"}`}
+                          />
+                        </label>
+                        {/* Thumbnail or placeholder */}
+                        <div className="relative aspect-square w-full shrink-0 overflow-hidden rounded-md border bg-muted">
+                          <TemplatePreview template={tmpl} />
+                        </div>
 
-                    {/* Info */}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-medium text-sm truncate">{tmpl.label}</p>
-                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {tmpl.category && (
-                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                            {normalizeTemplateCategory(tmpl.category)}
-                          </Badge>
-                        )}
-                        {tmpl.sizeId && (
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                            {PAGE_SIZES[0].label}
-                          </Badge>
-                        )}
-                        {(tmpl.frameLocked || tmpl.backgroundLocked) && (
-                          <span className="flex items-center gap-0.5 text-[10px] text-amber-600">
-                            <Lock className="h-3 w-3" />
-                            {[tmpl.frameLocked && "frames", tmpl.backgroundLocked && "bg"]
-                              .filter(Boolean)
-                              .join("+")}
-                          </span>
-                        )}
+                        {/* Info */}
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm truncate">{tmpl.label}</p>
+                          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                            {tmpl.category && (
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                                {normalizeTemplateCategory(tmpl.category)}
+                              </Badge>
+                            )}
+                            {tmpl.sizeId && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                {PAGE_SIZES[0].label}
+                              </Badge>
+                            )}
+                            {(tmpl.frameLocked || tmpl.backgroundLocked) && (
+                              <span className="flex items-center gap-0.5 text-[10px] text-amber-600">
+                                <Lock className="h-3 w-3" />
+                                {[tmpl.frameLocked && "frames", tmpl.backgroundLocked && "bg"]
+                                  .filter(Boolean)
+                                  .join("+")}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Actions (Absolute in grid) */}
+                        <div className="absolute right-3 top-3 flex items-center gap-1 rounded-md border bg-background/95 p-1 opacity-100 shadow-sm backdrop-blur-sm transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => moveTemplate(tmpl.id, "up")}
+                            disabled={globalIndex === 0}
+                            title="Move template earlier"
+                            aria-label={`Move ${tmpl.label || "template"} earlier`}
+                          >
+                            <ArrowUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => moveTemplate(tmpl.id, "down")}
+                            disabled={globalIndex === sortedTemplates.length - 1}
+                            title="Move template later"
+                            aria-label={`Move ${tmpl.label || "template"} later`}
+                          >
+                            <ArrowDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <div className="w-px h-4 bg-border mx-1" />
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={() => setEditingTemplate(tmpl)}
+                            title="Edit template details"
+                            aria-label={`Edit ${tmpl.label || "template"} details`}
+                          >
+                            <Tag className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={async () => {
+                              if (!confirm(`Delete "${tmpl.label}" permanently?`)) return;
+                              setSelectedTemplateIds((current) => {
+                                const next = new Set(current);
+                                next.delete(tmpl.id);
+                                return next;
+                              });
+                              try {
+                                await deleteAdminTemplate(tmpl.id);
+                                toast.success("Template deleted");
+                              } catch (error) {
+                                toast.error(
+                                  (error as Error).message || "Failed to delete template",
+                                );
+                              }
+                            }}
+                            title="Delete template"
+                            aria-label={`Delete ${tmpl.label || "template"}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
-                    </div>
-                    {/* Actions (Absolute in grid) */}
-                    <div className="absolute right-3 top-3 flex items-center gap-1 rounded-md border bg-background/95 p-1 opacity-100 shadow-sm backdrop-blur-sm transition-opacity lg:opacity-0 lg:group-hover:opacity-100">
+                    );
+                  })}
+                </div>
+                {templatePageCount > 1 && (
+                  <div className="sticky bottom-0 mt-3 flex items-center justify-between gap-3 rounded-md border bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
+                    <span className="text-xs font-medium text-muted-foreground">
+                      Page {safeTemplatePage + 1} of {templatePageCount} · {sortedTemplates.length}{" "}
+                      templates
+                    </span>
+                    <div className="flex items-center gap-1.5">
                       <Button
-                        variant="ghost"
+                        type="button"
                         size="icon"
-                        className="h-7 w-7"
-                        onClick={() => moveTemplate(tmpl.id, "up")}
-                        disabled={idx === 0}
+                        variant="outline"
+                        className="h-8 w-8"
+                        disabled={safeTemplatePage === 0}
+                        onClick={() => setTemplatePage((page) => Math.max(0, page - 1))}
+                        title="Previous template page"
+                        aria-label="Previous template page"
                       >
-                        <ArrowUp className="h-3.5 w-3.5" />
+                        <ChevronLeft className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="ghost"
+                        type="button"
                         size="icon"
-                        className="h-7 w-7"
-                        onClick={() => moveTemplate(tmpl.id, "down")}
-                        disabled={idx === sortedTemplates.length - 1}
+                        variant="outline"
+                        className="h-8 w-8"
+                        disabled={safeTemplatePage >= templatePageCount - 1}
+                        onClick={() =>
+                          setTemplatePage((page) => Math.min(templatePageCount - 1, page + 1))
+                        }
+                        title="Next template page"
+                        aria-label="Next template page"
                       >
-                        <ArrowDown className="h-3.5 w-3.5" />
-                      </Button>
-                      <div className="w-px h-4 bg-border mx-1" />
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setEditingTemplate(tmpl)}
-                      >
-                        <Tag className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
-                        onClick={async () => {
-                          if (!confirm(`Delete "${tmpl.label}" permanently?`)) return;
-                          setSelectedTemplateIds((current) => {
-                            const next = new Set(current);
-                            next.delete(tmpl.id);
-                            return next;
-                          });
-                          try {
-                            await deleteAdminTemplate(tmpl.id);
-                            toast.success("Template deleted");
-                          } catch (error) {
-                            toast.error((error as Error).message || "Failed to delete template");
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        <ChevronRight className="h-4 w-4" />
                       </Button>
                     </div>
                   </div>
-                ))}
-              </div>
+                )}
+              </>
             )}
           </div>
         </TabsContent>

@@ -35,6 +35,7 @@ import {
   Brush,
   Highlighter,
   Zap,
+  Wand2,
   Scissors,
   SlidersHorizontal,
 } from "lucide-react";
@@ -152,13 +153,12 @@ export function DesignSidebar() {
     const openDesignTab = (event: Event) => {
       const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
       if (["layouts", "frames", "border", "stickers", "quotes", "draw", "bg"].includes(tab ?? "")) {
-        const protectedTab = ["border", "quotes", "bg"].includes(tab ?? "");
-        setActiveTab(pageStructureLocked && protectedTab ? "layouts" : (tab as string));
+        setActiveTab(tab as string);
       }
     };
     window.addEventListener("photobook:design-tab", openDesignTab);
     return () => window.removeEventListener("photobook:design-tab", openDesignTab);
-  }, [pageStructureLocked]);
+  }, []);
 
   const filteredTemplates = TEMPLATES;
   const panelMeta: Record<string, { title: string; subtitle: string }> = {
@@ -229,7 +229,6 @@ export function DesignSidebar() {
           </TabsTrigger>
           <TabsTrigger
             value="border"
-            disabled={pageStructureLocked}
             className="min-w-fit px-2.5 text-[11px]"
           >
             Border
@@ -239,7 +238,6 @@ export function DesignSidebar() {
           </TabsTrigger>
           <TabsTrigger
             value="quotes"
-            disabled={pageStructureLocked}
             className="min-w-fit px-2.5 text-[11px]"
           >
             Text
@@ -249,7 +247,6 @@ export function DesignSidebar() {
           </TabsTrigger>
           <TabsTrigger
             value="bg"
-            disabled={pageStructureLocked}
             className="min-w-fit px-2.5 text-[11px]"
           >
             BG
@@ -1301,6 +1298,8 @@ function PhotoControls({
   const setIsEraserMode = useBookStore((s) => s.setIsEraserMode);
   const eraserBrushSize = useBookStore((s) => s.eraserBrushSize);
   const setEraserBrushSize = useBookStore((s) => s.setEraserBrushSize);
+  const imageMaskBrushMode = useBookStore((s) => s.imageMaskBrushMode);
+  const setImageMaskBrushMode = useBookStore((s) => s.setImageMaskBrushMode);
   const setFilterValue = (patch: Partial<PhotoElement>) =>
     updateElement(selected.id, { ...patch, imageFilterPreset: "custom" });
   const openCrop = () =>
@@ -1309,6 +1308,18 @@ function PhotoControls({
         detail: { elementId: selected.id, active: true },
       }),
     );
+  const removeBackground = () =>
+    window.dispatchEvent(
+      new CustomEvent("photobook:remove-photo-background", {
+        detail: { elementId: selected.id },
+      }),
+    );
+
+  useEffect(() => {
+    if (imageMaskBrushMode === "restore" && !selected.backgroundRemovalMask) {
+      setImageMaskBrushMode("erase");
+    }
+  }, [imageMaskBrushMode, selected.backgroundRemovalMask, setImageMaskBrushMode]);
 
   return (
     <div className="space-y-3 rounded-xl border bg-card p-3">
@@ -1328,6 +1339,16 @@ function PhotoControls({
           variant="outline"
           className="h-9 gap-1.5 text-xs font-semibold"
           disabled={!selected.imageId}
+          onClick={removeBackground}
+        >
+          <Wand2 className="h-3.5 w-3.5" />
+          Remove BG
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-9 gap-1.5 text-xs font-semibold"
+          disabled={!selected.imageId}
           onClick={() =>
             updateElement(selected.id, {
               imageX: 0,
@@ -1340,6 +1361,22 @@ function PhotoControls({
           <RotateCcw className="h-3.5 w-3.5" />
           Reset Crop
         </Button>
+        {selected.backgroundRemovalMask && (
+          <Button
+            type="button"
+            variant="outline"
+            className="h-9 gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-700"
+            onClick={() =>
+              updateElement(selected.id, {
+                backgroundRemovalMask: undefined,
+                eraseMask: undefined,
+              })
+            }
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Original BG
+          </Button>
+        )}
       </div>
       <div>
         <div className="mb-1.5 flex items-center justify-between gap-2">
@@ -1436,25 +1473,53 @@ function PhotoControls({
             className="h-8 gap-1.5 text-xs font-semibold"
             disabled={!selected.imageId}
             onClick={() => setIsEraserMode(!isEraserMode)}
-            title="Erase only inside the selected photo frame"
+            title="Refine the selected photo mask"
           >
             <Eraser className="h-3.5 w-3.5" />
-            {isEraserMode ? "On" : "Erase"}
+            {isEraserMode ? "Done" : "Refine"}
           </Button>
         </div>
         {isEraserMode && selected.imageId && (
-          <div>
-            <div className="mb-1 flex justify-between text-xs">
-              <span className="text-[11px] font-medium text-muted-foreground">Brush Size</span>
-              <span className="text-[10px] tabular-nums font-semibold">{eraserBrushSize}px</span>
+          <div className="space-y-2.5">
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-muted p-1">
+              <Button
+                type="button"
+                size="sm"
+                variant={imageMaskBrushMode === "erase" ? "default" : "ghost"}
+                className="h-7 text-[10px] font-semibold"
+                onClick={() => setImageMaskBrushMode("erase")}
+              >
+                Erase
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={imageMaskBrushMode === "restore" ? "default" : "ghost"}
+                className="h-7 text-[10px] font-semibold"
+                disabled={!selected.backgroundRemovalMask}
+                onClick={() => setImageMaskBrushMode("restore")}
+                title={
+                  selected.backgroundRemovalMask
+                    ? "Paint back areas removed by AI"
+                    : "Remove the background before using Restore"
+                }
+              >
+                Restore
+              </Button>
             </div>
-            <Slider
-              value={[eraserBrushSize]}
-              max={90}
-              min={8}
-              step={1}
-              onValueChange={([v]) => setEraserBrushSize(v)}
-            />
+            <div>
+              <div className="mb-1 flex justify-between text-xs">
+                <span className="text-[11px] font-medium text-muted-foreground">Brush Size</span>
+                <span className="text-[10px] tabular-nums font-semibold">{eraserBrushSize}px</span>
+              </div>
+              <Slider
+                value={[eraserBrushSize]}
+                max={90}
+                min={8}
+                step={1}
+                onValueChange={([v]) => setEraserBrushSize(v)}
+              />
+            </div>
           </div>
         )}
         {selected.eraseMask && (

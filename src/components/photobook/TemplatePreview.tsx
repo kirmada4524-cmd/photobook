@@ -1,9 +1,5 @@
-import { useEffect, useState } from "react";
-import {
-  PAGE_SIZES,
-  type PhotoElement,
-  type SavedPageTemplate,
-} from "@/lib/photobook/types";
+import { useEffect, useRef, useState } from "react";
+import { PAGE_SIZES, type PhotoElement, type SavedPageTemplate } from "@/lib/photobook/types";
 import { useBookStore } from "@/lib/photobook/store";
 
 interface TemplatePreviewProps {
@@ -39,6 +35,7 @@ function PreviewAsset({
       alt=""
       className={className}
       loading="lazy"
+      decoding="async"
       onError={() => {
         setFailed(true);
         onFailure?.();
@@ -55,8 +52,38 @@ export function TemplatePreview({
   const library = useBookStore((s) => s.library);
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
   const [thumbnailFailed, setThumbnailFailed] = useState(false);
+  const [shouldRender, setShouldRender] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setThumbnailFailed(false), [template.id, template.thumbnail]);
+  useEffect(() => {
+    const node = previewRef.current;
+    if (!node) return;
+    if (!("IntersectionObserver" in window)) {
+      setShouldRender(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        setShouldRender(true);
+        observer.disconnect();
+      },
+      { rootMargin: "360px" },
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [template.id]);
+
+  if (!shouldRender) {
+    return (
+      <div
+        ref={previewRef}
+        className={`h-full w-full animate-pulse bg-[linear-gradient(135deg,#fffaf0,#eadfc8)] ${className}`}
+        aria-label={`${template.label || "Template"} preview loading`}
+      />
+    );
+  }
 
   // If we have a captured thumbnail, always prefer it because it's exactly what the page looks like
   if (template.thumbnail && !thumbnailFailed) {
@@ -66,6 +93,7 @@ export function TemplatePreview({
         alt={template.label}
         className={`h-full w-full object-cover ${className}`}
         loading="lazy"
+        decoding="async"
         onError={() => setThumbnailFailed(true)}
       />
     );

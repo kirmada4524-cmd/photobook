@@ -4,6 +4,7 @@ import HTMLFlipBook from "react-pageflip";
 import {
   ArrowLeft,
   BookOpen,
+  Cat,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -25,6 +26,7 @@ import { useBookStore } from "@/lib/photobook/store";
 import { createShareablePreview } from "@/lib/photobook/share-preview";
 import { getSharedPreview, type SharedPreviewPayload } from "@/lib/api/shared-previews.functions";
 import { z } from "zod";
+import { toast } from "sonner";
 import {
   DEFAULT_PREVIEW_SETTINGS,
   loadPreviewSettings,
@@ -52,7 +54,10 @@ type FlipBookApi = {
   };
 };
 
-const FlipBook = HTMLFlipBook as unknown as React.ForwardRefExoticComponent<any>;
+type FlipBookProps = React.ComponentPropsWithoutRef<typeof HTMLFlipBook> &
+  React.RefAttributes<FlipBookApi>;
+
+const FlipBook = HTMLFlipBook as unknown as React.ForwardRefExoticComponent<FlipBookProps>;
 
 function clamp(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -254,7 +259,7 @@ function PreviewPage() {
         url = shared.url;
       }
 
-      if (navigator.share) {
+      if (isMobilePreview && navigator.share) {
         await navigator.share({
           title: book.title?.trim() || "My Yaara photobook",
           text: "Flip through this photobook preview.",
@@ -263,12 +268,15 @@ function PreviewPage() {
       } else {
         await navigator.clipboard.writeText(url);
         setShareCopied(true);
+        toast.success("Read-only preview link copied.");
         window.setTimeout(() => setShareCopied(false), 2400);
       }
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Could not share preview", error);
-      setShareError(error instanceof Error ? error.message : "Could not create the share link.");
+      const message = error instanceof Error ? error.message : "Could not create the share link.";
+      setShareError(message);
+      toast.error(message);
     } finally {
       setIsSharingPreview(false);
     }
@@ -397,7 +405,6 @@ function PreviewPage() {
     isFullscreen,
     isMobileFullscreen,
     isMobilePreview,
-    isPortraitBook,
     pageH,
     pageW,
     showSceneControls,
@@ -457,7 +464,7 @@ function PreviewPage() {
           setCurrentPage((page) => Math.max(0, page - 1));
         }
       }
-      window.setTimeout(() => setIsFlipping(false), isMobilePreview ? 1400 : 1100);
+      window.setTimeout(() => setIsFlipping(false), isMobilePreview ? 1000 : 900);
     },
     [isFlipping, isMobilePreview, totalPages],
   );
@@ -724,6 +731,17 @@ function PreviewPage() {
 
               <button
                 type="button"
+                aria-pressed={settings.showCursorCat}
+                title={settings.showCursorCat ? "Hide preview cat" : "Show preview cat"}
+                onClick={() => patchSettings({ showCursorCat: !settings.showCursorCat })}
+                className={`book-preview-tool-btn ${settings.showCursorCat ? "is-active" : ""}`}
+              >
+                <Cat className="h-3.5 w-3.5" />
+                Cat
+              </button>
+
+              <button
+                type="button"
                 title={shareError || "Create a read-only preview link"}
                 onClick={sharePreview}
                 disabled={isSharingPreview}
@@ -798,7 +816,7 @@ function PreviewPage() {
         )}
       </div>
 
-      <PreviewCursorCat />
+      {settings.showCursorCat && <PreviewCursorCat />}
 
       <input
         ref={bgInputRef}
@@ -861,9 +879,7 @@ function PreviewPage() {
             } as React.CSSProperties
           }
         >
-          <div className="book-preview-page-stack" aria-hidden="true" />
           <div className="book-preview-spine" aria-hidden="true" />
-          <div className="book-preview-shadow" />
 
           {totalPages === 1 ? (
             <div className="book-preview-static-page">
@@ -892,12 +908,12 @@ function PreviewPage() {
               minHeight={160}
               maxHeight={1800}
               drawShadow
-              flippingTime={isMobilePreview ? 1300 : 1050}
+              flippingTime={isMobilePreview ? 900 : 820}
               usePortrait={false}
               startPage={Math.min(currentPage, totalPages - 1)}
               showCover
               autoSize={false}
-              maxShadowOpacity={0.6}
+              maxShadowOpacity={0.48}
               mobileScrollSupport={false}
               clickEventForward={false}
               useMouseEvents

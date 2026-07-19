@@ -21,7 +21,7 @@ Photos and book pages are the main visual content. Interface decoration should s
 
 The shortest useful workflow is:
 
-`Choose templates -> Open in editor -> Upload photos -> Edit -> Preview -> Export`
+`Choose templates -> Upload photos -> Create and fill -> Edit -> Preview -> Export`
 
 Primary actions must be visible, clearly named, and placed close to the content they affect.
 
@@ -40,6 +40,31 @@ Admin-created templates are finished designs. Normal users may replace photos an
 ### Responsive by design
 
 Desktop and mobile use the same project data and actions, but controls may move or collapse to fit the available space. Mobile should never lose essential actions such as templates, undo, redo, preview, crop, and navigation.
+
+### UI decision contract
+
+Every UI change must answer these questions before implementation:
+
+1. **User:** Is this for a normal creator, an admin, or both?
+2. **Task:** Which real workflow becomes faster or clearer?
+3. **Placement:** Is the control beside the object or task it affects?
+4. **State:** What do loading, empty, success, disabled, and failure look like?
+5. **Impact:** Does it add visual noise, layout shift, rendering cost, or saved-project risk?
+6. **Verification:** Can it be tested at 375px, 768px, 1024px, and 1440px with keyboard focus and reduced motion?
+
+Do not add a card, animation, gradient, label, or dependency only because it looks fashionable. Add it when it improves comprehension, feedback, hierarchy, or task speed. Prefer the existing Radix, Tailwind, lucide-react, Zustand, and photobook APIs before introducing another UI system.
+
+### Feature ownership
+
+| Area | Normal creator | Admin |
+| --- | --- | --- |
+| Published template structure | Use and fill photos | Create, edit, replace, reorder, delete |
+| Published frames/background | Protected | Fully editable |
+| User-created pages/layouts | Editable | Editable |
+| Photos, crop, filters, masks | Editable | Editable |
+| Personal assets | Project-only | Project-only plus global publishing |
+| Magic Layout | Hidden | Available |
+| Global assets/categories | Read-only | Manage and publish |
 
 ## 3. Visual Foundation
 
@@ -245,7 +270,9 @@ Background removal is an image action available from the page toolbar or image c
 - Show an inline processing overlay or animation on the image.
 - Prevent repeated submissions for the same object.
 - Do not leave a persistent progress toast after completion.
-- Replace the source only after a successful result.
+- Keep the original photo and apply the AI result as a separate subject mask.
+- Move, crop, zoom, preview, share, and PDF export must transform the mask with the photo.
+- Offer Cancel, timeout, full original-background restore, and Erase/Restore refinement.
 - Restore the original state and show a concise error if processing fails.
 
 ## 7. Templates and Bucket Selection

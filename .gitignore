@@ -22,7 +22,9 @@ software/
 admin-assets.json
 admin-templates.json
 template-likes.json
+shared-previews.json
 public/admin-assets/
+public/shared-preview-assets/
 
 # Wrangler / Cloudflare
 .wrangler/

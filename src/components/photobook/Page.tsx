@@ -101,19 +101,43 @@ const textPathForCurve = (curve: "arcUp" | "arcDown" | "wave", width: number, he
   return `M ${width * 0.06} ${y} C ${width * 0.22} ${height * 0.12} ${width * 0.34} ${height * 0.88} ${width * 0.5} ${y} S ${width * 0.78} ${height * 0.12} ${width * 0.94} ${y}`;
 };
 
-const removeImageBackground = async (src: string, onProgress?: (progress: number) => void) => {
-  const { removeBackground } = await import("@imgly/background-removal");
-  const blob = await removeBackground(src, {
-    model: "isnet_fp16",
-    output: { format: "image/png", quality: 1 },
-    progress: (_key, current, total) => {
-      if (total > 0) onProgress?.(Math.min(1, current / total));
-    },
+type BackgroundRemovalProgress = { progress: number; status: string };
+
+const blobToDataUrl = (blob: Blob) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Could not read the AI mask."));
+    reader.readAsDataURL(blob);
   });
 
-  return new File([blob], `removed-background-${Date.now()}.png`, {
-    type: "image/png",
+const removeImageBackground = async (
+  src: string,
+  onProgress?: (progress: BackgroundRemovalProgress) => void,
+  signal?: AbortSignal,
+) => {
+  const { segmentForeground } = await import("@imgly/background-removal");
+  const blob = await segmentForeground(src, {
+    model: "isnet_fp16",
+    proxyToWorker: true,
+    fetchArgs: signal ? { signal } : undefined,
+    output: { format: "image/png", quality: 1 },
+    progress: (key, current, total) => {
+      const ratio = total > 0 ? Math.min(1, current / total) : 0;
+      if (key.startsWith("fetch:")) {
+        onProgress?.({ progress: ratio * 0.55, status: "Loading the AI model" });
+      } else if (key === "compute:decode") {
+        onProgress?.({ progress: 0.62, status: "Reading your photo" });
+      } else if (key === "compute:inference") {
+        onProgress?.({ progress: 0.72, status: "Finding the main subject" });
+      } else if (key === "compute:mask") {
+        onProgress?.({ progress: 0.88, status: "Refining the edges" });
+      } else if (key === "compute:encode") {
+        onProgress?.({ progress: 0.94 + ratio * 0.04, status: "Finishing the mask" });
+      }
+    },
   });
+  return blobToDataUrl(blob);
 };
 
 const getImageAspectRatio = (src: string) =>
@@ -610,6 +634,9 @@ function ElementRenderer({
   const rotateHandleRef = useRef<HTMLButtonElement>(null);
   const [isRemovingBackground, setIsRemovingBackground] = useState(false);
   const [backgroundRemovalProgress, setBackgroundRemovalProgress] = useState(0);
+  const [backgroundRemovalStatus, setBackgroundRemovalStatus] = useState("Preparing AI tools");
+  const backgroundRemovalAbortRef = useRef<AbortController | null>(null);
+  const backgroundRemovalRunRef = useRef(0);
   const [isCroppingPhoto, setIsCroppingPhoto] = useState(false);
   const addImagesFromFiles = useBookStore.getState().addImagesFromFiles;
   const customStickersList = useBookStore((s) => s.customStickersList ?? []);
@@ -629,19 +656,29 @@ function ElementRenderer({
 
   useEffect(() => {
     const openCropMode = (event: Event) => {
+      if (!interactive) return;
       const detail = (event as CustomEvent<{ elementId?: string; active?: boolean }>).detail;
       setIsCroppingPhoto(detail?.elementId === el.id && detail?.active !== false);
     };
     window.addEventListener("photobook:open-crop-tools", openCropMode);
     return () => window.removeEventListener("photobook:open-crop-tools", openCropMode);
-  }, [el.id]);
+  }, [el.id, interactive]);
 
   useEffect(() => {
     if (!selected || el.type !== "photo") setIsCroppingPhoto(false);
   }, [el.type, selected]);
 
+  useEffect(
+    () => () => {
+      backgroundRemovalRunRef.current += 1;
+      backgroundRemovalAbortRef.current?.abort();
+    },
+    [],
+  );
+
   useEffect(() => {
     const removeSelectedBackground = (event: Event) => {
+      if (!interactive) return;
       const detail = (event as CustomEvent<{ elementId?: string }>).detail;
       if (detail?.elementId === el.id && el.type === "photo") {
         void removePhotoBackground();
@@ -711,28 +748,71 @@ function ElementRenderer({
       return;
     }
     if (isRemovingBackground) return;
+    const runId = backgroundRemovalRunRef.current + 1;
+    backgroundRemovalRunRef.current = runId;
+    const controller = new AbortController();
+    backgroundRemovalAbortRef.current = controller;
     setIsRemovingBackground(true);
     setBackgroundRemovalProgress(0);
+    setBackgroundRemovalStatus("Preparing AI tools");
+    let timeoutId: number | undefined;
     try {
-      const file = await removeImageBackground(img.src, (progress) => {
-        setBackgroundRemovalProgress(progress);
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(
+          () =>
+            reject(
+              new Error(
+                "Background removal took too long. Please retry; the first run downloads the AI model.",
+              ),
+            ),
+          180_000,
+        );
       });
-      const addedIds = await addImagesFromFiles([file]);
-      const addedId = addedIds[0];
-      if (addedId) {
-        onReplaceImage(addedId);
-        toast.success("Background removed", { duration: 2200 });
-      } else {
-        toast.error("Could not save processed image");
-      }
+      const mask = await Promise.race([
+        removeImageBackground(
+          img.src,
+          ({ progress, status }) => {
+            if (backgroundRemovalRunRef.current !== runId) return;
+            setBackgroundRemovalProgress((current) => Math.max(current, Math.min(0.98, progress)));
+            setBackgroundRemovalStatus(status);
+          },
+          controller.signal,
+        ),
+        timeout,
+      ]);
+      if (backgroundRemovalRunRef.current !== runId) return;
+      onChange({ backgroundRemovalMask: mask, eraseMask: undefined });
+      setBackgroundRemovalProgress(1);
+      toast.success("Background removed. Use Restore to refine the result.", { duration: 3200 });
     } catch (error) {
+      if (backgroundRemovalRunRef.current !== runId || controller.signal.aborted) return;
       console.error("Failed to remove background", error);
-      toast.error("Could not remove background from this image.");
+      toast.error(
+        error instanceof Error ? error.message : "Could not remove the background from this image.",
+      );
     } finally {
-      setIsRemovingBackground(false);
-      setBackgroundRemovalProgress(0);
+      if (timeoutId) window.clearTimeout(timeoutId);
+      if (backgroundRemovalRunRef.current === runId) {
+        backgroundRemovalRunRef.current += 1;
+        controller.abort();
+        backgroundRemovalAbortRef.current = null;
+        setIsRemovingBackground(false);
+        setBackgroundRemovalProgress(0);
+        setBackgroundRemovalStatus("Preparing AI tools");
+      }
     }
   }
+
+  const cancelBackgroundRemoval = () => {
+    if (!isRemovingBackground) return;
+    backgroundRemovalRunRef.current += 1;
+    backgroundRemovalAbortRef.current?.abort();
+    backgroundRemovalAbortRef.current = null;
+    setIsRemovingBackground(false);
+    setBackgroundRemovalProgress(0);
+    setBackgroundRemovalStatus("Preparing AI tools");
+    toast.message("Background removal cancelled.");
+  };
 
   const startRotationDrag = (clientX: number, clientY: number, shiftKey: boolean) => {
     if (isElementLocked) return;
@@ -945,8 +1025,10 @@ function ElementRenderer({
       scale={canvasScale}
       size={{ width: el.w, height: el.h }}
       position={{ x: el.x, y: el.y }}
-      onDragStart={isElementLocked ? undefined : onSelect}
-      onDragStop={isElementLocked ? undefined : (_, d) => onChange({ x: d.x, y: d.y })}
+      onDragStart={isElementLocked || isCroppingPhoto ? undefined : onSelect}
+      onDragStop={
+        isElementLocked || isCroppingPhoto ? undefined : (_, d) => onChange({ x: d.x, y: d.y })
+      }
       onResizeStop={
         isElementLocked
           ? undefined
@@ -969,7 +1051,11 @@ function ElementRenderer({
           ? false
           : undefined
       }
-      cancel={el.type === "photo" && isElementLocked ? ".photo-pan-surface" : undefined}
+      cancel={
+        el.type === "photo" && (isCroppingPhoto || isElementLocked || !el.freePhoto)
+          ? ".photo-pan-surface"
+          : undefined
+      }
       className={`group ${selected && !isElementLocked ? "outline outline-2 outline-accent outline-offset-2" : ""}`}
       style={{ zIndex: el.z, overflow: "visible" }}
       onClick={(e: React.MouseEvent) => {
@@ -1046,7 +1132,7 @@ function ElementRenderer({
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-bold leading-tight">Removing background</p>
                       <p className="mt-0.5 text-[10px] leading-tight text-white/70">
-                        AI is separating the subject
+                        {backgroundRemovalStatus}
                       </p>
                     </div>
                   </div>
@@ -1057,6 +1143,18 @@ function ElementRenderer({
                         width: `${Math.max(8, Math.round(backgroundRemovalProgress * 100))}%`,
                       }}
                     />
+                  </div>
+                  <div className="relative mt-2.5 flex items-center justify-between gap-2 text-[10px]">
+                    <span className="tabular-nums text-white/65">
+                      {Math.min(98, Math.round(backgroundRemovalProgress * 100))}%
+                    </span>
+                    <button
+                      type="button"
+                      className="rounded-md border border-white/25 bg-white/10 px-2 py-1 font-semibold text-white transition hover:bg-white/20"
+                      onClick={cancelBackgroundRemoval}
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
               </div>
@@ -1122,6 +1220,11 @@ function ElementRenderer({
               >
                 <Wand2 className="mr-2 h-4 w-4" /> Remove Background
               </ContextMenuItem>
+              {el.backgroundRemovalMask && (
+                <ContextMenuItem onSelect={() => onChange({ backgroundRemovalMask: undefined })}>
+                  <RotateCcw className="mr-2 h-4 w-4" /> Restore Original Background
+                </ContextMenuItem>
+              )}
               <ContextMenuSeparator />
               <ContextMenuItem onSelect={() => fileRef.current?.click()}>
                 <ImageIcon className="mr-2 h-4 w-4" /> Upload new image
@@ -1231,11 +1334,25 @@ function PhotoEraserCanvas({
   frameW,
   frameH,
   existingMask,
+  mode,
+  imageNaturalSize,
+  baseFitScale,
+  imageScale,
+  imageX,
+  imageY,
+  imageRotation,
   onSave,
 }: {
   frameW: number;
   frameH: number;
   existingMask?: string;
+  mode: "erase" | "restore";
+  imageNaturalSize: { width: number; height: number };
+  baseFitScale: number;
+  imageScale: number;
+  imageX: number;
+  imageY: number;
+  imageRotation: number;
   onSave: (mask: string) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1250,9 +1367,17 @@ function PhotoEraserCanvas({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const editSubjectMask =
+      mode === "restore" && imageNaturalSize.width > 0 && imageNaturalSize.height > 0;
     const scaleFactor = 2;
-    canvas.width = Math.max(1, Math.round(frameW * scaleFactor));
-    canvas.height = Math.max(1, Math.round(frameH * scaleFactor));
+    canvas.width = Math.max(
+      1,
+      Math.round(editSubjectMask ? imageNaturalSize.width : frameW * scaleFactor),
+    );
+    canvas.height = Math.max(
+      1,
+      Math.round(editSubjectMask ? imageNaturalSize.height : frameH * scaleFactor),
+    );
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -1264,18 +1389,38 @@ function PhotoEraserCanvas({
       ctx.drawImage(mask, 0, 0, canvas.width, canvas.height);
     };
     mask.src = existingMask;
-  }, [frameW, frameH, existingMask]);
+  }, [existingMask, frameH, frameW, imageNaturalSize.height, imageNaturalSize.width, mode]);
 
   const pointFromPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
+    const displayX = e.clientX - rect.left;
+    const displayY = e.clientY - rect.top;
+    if (mode !== "restore" || imageNaturalSize.width <= 0 || imageNaturalSize.height <= 0) {
+      return {
+        displayX,
+        displayY,
+        x: displayX * (canvas.width / rect.width),
+        y: displayY * (canvas.height / rect.height),
+        scale: canvas.width / rect.width,
+      };
+    }
+
+    const frameX = (displayX / rect.width) * frameW;
+    const frameY = (displayY / rect.height) * frameH;
+    const translatedX = frameX - (frameW / 2 + imageX);
+    const translatedY = frameY - (frameH / 2 + imageY);
+    const radians = (-imageRotation * Math.PI) / 180;
+    const rotatedX = translatedX * Math.cos(radians) - translatedY * Math.sin(radians);
+    const rotatedY = translatedX * Math.sin(radians) + translatedY * Math.cos(radians);
+    const pixelsPerPageUnit = 1 / Math.max(0.0001, baseFitScale * imageScale);
     return {
-      displayX: e.clientX - rect.left,
-      displayY: e.clientY - rect.top,
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-      scale: canvas.width / rect.width,
+      displayX,
+      displayY,
+      x: imageNaturalSize.width / 2 + rotatedX * pixelsPerPageUnit,
+      y: imageNaturalSize.height / 2 + rotatedY * pixelsPerPageUnit,
+      scale: pixelsPerPageUnit,
     };
   };
 
@@ -1288,7 +1433,8 @@ function PhotoEraserCanvas({
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.globalCompositeOperation = "destination-out";
+    ctx.globalCompositeOperation = mode === "restore" ? "source-over" : "destination-out";
+    ctx.strokeStyle = "#ffffff";
     ctx.lineWidth = brushSize * point.scale;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -1354,7 +1500,11 @@ function PhotoEraserCanvas({
       />
       {showCursor && (
         <div
-          className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-sky-500/25 shadow-sm ring-1 ring-sky-600/40"
+          className={`pointer-events-none absolute -translate-x-1/2 -translate-y-1/2 rounded-full border border-white shadow-sm ring-1 ${
+            mode === "restore"
+              ? "bg-emerald-400/25 ring-emerald-600/50"
+              : "bg-sky-500/25 ring-sky-600/40"
+          }`}
           style={{
             left: cursorPos.x,
             top: cursorPos.y,
@@ -1373,12 +1523,14 @@ function useCombinedPhotoMask(
   width: number,
   height: number,
 ) {
-  const [combinedMask, setCombinedMask] = useState<string | undefined>(magicMask || eraseMask);
+  const firstMask = magicMask || eraseMask;
+  const [combinedMask, setCombinedMask] = useState<string | undefined>(firstMask);
 
   useEffect(() => {
     let cancelled = false;
-    if (!magicMask || !eraseMask) {
-      setCombinedMask(magicMask || eraseMask);
+    const masks = [magicMask, eraseMask].filter((mask): mask is string => Boolean(mask));
+    if (masks.length <= 1) {
+      setCombinedMask(masks[0]);
       return;
     }
 
@@ -1392,30 +1544,32 @@ function useCombinedPhotoMask(
 
     void (async () => {
       try {
-        const [magicImg, eraseImg] = await Promise.all([load(magicMask), load(eraseMask)]);
+        const images = await Promise.all(masks.map(load));
         if (cancelled) return;
         const canvas = document.createElement("canvas");
         canvas.width = Math.max(1, Math.round(width * 2));
         canvas.height = Math.max(1, Math.round(height * 2));
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          setCombinedMask(magicMask);
+          setCombinedMask(masks[0]);
           return;
         }
-        ctx.drawImage(magicImg, 0, 0, canvas.width, canvas.height);
-        ctx.globalCompositeOperation = "destination-in";
-        ctx.drawImage(eraseImg, 0, 0, canvas.width, canvas.height);
+        ctx.drawImage(images[0], 0, 0, canvas.width, canvas.height);
+        for (const image of images.slice(1)) {
+          ctx.globalCompositeOperation = "destination-in";
+          ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+        }
         ctx.globalCompositeOperation = "source-over";
         setCombinedMask(canvas.toDataURL("image/png"));
       } catch {
-        if (!cancelled) setCombinedMask(magicMask);
+        if (!cancelled) setCombinedMask(masks[0]);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [magicMask, eraseMask, width, height]);
+  }, [eraseMask, height, magicMask, width]);
 
   return combinedMask;
 }
@@ -1446,9 +1600,10 @@ function PhotoBody({
   const inner = shapeStyle(el.shape, radius);
   const updateElement = useBookStore((s) => s.updateElement);
   const isEraserMode = useBookStore((s) => s.isEraserMode);
+  const imageMaskBrushMode = useBookStore((s) => s.imageMaskBrushMode);
   const isFrameEraserActive = Boolean(interactive && isEraserMode && selected && img);
   const isInteractivePan = Boolean(
-    interactive && (isCropMode || el.locked || el.magicFrame) && img && !isFrameEraserActive,
+    interactive && (isCropMode || !el.freePhoto) && img && !isFrameEraserActive,
   );
   const coordinateScale = Math.max(canvasScale || 1, 0.05);
   const panStartRef = useRef<{
@@ -1524,17 +1679,31 @@ function PhotoBody({
         maskRepeat: "no-repeat",
       }
     : undefined;
+  const subjectMaskStyle: React.CSSProperties | undefined = el.backgroundRemovalMask
+    ? {
+        WebkitMaskImage: `url(${el.backgroundRemovalMask})`,
+        maskImage: `url(${el.backgroundRemovalMask})`,
+        WebkitMaskSize: "100% 100%",
+        maskSize: "100% 100%",
+        WebkitMaskRepeat: "no-repeat",
+        maskRepeat: "no-repeat",
+      }
+    : undefined;
 
-  const frameStyle: React.CSSProperties = {
+  const frameStyle: React.CSSProperties & {
+    "--frame-color"?: string;
+    "--frame-border-color"?: string;
+    "--frame-color-secondary"?: string;
+  } = {
     borderRadius: el.freePhoto ? 0 : el.shape && el.shape !== "none" ? 0 : radius,
     opacity: el.opacity ?? 1,
     overflow: el.freePhoto && !isCropMode ? "visible" : "hidden",
   };
 
   if (el.frameColor) {
-    (frameStyle as any)["--frame-color"] = el.frameColor;
-    (frameStyle as any)["--frame-border-color"] = el.frameColor;
-    (frameStyle as any)["--frame-color-secondary"] = el.frameColor;
+    frameStyle["--frame-color"] = el.frameColor;
+    frameStyle["--frame-border-color"] = el.frameColor;
+    frameStyle["--frame-color-secondary"] = el.frameColor;
   }
 
   if (!img) {
@@ -1615,7 +1784,7 @@ function PhotoBody({
         }}
         style={inner}
         onWheel={(e) => {
-          if (!isCropMode) return;
+          if (!isCropMode && !(selected && !el.freePhoto)) return;
           e.preventDefault();
           e.stopPropagation();
           const nextScale = Math.max(
@@ -1681,6 +1850,7 @@ function PhotoBody({
               transform: `translate3d(${el.imageX ?? 0}px, ${el.imageY ?? 0}px, 0) scale(${scale}) rotate(${el.imageRotation ?? 0}deg)`,
               transformOrigin: "center",
               filter: photoFilterCss(el),
+              ...subjectMaskStyle,
             }}
           />
         </div>
@@ -1688,8 +1858,24 @@ function PhotoBody({
           <PhotoEraserCanvas
             frameW={el.w}
             frameH={el.h}
-            existingMask={el.eraseMask}
-            onSave={(mask) => updateElement(el.id, { eraseMask: mask })}
+            mode={imageMaskBrushMode}
+            existingMask={
+              imageMaskBrushMode === "restore" ? el.backgroundRemovalMask : el.eraseMask
+            }
+            onSave={(mask) =>
+              updateElement(
+                el.id,
+                imageMaskBrushMode === "restore"
+                  ? { backgroundRemovalMask: mask }
+                  : { eraseMask: mask },
+              )
+            }
+            imageNaturalSize={naturalSize}
+            baseFitScale={baseFitScale}
+            imageScale={scale}
+            imageX={el.imageX ?? 0}
+            imageY={el.imageY ?? 0}
+            imageRotation={el.imageRotation ?? 0}
           />
         )}
         {isCropMode && !isFrameEraserActive && (

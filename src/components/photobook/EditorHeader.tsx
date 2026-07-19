@@ -396,22 +396,29 @@ export function EditorHeader() {
   };
 
   const onExport = async () => {
-    toast.message("Preparing PDF…");
+    const toastId = toast.loading("Preparing print-ready PDF...");
+    let timeoutId: number | undefined;
     try {
-      await exportBookPdf(displayTitle);
-      toast.success("PDF downloaded");
+      const timeout = new Promise<never>((_, reject) => {
+        timeoutId = window.setTimeout(
+          () =>
+            reject(new Error("PDF export took too long. Please retry with fewer large images.")),
+          120_000,
+        );
+      });
+      await Promise.race([exportBookPdf(displayTitle), timeout]);
+      toast.success("PDF downloaded", { id: toastId });
     } catch (e) {
       console.error(e);
-      toast.error("Export failed");
+      toast.error(e instanceof Error ? e.message : "PDF export failed", { id: toastId });
+    } finally {
+      if (timeoutId) window.clearTimeout(timeoutId);
     }
   };
 
   const onMagicFill = () => {
     const result = useBookStore.getState().magicFillAllEmptyFrames();
     if (result.framesFilled > 0) {
-      toast.success(
-        `Filled ${result.framesFilled} frame${result.framesFilled === 1 ? "" : "s"} across ${result.pagesTouched} page${result.pagesTouched === 1 ? "" : "s"}${result.framesUnlocked ? ` and unlocked ${result.framesUnlocked}` : ""}.`,
-      );
       return;
     }
     if (result.skippedReason === "no-available-images") {
@@ -516,7 +523,10 @@ export function EditorHeader() {
         />
       </label>
 
-      <div className="editor-toolbar-cluster hidden shrink-0 items-center md:flex" aria-label="History">
+      <div
+        className="editor-toolbar-cluster hidden shrink-0 items-center md:flex"
+        aria-label="History"
+      >
         <Button variant="ghost" size="icon" onClick={() => undo()} title="Undo (Ctrl+Z)">
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -525,7 +535,12 @@ export function EditorHeader() {
         </Button>
       </div>
 
-      <Button variant="ghost" size="sm" asChild className="hidden h-9 shrink-0 gap-1.5 px-2 sm:inline-flex">
+      <Button
+        variant="ghost"
+        size="sm"
+        asChild
+        className="hidden h-9 shrink-0 gap-1.5 px-2 sm:inline-flex"
+      >
         <Link to="/preview">
           <Eye className="h-4 w-4" />
           <span className="hidden lg:inline">Preview</span>
@@ -534,7 +549,8 @@ export function EditorHeader() {
       <Button
         size="sm"
         onClick={onMagicFill}
-        className="hidden h-9 shrink-0 gap-1.5 bg-accent px-2.5 text-accent-foreground shadow-sm hover:bg-accent/90 md:inline-flex"
+        aria-label="Magic Fill empty frames"
+        className="inline-flex h-9 shrink-0 gap-1.5 bg-accent px-2 text-accent-foreground shadow-sm hover:bg-accent/90 sm:px-2.5"
         title={emptyFrameCount ? `${emptyFrameCount} empty frames available` : "Fill empty frames"}
       >
         <Sparkles className="h-4 w-4" />

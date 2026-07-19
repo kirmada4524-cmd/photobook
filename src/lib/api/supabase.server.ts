@@ -9,6 +9,11 @@ export const missingSupabaseStorageError = () =>
     "Missing Supabase credentials. Add SUPABASE_URL and SUPABASE_SECRET_KEY to the Vercel environment variables.",
   );
 
+export const isMissingSupabaseSchemaError = (error: unknown) => {
+  const message = error instanceof Error ? error.message : String(error);
+  return /PGRST20[25]|schema cache|could not find the (table|function)/i.test(message);
+};
+
 type RequestOptions = {
   method?: "GET" | "POST" | "PATCH" | "DELETE";
   query?: string;
