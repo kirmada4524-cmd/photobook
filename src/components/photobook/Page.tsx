@@ -803,7 +803,6 @@ function ElementRenderer({
         canvasScale={canvasScale}
         selected={selected}
         interactive={interactive}
-        canMoveFrame={!isElementLocked}
         isCropMode={isCroppingPhoto}
         onCropDone={() => setIsCroppingPhoto(false)}
         onSelect={interactive ? onSelect : undefined}
@@ -1427,7 +1426,6 @@ function PhotoBody({
   canvasScale,
   selected,
   interactive,
-  canMoveFrame,
   isCropMode,
   onCropDone,
   onSelect,
@@ -1438,7 +1436,6 @@ function PhotoBody({
   canvasScale: number;
   selected: boolean;
   interactive: boolean;
-  canMoveFrame?: boolean;
   isCropMode: boolean;
   onCropDone: () => void;
   onSelect?: () => void;
@@ -1459,20 +1456,13 @@ function PhotoBody({
     y: number;
     imageX: number;
     imageY: number;
-    imageScale: number;
   } | null>(null);
   const naturalSizeRef = useRef({ width: 0, height: 0 });
   const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
   const pointersRef = useRef(new Map<number, { x: number; y: number }>());
   const gestureStartRef = useRef<{
-    centerX: number;
-    centerY: number;
     distance: number;
-    angle: number;
     imageScale: number;
-    imageRotation: number;
-    frameX: number;
-    frameY: number;
   } | null>(null);
 
   const beginPan = (clientX: number, clientY: number) => {
@@ -1482,55 +1472,18 @@ function PhotoBody({
       y: clientY,
       imageX: el.imageX ?? 0,
       imageY: el.imageY ?? 0,
-      imageScale: el.imageScale ?? 1,
     };
   };
 
-  const clampPan = (x: number, y: number, imageScale = el.imageScale ?? 1, expandToFit = false) => {
-    if (el.freePhoto) return { imageX: x, imageY: y };
-    const { width: naturalWidth, height: naturalHeight } = naturalSizeRef.current;
-    if (!naturalWidth || !naturalHeight) return { imageX: x, imageY: y };
-
-    const coverScale = Math.max(el.w / naturalWidth, el.h / naturalHeight);
-    const baseWidth = naturalWidth * coverScale;
-    const baseHeight = naturalHeight * coverScale;
-    const radians = ((el.imageRotation ?? 0) * Math.PI) / 180;
-    const baseRotatedWidth =
-      Math.abs(baseWidth * Math.cos(radians)) + Math.abs(baseHeight * Math.sin(radians));
-    const baseRotatedHeight =
-      Math.abs(baseWidth * Math.sin(radians)) + Math.abs(baseHeight * Math.cos(radians));
-    let fittedScale = Math.max(1, imageScale);
-
-    if (expandToFit) {
-      const scaleForX = (el.w + Math.abs(x) * 2) / Math.max(1, baseRotatedWidth);
-      const scaleForY = (el.h + Math.abs(y) * 2) / Math.max(1, baseRotatedHeight);
-      fittedScale = Math.min(4, Math.max(fittedScale, scaleForX, scaleForY));
-    }
-
-    const rotatedWidth = baseRotatedWidth * fittedScale;
-    const rotatedHeight = baseRotatedHeight * fittedScale;
-    const maxX = Math.max(0, (rotatedWidth - el.w) / 2);
-    const maxY = Math.max(0, (rotatedHeight - el.h) / 2);
-
-    return {
-      imageX: Math.max(-maxX, Math.min(maxX, x)),
-      imageY: Math.max(-maxY, Math.min(maxY, y)),
-      ...(Math.abs(fittedScale - imageScale) > 0.001 ? { imageScale: fittedScale } : {}),
-    };
-  };
+  const clampOffset = (value: number) => Math.max(-400, Math.min(400, value));
 
   const updatePan = (clientX: number, clientY: number) => {
     const start = panStartRef.current;
     if (!start) return;
-    updateElement(
-      el.id,
-      clampPan(
-        start.imageX + (clientX - start.x) / coordinateScale,
-        start.imageY + (clientY - start.y) / coordinateScale,
-        start.imageScale,
-        true,
-      ),
-    );
+    updateElement(el.id, {
+      imageX: clampOffset(start.imageX + (clientX - start.x) / coordinateScale),
+      imageY: clampOffset(start.imageY + (clientY - start.y) / coordinateScale),
+    });
   };
 
   const endPan = () => {
@@ -1541,14 +1494,8 @@ function PhotoBody({
     const [a, b] = [...pointersRef.current.values()];
     if (!a || !b) return;
     gestureStartRef.current = {
-      centerX: (a.x + b.x) / 2,
-      centerY: (a.y + b.y) / 2,
       distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)),
-      angle: Math.atan2(b.y - a.y, b.x - a.x),
       imageScale: el.imageScale ?? 1,
-      imageRotation: el.imageRotation ?? 0,
-      frameX: el.x,
-      frameY: el.y,
     };
     endPan();
   };
@@ -1557,22 +1504,13 @@ function PhotoBody({
     const start = gestureStartRef.current;
     const [a, b] = [...pointersRef.current.values()];
     if (!start || !a || !b) return;
-    const centerX = (a.x + b.x) / 2;
-    const centerY = (a.y + b.y) / 2;
     const distance = Math.max(1, Math.hypot(b.x - a.x, b.y - a.y));
-    const angle = Math.atan2(b.y - a.y, b.x - a.x);
-    const patch: Partial<PhotoElement> = {
+    updateElement(el.id, {
       imageScale: Math.max(
         el.freePhoto ? 0.1 : 1,
         Math.min(4, start.imageScale * (distance / start.distance)),
       ),
-      imageRotation: start.imageRotation + ((angle - start.angle) * 180) / Math.PI,
-    };
-    if (canMoveFrame) {
-      patch.x = start.frameX + (centerX - start.centerX) / coordinateScale;
-      patch.y = start.frameY + (centerY - start.centerY) / coordinateScale;
-    }
-    updateElement(el.id, patch);
+    });
   };
 
   const effectiveMask = useCombinedPhotoMask(el.magicMask, el.eraseMask, el.w, el.h);
@@ -1684,10 +1622,7 @@ function PhotoBody({
             minImageScale,
             Math.min(4, (el.imageScale ?? 1) + (e.deltaY < 0 ? 0.08 : -0.08)),
           );
-          updateElement(el.id, {
-            imageScale: nextScale,
-            ...clampPan(el.imageX ?? 0, el.imageY ?? 0, nextScale),
-          });
+          updateElement(el.id, { imageScale: nextScale });
         }}
         onPointerDown={(e) => {
           const isTouchGesture = e.pointerType === "touch";
