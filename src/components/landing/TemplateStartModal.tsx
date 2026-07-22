@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowRight, Heart, ImagePlus, LayoutGrid, Sparkles, Square } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, Check, Heart, ImagePlus, LayoutGrid, Search, Square } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +38,7 @@ export function TemplateStartModal({
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     if (!open || templates.length > 0) return;
@@ -50,6 +50,7 @@ export function TemplateStartModal({
     if (!open) {
       setSelectedTemplateIds([]);
       setActiveCategory("All");
+      setSearchQuery("");
       return;
     }
     setActiveCategory(initialCategory ? normalizeTemplateCategory(initialCategory) : "All");
@@ -63,12 +64,20 @@ export function TemplateStartModal({
     [templates],
   );
   const filteredTemplates = useMemo(() => {
-    const filtered =
+    const categoryTemplates =
       activeCategory === "All"
         ? templates
         : templates.filter(
             (template) => normalizeTemplateCategory(template.category) === activeCategory,
           );
+    const query = searchQuery.trim().toLowerCase();
+    const filtered = query
+      ? categoryTemplates.filter((template) =>
+          `${template.label} ${normalizeTemplateCategory(template.category)}`
+            .toLowerCase()
+            .includes(query),
+        )
+      : categoryTemplates;
     return filtered
       .slice()
       .sort(
@@ -76,146 +85,215 @@ export function TemplateStartModal({
           (likeCounts[b.id] ?? 0) - (likeCounts[a.id] ?? 0) ||
           (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
       );
-  }, [activeCategory, likeCounts, templates]);
+  }, [activeCategory, likeCounts, searchQuery, templates]);
+
+  const selectedTemplates = useMemo(
+    () =>
+      selectedTemplateIds
+        .map((id) => templates.find((template) => template.id === id))
+        .filter((template): template is SavedPageTemplate => Boolean(template)),
+    [selectedTemplateIds, templates],
+  );
+
+  const templateCountForCategory = (category: string) =>
+    category === "All"
+      ? templates.length
+      : templates.filter((template) => normalizeTemplateCategory(template.category) === category)
+          .length;
+
+  const toggleSelection = (templateId: string) => {
+    setSelectedTemplateIds((current) =>
+      current.includes(templateId)
+        ? current.filter((id) => id !== templateId)
+        : [...current, templateId],
+    );
+  };
 
   const continueWithTemplates = () => {
     if (selectedTemplateIds.length === 0) return;
-    const selectedTemplates = selectedTemplateIds
-      .map((id) => templates.find((template) => template.id === id))
-      .filter((template): template is SavedPageTemplate => Boolean(template));
     onProceed(selectedTemplates);
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[90vh] flex-col sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <LayoutGrid className="h-5 w-5 text-blue-500" />
-            Choose Template Bucket
-          </DialogTitle>
-          <DialogDescription>
-            Pick one or more templates from a category, then add your photos.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="template-picker-dialog h-[min(92dvh,820px)] w-[calc(100vw-16px)] max-w-none gap-0 overflow-hidden border-0 bg-[#0b1120] p-0 text-white shadow-[0_36px_120px_rgba(0,0,0,.72)] sm:max-w-[1120px]">
+        <div className="template-picker-header">
+          <div className="template-picker-title-icon" aria-hidden="true">
+            <LayoutGrid className="h-5 w-5" />
+          </div>
+          <DialogHeader className="min-w-0 space-y-0 text-left">
+            <span className="template-picker-step">Step 1 of 2</span>
+            <DialogTitle className="template-picker-title">Choose pages for your book</DialogTitle>
+            <DialogDescription className="template-picker-description">
+              Select page designs in the order you want them. You will add photos next.
+            </DialogDescription>
+          </DialogHeader>
+        </div>
 
-        <div className="-mx-6 min-h-0 flex-1 overflow-y-auto px-6">
-          {isLoadingTemplates ? (
-            <div className="flex flex-col items-center justify-center py-14 text-center text-slate-500">
-              <div className="mb-4 h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-blue-500" />
-              <p className="font-medium">Loading templates...</p>
-            </div>
-          ) : templates.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-14 text-center text-slate-500">
-              <Sparkles className="mb-4 h-10 w-10 opacity-30" />
-              <p className="font-medium">No templates are available yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-5 pb-4">
-              <div className="flex gap-2 overflow-x-auto pb-1 [scrollbar-width:thin]">
-                {["All", ...categories].map((category) => (
+        <div className="template-picker-workspace">
+          <aside className="template-picker-sidebar" aria-label="Template filters">
+            <label className="template-picker-search">
+              <span className="sr-only">Search templates</span>
+              <Search className="h-4 w-4" />
+              <input
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder="Search designs"
+              />
+            </label>
+
+            <div className="template-picker-category-label">Collections</div>
+            <div className="template-picker-categories" role="tablist" aria-label="Collections">
+              {["All", ...categories].map((category) => {
+                const isActive = activeCategory === category;
+                return (
                   <button
                     key={category}
                     type="button"
+                    role="tab"
+                    aria-selected={isActive}
                     onClick={() => setActiveCategory(category)}
-                    className="rounded-full border px-3 py-1.5 text-xs font-semibold transition"
-                    style={{
-                      borderColor:
-                        activeCategory === category ? "rgb(59 130 246)" : "rgb(226 232 240)",
-                      background: activeCategory === category ? "rgb(59 130 246)" : "white",
-                      color: activeCategory === category ? "white" : "rgb(51 65 85)",
-                    }}
+                    className={isActive ? "is-active" : ""}
                   >
-                    {category}
+                    <span>{category}</span>
+                    <span>{templateCountForCategory(category)}</span>
                   </button>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {filteredTemplates.map((template) => {
-                  const selectedIndex = selectedTemplateIds.indexOf(template.id);
-                  const isSelected = selectedIndex >= 0;
-                  const liked = likedTemplateIds.includes(template.id);
-                  const likeCount = likeCounts[template.id] ?? 0;
-                  return (
-                    <div
-                      key={template.id}
-                      className={`group relative aspect-square overflow-hidden border-2 bg-slate-100 transition duration-300 hover:z-10 hover:-translate-y-1 hover:scale-[1.03] ${
-                        isSelected
-                          ? "border-emerald-500 shadow-[0_16px_34px_-20px_rgba(5,150,105,.85)]"
-                          : "border-transparent shadow-sm hover:border-slate-300 hover:shadow-xl"
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedTemplateIds((current) =>
-                            current.includes(template.id)
-                              ? current.filter((id) => id !== template.id)
-                              : [...current, template.id],
-                          );
-                        }}
-                        className="absolute inset-0 h-full w-full"
-                        aria-label={`${isSelected ? "Remove" : "Add"} ${template.label}`}
-                      >
-                        <TemplatePreview
-                          template={template}
-                          showSamplePhotos
-                          className="transition duration-500 group-hover:scale-[1.04]"
-                        />
-                        <span className="absolute left-2 top-2 grid h-7 min-w-7 place-items-center rounded-full border border-white/70 bg-black/45 px-1 text-white shadow backdrop-blur-sm">
-                          {isSelected ? (
-                            <span className="text-xs font-bold">{selectedIndex + 1}</span>
-                          ) : (
-                            <Square className="h-3.5 w-3.5" />
-                          )}
-                        </span>
-                      </button>
-                      <button
-                        type="button"
-                        title={liked ? "Unlike template" : "Like template"}
-                        aria-pressed={liked}
-                        aria-label={`${liked ? "Unlike" : "Like"} ${template.label || "template"}; ${likeCount} likes`}
-                        onClick={() => onToggleLike?.(template.id)}
-                        className={`absolute bottom-2 right-2 z-10 inline-flex h-8 items-center gap-1 rounded-full border px-2 text-[10px] font-bold shadow-lg backdrop-blur-md transition hover:scale-105 ${
-                          liked
-                            ? "border-rose-300 bg-rose-500 text-white"
-                            : "border-white/70 bg-white/90 text-slate-700"
-                        }`}
-                      >
-                        <Heart className={`h-3.5 w-3.5 ${liked ? "fill-current" : ""}`} />
-                        {likeCount}
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
+                );
+              })}
             </div>
-          )}
+
+            <div className="template-picker-help">
+              <Check className="h-4 w-4" />
+              <p>Selection numbers become the page order in your new book.</p>
+            </div>
+          </aside>
+
+          <section className="template-picker-content" aria-label="Available page designs">
+            <div className="template-picker-toolbar">
+              <div>
+                <h3>{activeCategory === "All" ? "All page designs" : activeCategory}</h3>
+                <p>
+                  {filteredTemplates.length} design{filteredTemplates.length === 1 ? "" : "s"}
+                  {searchQuery.trim() ? " found" : " available"}
+                </p>
+              </div>
+              {selectedTemplateIds.length > 0 && (
+                <button type="button" onClick={() => setSelectedTemplateIds([])}>
+                  Clear selection
+                </button>
+              )}
+            </div>
+
+            <div className="template-picker-scroll">
+              {isLoadingTemplates ? (
+                <div className="template-picker-empty">
+                  <div className="template-picker-spinner" />
+                  <p>Loading templates...</p>
+                </div>
+              ) : templates.length === 0 ? (
+                <div className="template-picker-empty">
+                  <LayoutGrid className="h-9 w-9" />
+                  <h3>No page designs yet</h3>
+                  <p>Published admin templates will appear here.</p>
+                </div>
+              ) : filteredTemplates.length === 0 ? (
+                <div className="template-picker-empty">
+                  <Search className="h-9 w-9" />
+                  <h3>No matching designs</h3>
+                  <p>Try another search or choose a different collection.</p>
+                </div>
+              ) : (
+                <div className="template-picker-grid">
+                  {filteredTemplates.map((template) => {
+                    const selectedIndex = selectedTemplateIds.indexOf(template.id);
+                    const isSelected = selectedIndex >= 0;
+                    const liked = likedTemplateIds.includes(template.id);
+                    const likeCount = likeCounts[template.id] ?? 0;
+                    return (
+                      <div
+                        key={template.id}
+                        className={`template-picker-card group ${isSelected ? "is-selected" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => toggleSelection(template.id)}
+                          className="template-picker-card-select"
+                          aria-pressed={isSelected}
+                          aria-label={`${isSelected ? "Remove" : "Add"} ${template.label}`}
+                        >
+                          <TemplatePreview
+                            template={template}
+                            showSamplePhotos
+                            className="template-picker-preview"
+                          />
+                          <span className="template-picker-order" aria-hidden="true">
+                            {isSelected ? (
+                              <span>{selectedIndex + 1}</span>
+                            ) : (
+                              <Square className="h-3.5 w-3.5" />
+                            )}
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          title={liked ? "Unlike template" : "Like template"}
+                          aria-pressed={liked}
+                          aria-label={`${liked ? "Unlike" : "Like"} ${template.label || "template"}; ${likeCount} likes`}
+                          onClick={() => onToggleLike?.(template.id)}
+                          className={`template-picker-like ${liked ? "is-liked" : ""}`}
+                        >
+                          <Heart className={`h-3.5 w-3.5 ${liked ? "fill-current" : ""}`} />
+                          {likeCount}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t pt-4">
-          <p className="min-w-0 truncate text-sm text-slate-500">
-            {selectedTemplateIds.length === 0
-              ? "Select one or more templates"
-              : `${selectedTemplateIds.length} template${selectedTemplateIds.length === 1 ? "" : "s"} selected in order`}
-          </p>
-          <div className="flex shrink-0 gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
+        <footer className="template-picker-footer">
+          <div className="template-picker-selection">
+            <div className="template-picker-thumbnails" aria-hidden="true">
+              {selectedTemplates.slice(0, 5).map((template, index) => (
+                <div key={template.id}>
+                  <TemplatePreview template={template} showSamplePhotos />
+                  <span>{index + 1}</span>
+                </div>
+              ))}
+            </div>
+            <div className="template-picker-selection-copy">
+              <strong>
+                {selectedTemplateIds.length === 0
+                  ? "No pages selected"
+                  : `${selectedTemplateIds.length} page${selectedTemplateIds.length === 1 ? "" : "s"} selected`}
+              </strong>
+              <span>
+                {selectedTemplateIds.length === 0
+                  ? "Choose at least one design to continue"
+                  : "Your selection order is saved"}
+              </span>
+            </div>
+          </div>
+          <div className="template-picker-actions">
+            <button type="button" onClick={() => onOpenChange(false)} className="secondary">
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
+              type="button"
               onClick={continueWithTemplates}
               disabled={selectedTemplateIds.length === 0}
-              className="gap-2"
+              className="primary"
             >
               <ImagePlus className="h-4 w-4" />
               Add photos
               <ArrowRight className="h-4 w-4" />
-            </Button>
+            </button>
           </div>
-        </div>
+        </footer>
       </DialogContent>
     </Dialog>
   );

@@ -43,9 +43,9 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-xl">
             <BookOpen className="h-5 w-5 text-amber-600" />
-            Create New Project
+            Start a blank photobook
           </DialogTitle>
-          <DialogDescription>Give your project a name to get started.</DialogDescription>
+          <DialogDescription>Name your book, then build each page in the editor.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5 pt-1">
@@ -66,11 +66,8 @@ export function NewProjectModal({ open, onOpenChange }: NewProjectModalProps) {
             <Button variant="outline" className="flex-1" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button
-              className="flex-1 gap-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 border-0"
-              onClick={handleCreate}
-            >
-              Create Project
+            <Button className="flex-1 gap-2" onClick={handleCreate}>
+              Open blank book
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>

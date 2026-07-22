@@ -41,6 +41,17 @@ import {
 import { LoginModal } from "../landing/LoginModal";
 import { LogOut, LogIn } from "lucide-react";
 
+type DesktopFileResult = { success: boolean; content?: string; error?: string };
+type ElectronProjectApi = {
+  isElectron?: boolean;
+  selectOpenPath: () => Promise<string | null>;
+  selectSavePath: (defaultName: string) => Promise<string | null>;
+  readFile: (path: string) => Promise<DesktopFileResult>;
+  writeFile: (path: string, content: string) => Promise<DesktopFileResult>;
+};
+
+const getElectronApi = () => (window as Window & { electronAPI?: ElectronProjectApi }).electronAPI;
+
 export function EditorHeader() {
   const title = useBookStore((s) => s.book.title);
   const setTitle = useBookStore((s) => s.setTitle);
@@ -197,9 +208,9 @@ export function EditorHeader() {
       projectData.book = {
         ...projectData.book,
         pageSizeId: FIXED_PAGE_SIZE_ID,
-        pages: projectData.book.pages.map((p: any) => ({
+        pages: projectData.book.pages.map((p: Record<string, unknown>) => ({
           ...p,
-          elements: p.elements || [],
+          elements: Array.isArray(p.elements) ? p.elements : [],
         })),
       };
     }
@@ -274,7 +285,7 @@ export function EditorHeader() {
   };
 
   const handleOpenProjectClick = async () => {
-    const electronAPI = (window as any).electronAPI;
+    const electronAPI = getElectronApi();
     if (electronAPI?.isElectron) {
       try {
         const filePath = await electronAPI.selectOpenPath();
@@ -283,7 +294,7 @@ export function EditorHeader() {
         toast.promise(
           async () => {
             const result = await electronAPI.readFile(filePath);
-            if (!result.success) {
+            if (!result.success || typeof result.content !== "string") {
               throw new Error(result.error);
             }
             await loadProjectFromJson(result.content);
@@ -326,7 +337,7 @@ export function EditorHeader() {
   };
 
   const handleSaveAsProject = async () => {
-    const electronAPI = (window as any).electronAPI;
+    const electronAPI = getElectronApi();
     if (electronAPI?.isElectron) {
       try {
         const defaultName = `${safeProjectName}.wanderbook`;
@@ -366,7 +377,7 @@ export function EditorHeader() {
   };
 
   const handleSaveProject = async () => {
-    const electronAPI = (window as any).electronAPI;
+    const electronAPI = getElectronApi();
     if (electronAPI?.isElectron) {
       if (projectFilePath) {
         toast.promise(
@@ -467,7 +478,7 @@ export function EditorHeader() {
             variant="ghost"
             size="sm"
             aria-label="Project menu"
-            className="editor-header-project-menu h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold"
+            className="editor-header-project-menu hidden h-9 shrink-0 gap-1.5 px-2 text-xs font-semibold sm:inline-flex"
           >
             <FolderOpen className="h-4 w-4" />
             <span className="hidden xl:inline">Project</span>
@@ -480,7 +491,7 @@ export function EditorHeader() {
           <DropdownMenuItem onClick={handleSaveProject} className="gap-2">
             <Save className="h-4 w-4 text-muted-foreground" /> Save Project
           </DropdownMenuItem>
-          {typeof window !== "undefined" && (window as any).electronAPI?.isElectron && (
+          {typeof window !== "undefined" && getElectronApi()?.isElectron && (
             <DropdownMenuItem onClick={handleSaveAsProject} className="gap-2">
               <Save className="h-4 w-4 text-muted-foreground" /> Save Project As...
             </DropdownMenuItem>
@@ -523,10 +534,7 @@ export function EditorHeader() {
         />
       </label>
 
-      <div
-        className="editor-toolbar-cluster hidden shrink-0 items-center md:flex"
-        aria-label="History"
-      >
+      <div className="editor-toolbar-cluster flex shrink-0 items-center" aria-label="History">
         <Button variant="ghost" size="icon" onClick={() => undo()} title="Undo (Ctrl+Z)">
           <Undo2 className="h-4 w-4" />
         </Button>
@@ -550,7 +558,7 @@ export function EditorHeader() {
         size="sm"
         onClick={onMagicFill}
         aria-label="Magic Fill empty frames"
-        className="inline-flex h-9 shrink-0 gap-1.5 bg-accent px-2 text-accent-foreground shadow-sm hover:bg-accent/90 sm:px-2.5"
+        className="hidden h-9 shrink-0 gap-1.5 bg-accent px-2 text-accent-foreground shadow-sm hover:bg-accent/90 sm:inline-flex sm:px-2.5"
         title={emptyFrameCount ? `${emptyFrameCount} empty frames available` : "Fill empty frames"}
       >
         <Sparkles className="h-4 w-4" />
@@ -575,11 +583,13 @@ export function EditorHeader() {
           <Button
             size="sm"
             onClick={onExport}
+            aria-label="Export print-ready PDF"
+            title="Export print-ready PDF"
             className="h-9 gap-1.5 bg-primary px-2.5 text-primary-foreground shadow-sm hover:bg-primary/90"
           >
             <Download className="h-4 w-4" />
             <span className="hidden xl:inline">Export PDF</span>
-            <span className="sm:hidden">PDF</span>
+            <span className="xl:hidden">PDF</span>
           </Button>
         </div>
       ) : (

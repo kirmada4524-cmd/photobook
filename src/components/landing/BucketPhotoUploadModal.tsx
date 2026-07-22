@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "@tanstack/react-router";
-import {
-  ArrowRight,
-  Check,
-  ImagePlus,
-  LoaderCircle,
-  Sparkles,
-  Trash2,
-  UploadCloud,
-  X,
-} from "lucide-react";
+import { ArrowRight, ImagePlus, LoaderCircle, Trash2, UploadCloud, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -20,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { useBookStore } from "@/lib/photobook/store";
 import type { SavedPageTemplate } from "@/lib/photobook/types";
+import { BookWorkflowStepper } from "@/components/photobook/BookWorkflowStepper";
 
 type BuildPhase = "idle" | "resetting" | "uploading" | "building" | "filling";
 
@@ -135,34 +127,17 @@ export function BucketPhotoUploadModal({
     resetting: "Preparing project",
     uploading: "Adding photos",
     building: "Building pages",
-    filling: "Magic filling book",
+    filling: "Creating first draft",
   };
   const isBuilding = phase !== "idle";
 
   return (
     <Dialog open={open} onOpenChange={(next) => !isBuilding && onOpenChange(next)}>
-      <DialogContent className="max-h-[92dvh] overflow-hidden p-0 sm:max-w-4xl">
+      <DialogContent className="grid max-h-[92dvh] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden p-0 sm:max-w-4xl">
         <div className="border-b bg-white py-4 pl-4 pr-12 sm:px-6">
           <DialogHeader>
             <div className="mb-3 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-500">
-              <span className="inline-flex items-center gap-1.5 text-emerald-700">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-emerald-100">
-                  <Check className="h-3 w-3" />
-                </span>
-                Templates
-              </span>
-              <span className="h-px w-8 bg-slate-200" />
-              <span className="inline-flex items-center gap-1.5 text-slate-900">
-                <span className="grid h-5 w-5 place-items-center rounded-full bg-slate-900 text-white">
-                  2
-                </span>
-                Photos
-              </span>
-              <span className="h-px w-8 bg-slate-200" />
-              <span className="inline-flex items-center gap-1.5">
-                <Sparkles className="h-4 w-4" />
-                <span className="hidden sm:inline">Editor</span>
-              </span>
+              <BookWorkflowStepper current="photos" compact className="w-full" />
             </div>
             <DialogTitle className="text-xl sm:text-2xl">Add photos to your book</DialogTitle>
             <DialogDescription>
@@ -172,7 +147,7 @@ export function BucketPhotoUploadModal({
           </DialogHeader>
         </div>
 
-        <div className="min-h-0 overflow-y-auto bg-slate-50/80 px-4 py-4 sm:px-6 sm:py-5">
+        <div className="min-h-0 overflow-y-auto overscroll-contain bg-slate-50/80 px-4 py-4 sm:px-6 sm:py-5">
           <input
             ref={inputRef}
             type="file"
@@ -275,7 +250,7 @@ export function BucketPhotoUploadModal({
           )}
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t bg-white px-4 py-3 sm:px-6">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t bg-white px-4 py-3 sm:px-6">
           <button
             type="button"
             disabled={isBuilding}
@@ -296,7 +271,7 @@ export function BucketPhotoUploadModal({
               </>
             ) : (
               <>
-                Create & Fill Book <ArrowRight className="h-4 w-4" />
+                Create my first draft <ArrowRight className="h-4 w-4" />
               </>
             )}
           </button>

@@ -8,6 +8,7 @@ import { EditorToolRail } from "@/components/photobook/EditorToolRail";
 import { Toaster } from "@/components/ui/sonner";
 import { useBookStore } from "@/lib/photobook/store";
 import { Button } from "@/components/ui/button";
+import { BookWorkflowStepper } from "@/components/photobook/BookWorkflowStepper";
 
 export const Route = createFileRoute("/editor")({
   head: () => ({
@@ -132,6 +133,11 @@ function EditorPage() {
   return (
     <div className="editor-shell flex h-[100dvh] w-full flex-col overflow-hidden bg-background">
       <EditorHeader />
+      <BookWorkflowStepper
+        current="edit"
+        compact
+        className="editor-workflow-bar hidden shrink-0 lg:block"
+      />
 
       <div className="editor-body flex min-h-0 flex-1 overflow-hidden flex-col md:flex-row">
         <EditorToolRail />

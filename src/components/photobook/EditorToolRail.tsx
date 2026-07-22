@@ -10,19 +10,16 @@ import {
   LayoutGrid,
   LayoutTemplate,
   Layers3,
-  MoreHorizontal,
   Palette,
-  Redo2,
   ShieldCheck,
   Sparkles,
   Square,
   Sticker,
   Type,
-  Undo2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuthStore } from "@/lib/auth";
-import { redo, undo, useBookStore } from "@/lib/photobook/store";
+import { useBookStore } from "@/lib/photobook/store";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -135,6 +132,8 @@ export function EditorToolRail() {
               className={`editor-rail-button ${isActive(id) ? "is-active" : ""}`}
               onClick={() => openTool(id)}
               title={label}
+              aria-label={label}
+              aria-pressed={isActive(id)}
             >
               <Icon className="h-[18px] w-[18px]" />
               <span>{label}</span>
@@ -156,25 +155,13 @@ export function EditorToolRail() {
       </aside>
 
       <nav className="editor-mobile-rail md:hidden" aria-label="Editor tools">
-        <Link to="/preview" className="editor-mobile-tool">
-          <Eye className="h-[18px] w-[18px]" />
-          <span>Preview</span>
-        </Link>
-        <button type="button" className="editor-mobile-tool" onClick={() => undo()}>
-          <Undo2 className="h-[18px] w-[18px]" />
-          <span>Undo</span>
-        </button>
-        <button type="button" className="editor-mobile-tool" onClick={() => redo()}>
-          <Redo2 className="h-[18px] w-[18px]" />
-          <span>Redo</span>
-        </button>
         <button
           type="button"
-          className={`editor-mobile-tool ${isActive("layouts") ? "is-active" : ""}`}
-          onClick={() => openTool("layouts")}
+          className={`editor-mobile-tool ${isActive("pages") ? "is-active" : ""}`}
+          onClick={() => openTool("pages")}
         >
-          <LayoutTemplate className="h-[18px] w-[18px]" />
-          <span>Templates</span>
+          <Images className="h-[18px] w-[18px]" />
+          <span>Pages</span>
         </button>
         <button
           type="button"
@@ -203,13 +190,17 @@ export function EditorToolRail() {
                   ? "is-active"
                   : ""
               }`}
-              aria-label="More editor tools"
+              aria-label="Open style and design tools"
             >
-              <MoreHorizontal className="h-[18px] w-[18px]" />
-              <span>More</span>
+              <Palette className="h-[18px] w-[18px]" />
+              <span>Style</span>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="end" className="w-52">
+          <DropdownMenuContent side="top" align="center" className="w-56">
+            <DropdownMenuItem onSelect={() => openTool("layouts")}>
+              <LayoutTemplate className="h-4 w-4" />
+              Templates
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={() => openTool("frames")}>
               <Frame className="h-4 w-4" />
               Frames and crop
@@ -275,6 +266,10 @@ export function EditorToolRail() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <Link to="/preview" className="editor-mobile-tool">
+          <Eye className="h-[18px] w-[18px]" />
+          <span>Preview</span>
+        </Link>
       </nav>
     </>
   );
